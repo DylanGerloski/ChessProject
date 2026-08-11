@@ -1,0 +1,18 @@
+{
+  "name": "lichess-stats-poc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-only proof-of-concept: fetch a Lichess player's rating history and recent games, aggregate them, and render a simple stats page. Built to validate Orchestra's engineering pipeline end-to-end (fetch -> process -> render), independent of any final product decision.",
+  "type": "commonjs",
+  "main": "src/build.js",
+  "scripts": {
+    "build": "node src/build.js",
+    "build:static": "node src/buildStatic.js",
+    "serve": "node src/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED"
+}

@@ -1,0 +1,12 @@
+{
+  "white": 28000,
+  "draws": 8000,
+  "black": 19000,
+  "moves": [
+    { "uci": "c7c5", "san": "c5", "averageRating": 1690, "white": 12000, "draws": 3500, "black": 8500 },
+    { "uci": "e7e5", "san": "e5", "averageRating": 1710, "white": 10000, "draws": 3000, "black": 7000 }
+  ],
+  "opening": { "eco": "B00", "name": "King's Pawn Game" },
+  "topGames": [],
+  "recentGames": []
+}

@@ -1,0 +1,12 @@
+{
+  "white": 15000,
+  "draws": 5000,
+  "black": 10500,
+  "moves": [
+    { "uci": "d7d5", "san": "d5", "averageRating": 1702, "white": 9000, "draws": 3200, "black": 6300 },
+    { "uci": "g8f6", "san": "Nf6", "averageRating": 1699, "white": 5500, "draws": 1600, "black": 3900 }
+  ],
+  "opening": { "eco": "A40", "name": "Queen's Pawn Game" },
+  "topGames": [],
+  "recentGames": []
+}

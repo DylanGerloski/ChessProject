@@ -1,0 +1,13 @@
+{
+  "white": 50000,
+  "draws": 15000,
+  "black": 35000,
+  "moves": [
+    { "uci": "e2e4", "san": "e4", "averageRating": 1700, "white": 28000, "draws": 8000, "black": 19000 },
+    { "uci": "d2d4", "san": "d4", "averageRating": 1705, "white": 15000, "draws": 5000, "black": 10500 },
+    { "uci": "g1f3", "san": "Nf3", "averageRating": 1698, "white": 7000, "draws": 2000, "black": 5500 }
+  ],
+  "opening": null,
+  "topGames": [],
+  "recentGames": []
+}

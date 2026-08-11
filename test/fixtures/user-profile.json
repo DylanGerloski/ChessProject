@@ -1,0 +1,11 @@
+{
+  "id": "testuser",
+  "username": "TestUser",
+  "perfs": {
+    "blitz": { "games": 120, "rating": 1650, "rd": 45, "prog": 12 },
+    "bullet": { "games": 340, "rating": 1580, "rd": 38, "prog": -5 }
+  },
+  "createdAt": 1420070400000,
+  "seenAt": 1717200000000,
+  "playTime": { "total": 500000, "tv": 0 }
+}

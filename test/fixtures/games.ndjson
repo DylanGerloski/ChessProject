@@ -1,0 +1,3 @@
+{"id":"game1","rated":true,"variant":"standard","speed":"blitz","createdAt":1717000000000,"winner":"white","players":{"white":{"user":{"name":"TestUser","id":"testuser"},"rating":1640},"black":{"user":{"name":"OpponentA","id":"opponenta"},"rating":1600}}}
+{"id":"game2","rated":true,"variant":"standard","speed":"blitz","createdAt":1717100000000,"winner":"black","players":{"white":{"user":{"name":"OpponentB","id":"opponentb"},"rating":1700},"black":{"user":{"name":"TestUser","id":"testuser"},"rating":1650}}}
+{"id":"game3","rated":true,"variant":"standard","speed":"bullet","createdAt":1717200000000,"players":{"white":{"user":{"name":"TestUser","id":"testuser"},"rating":1580},"black":{"user":{"name":"OpponentC","id":"opponentc"},"rating":1590}}}
