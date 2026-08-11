@@ -37,7 +37,7 @@ const fs = require('fs');
 const path = require('path');
 const { buildRepertoireTree } = require('./buildRepertoire');
 const { RATING_BANDS } = require('./processRepertoire');
-const { renderRepertoirePage, escapeHtml } = require('./render');
+const { renderRepertoirePage, escapeHtml, renderDocumentHead, renderHeader, renderFooter } = require('./render');
 const { getApiToken } = require('./fetchOpeningExplorer');
 
 // Pre-rendering all 8 band/color combinations issues many sequential
@@ -66,6 +66,11 @@ async function politeFetch(url, options) {
 
 const OUT_DIR = path.join(__dirname, '..', 'dist');
 const COLORS = ['white', 'black'];
+
+// Nav link targets for the static build -- flat filenames, no server routes.
+// Shared with renderRepertoirePage() (see repertoire page rendering below)
+// so every static page's header links are identical.
+const STATIC_NAV = { player: 'player.html', repertoire: 'index.html' };
 
 const BROWSER_BUNDLE_SOURCES = [
   path.join(__dirname, 'fetchLichess.js'),
@@ -120,32 +125,25 @@ function indexPage(repertoireLinks) {
 
   return `<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Lichess stats POC (static build)</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 700px; margin: 2rem auto; padding: 0 1rem; color: #222; }
-    li { margin: 0.3rem 0; }
-    footer { color: #999; font-size: 0.8rem; margin-top: 3rem; }
-  </style>
-</head>
+${renderDocumentHead('Lichess stats (static build)')}
 <body>
-  <h1>Lichess stats proof of concept (static build)</h1>
-  <p>This is a fully static version of the app: every page here is a plain file, no
-     server required. It's the version intended for eventual GitHub Pages hosting
-     (publishing itself is a separate, not-yet-taken step).</p>
+  ${renderHeader(STATIC_NAV, 'repertoire')}
+  <main>
+    <h1 class="page-title">Lichess stats</h1>
+    <p class="subtitle">This is a fully static version of the app: every page here is a plain file, no
+       server required.</p>
 
-  <h2>Player lookup</h2>
-  <p><a href="player.html">Look up any Lichess username &rarr;</a> (fetches live data
-     directly in your browser when you open this page; nothing is pre-baked).</p>
+    <h2>Player lookup</h2>
+    <p><a href="player.html">Look up any Lichess username &rarr;</a> (fetches live data
+       directly in your browser when you open this page; nothing is pre-baked).</p>
 
-  <h2>Rating-band opening-repertoire explorer</h2>
-  <p>Pre-rendered at build time for these 8 rating-band / color combinations:</p>
-  <ul>
+    <h2>Rating-band opening-repertoire explorer</h2>
+    <p class="repertoire-intro">Pre-rendered at build time for these 8 rating-band / color combinations:</p>
+    <ul>
         ${items}
-  </ul>
-
-  <footer>Data source: <a href="https://lichess.org/api">lichess.org/api</a>. Generated locally; not deployed or published. See TESTING.md.</footer>
+    </ul>
+  </main>
+  ${renderFooter('Data source: <a href="https://lichess.org/api">lichess.org/api</a>. See TESTING.md in the project source for how this site is built.')}
 </body>
 </html>
 `;
@@ -154,35 +152,21 @@ function indexPage(repertoireLinks) {
 function playerLookupPage() {
   return `<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Player lookup - Lichess stats POC (static build)</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; color: #222; }
-    nav { margin-bottom: 1.5rem; }
-    nav a { margin-right: 1rem; }
-    table { border-collapse: collapse; width: 100%; margin: 1rem 0 2rem; }
-    th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #ddd; }
-    th { background: #f5f5f5; }
-    tr.result-win { background: #eafaf0; }
-    tr.result-loss { background: #fdecec; }
-    tr.result-draw { background: #fafafa; }
-    .error { color: #a33; }
-    footer { color: #999; font-size: 0.8rem; margin-top: 3rem; }
-  </style>
-</head>
+${renderDocumentHead('Player lookup - Lichess stats')}
 <body>
-  <nav><a href="index.html">Home</a></nav>
-  <h1>Player lookup</h1>
-  <p>Enter a Lichess username to view rating history and recent games. This runs
-     entirely in your browser, calling Lichess's public API directly -- no token
-     needed and none is used.</p>
-  <form id="lookup-form">
-    <input id="username" name="username" placeholder="e.g. DrNykterstein" required>
-    <button type="submit">View</button>
-  </form>
-  <div id="result"></div>
-  <footer>Data source: <a href="https://lichess.org/api">lichess.org/api</a>, called directly from this page. Generated locally; not deployed or published.</footer>
+  ${renderHeader(STATIC_NAV, 'player')}
+  <main>
+    <h1 class="page-title">Player lookup</h1>
+    <p class="subtitle">Enter a Lichess username to view rating history and recent games. This runs
+       entirely in your browser, calling Lichess's public API directly -- no token
+       needed and none is used.</p>
+    <form id="lookup-form" class="lookup-form">
+      <input id="username" name="username" placeholder="e.g. DrNykterstein" required>
+      <button type="submit">View</button>
+    </form>
+    <div id="result"></div>
+  </main>
+  ${renderFooter('Data source: <a href="https://lichess.org/api">lichess.org/api</a>, called directly from this page in your browser.')}
   <script src="player-lookup.js"></script>
 </body>
 </html>
@@ -196,7 +180,7 @@ async function buildRepertoirePages({ fetchImpl = politeFetch } = {}) {
       const data = await buildRepertoireTree({ ratingBand: band, color, fetchImpl });
       const html = renderRepertoirePage({
         ...data,
-        nav: { player: 'player.html', repertoire: 'index.html' },
+        nav: STATIC_NAV,
       });
       const file = repertoireFileName(band, color);
       fs.writeFileSync(path.join(OUT_DIR, file), html, 'utf8');

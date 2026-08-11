@@ -1,12 +1,13 @@
 # Testing this app yourself
 
-This is a local-only proof of concept — nothing here is deployed or public. Everything
-runs on your own machine and only your own machine can see it.
+Everything here runs from your own machine's copy of the code. The **static build**
+(Section 6) is also the version that gets published to GitHub Pages — that publishing step
+itself is separate and human-approved, not something any of these commands do on their own.
 
 There are now two ways to try it: the original dev server (Sections 1-5 below), and a
-**static build** — plain files with no server running at all, which is the version meant
-for eventual GitHub Pages hosting (publishing itself is a separate, not-yet-taken step; see
-Section 6).
+**static build** — plain files with no server running at all, which is the version used for
+GitHub Pages hosting (see Section 6). See Section 7 for what to specifically check after the
+August 2026 UI/UX redesign pass.
 
 ## 1. One-time setup (you've already done this)
 
@@ -157,3 +158,84 @@ you're done — same as Section 5.
 | A repertoire page looks empty / "No repertoire data found" | That combination genuinely has little data at that rating band, or the build partially failed — re-run `npm run build:static` and check its console output for errors. |
 | Player lookup shows "Could not reach the Lichess API from this page" | Check your internet connection; if it persists, your browser or network may be blocking the request. |
 | The repertoire pages' "Player lookup" / "Repertoire explorer" links go to a 404 in your browser | Make sure you're opening `dist\index.html`, not the project root's old single-page `dist\index.html` from Option A in the README — re-run `npm run build:static` to regenerate the whole `dist` folder fresh. |
+
+## 7. Preview the redesigned UI (design QA)
+
+This section is specifically for checking the August 2026 visual/UX redesign pass — every
+page now shares one design system (colors, fonts, spacing) instead of each page having its
+own slightly-different inline styling. You do not need to be a programmer for this section.
+
+### 7a. Fastest path: the dev server
+
+```
+cd C:\Users\dylan\Dev\lichess-stats-poc
+npm run serve
+```
+
+Then open `http://localhost:8787` in a browser and click around:
+
+- **Home page** (`/`): you should see a small green circular "brand" mark and "Lichess
+  Stats" text top-left, with "Player lookup" / "Repertoire explorer" links top-right in a
+  bordered header bar — not a plain black `<h1>` with no styling around it.
+- **Player lookup** (search a username, e.g. `DrNykterstein`, or go straight to
+  `/player/DrNykterstein`): the ratings and recent-games tables should have a dark-green
+  header row, alternating light row stripes, and the "Change" column colored green for
+  positive rating changes / red for negative. The Result column in the games table should
+  show small rounded "Win"/"Loss"/"Draw" pill badges, not plain text.
+- **Repertoire explorer** (`/repertoire`, pick a rating band + color, click Explore): each
+  move should appear as a small bordered "chip" (light background for White's moves, solid
+  dark-green filled for Black's moves), next to a small colored horizontal bar showing the
+  win/draw/loss split (green/gold/red segments) instead of raw "63% / 12% / 25%" text.
+- **Browser tab icon**: every page should show a small green circle with a pale chess-pawn
+  silhouette as its favicon, not the browser's generic blank-page icon.
+- **Footer**: every page's footer should read something like "Data source: lichess.org/api"
+  — it should **not** say "Generated locally; not deployed or published" anywhere (that line
+  was removed everywhere since the site is in fact live on GitHub Pages).
+
+### 7b. Static build path
+
+Same as Section 6: run `npm run build:static` (needs your `.lichess-token`, see Section 1),
+then open `dist\index.html` directly by double-clicking it. Same visual checklist as 7a
+applies — index.html, player.html, and all 8 `repertoire-*.html` files should look
+identical in header/footer/colors/type to each other and to the dev-server pages above.
+
+**If you don't have a `.lichess-token` file handy right now** and just want to see the new
+design without live data, you can still confirm the templates render correctly using the
+project's own test fixtures (this does not call Lichess or need any token):
+
+```
+cd C:\Users\dylan\Dev\lichess-stats-poc
+node -e "const fs=require('fs'),path=require('path');const {buildStatic}=require('./src/buildStatic');const fx=JSON.parse(fs.readFileSync(path.join('test','fixtures','explorer-response.json'),'utf8'));buildStatic({fetchImpl: async()=>({ok:true,status:200,statusText:'OK',headers:{get:()=>null},json:async()=>fx})}).then(r=>console.log('wrote', r.outDir));"
+```
+
+Then open `dist\index.html` the same way. The numbers you'll see (e.g. round numbers like
+"55,000 games") are sample fixture data, not real Lichess stats — this is purely for
+checking the visual design, not the data pipeline.
+
+### 7c. Check the mobile layout (375px) and desktop layout (1280px)
+
+In Chrome, Edge, or Firefox: open any page from 7a or 7b, then open DevTools (F12), click
+the "toggle device toolbar" icon (a small phone/tablet icon, top-left of the DevTools
+panel), and pick a preset like "iPhone SE" (375px wide) from the dropdown at the top of the
+page.
+
+**Expect at 375px:**
+- The header's brand and nav links wrap onto their own lines instead of overlapping or
+  running off the edge of the screen.
+- Above every data table, a small line of text reading "Scroll to see more →" appears, and
+  the table itself scrolls sideways within its own bordered box instead of stretching the
+  whole page wider than the screen (try swiping/dragging inside a table).
+- Repertoire move chips and win/draw/loss bars still fit on screen without any horizontal
+  page-wide scrollbar appearing.
+
+Turn off device toolbar mode (or just make the browser window wide, ~1280px) to check
+**desktop**: content should sit in a centered column with visible margins on both sides —
+not stretched edge-to-edge — and the "Scroll to see more →" hint text should disappear
+(the tables don't need it at this width).
+
+**What "broken" looks like**, for comparison: if the shared stylesheet failed to load, every
+page would fall back to unstyled black serif headings, default blue underlined links, plain
+browser-default table borders with no color or striping, and a generic blank-page favicon —
+i.e. exactly what the site looked like before this redesign pass. If you see that instead of
+the above, something regressed; check the browser's DevTools "Console" tab for a red error
+first.

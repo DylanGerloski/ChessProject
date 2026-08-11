@@ -29,7 +29,7 @@
   }
 
   async function lookupPlayer(username) {
-    setStatus('<p>Loading…</p>');
+    setStatus('<p class="status-message status-message--loading">Loading&hellip;</p>');
     try {
       const [history, games] = await Promise.all([
         fetchRatingHistory(username),
@@ -46,17 +46,17 @@
       `);
     } catch (err) {
       if (err instanceof LichessNotFoundError) {
-        setStatus(`<p class="error">No such Lichess user: ${escapeHtml(username)}</p>`);
+        setStatus(`<p class="status-message status-message--error">No such Lichess user: ${escapeHtml(username)}</p>`);
       } else if (err instanceof LichessRateLimitError) {
-        setStatus('<p class="error">Lichess API rate limit hit, try again shortly.</p>');
+        setStatus('<p class="status-message status-message--error">Lichess API rate limit hit, try again shortly.</p>');
       } else if (err instanceof LichessApiError) {
-        setStatus(`<p class="error">Lichess API request failed: ${escapeHtml(err.message)}</p>`);
+        setStatus(`<p class="status-message status-message--error">Lichess API request failed: ${escapeHtml(err.message)}</p>`);
       } else if (err instanceof TypeError) {
         // A raw fetch()/network failure (offline, CORS block, etc) surfaces
         // as a TypeError with no useful HTTP status attached.
-        setStatus(`<p class="error">Could not reach the Lichess API from this page (network error or the browser blocked the cross-origin request). Details: ${escapeHtml(err.message)}</p>`);
+        setStatus(`<p class="status-message status-message--error">Could not reach the Lichess API from this page (network error or the browser blocked the cross-origin request). Details: ${escapeHtml(err.message)}</p>`);
       } else {
-        setStatus(`<p class="error">Lookup failed: ${escapeHtml(err.message)}</p>`);
+        setStatus(`<p class="status-message status-message--error">Lookup failed: ${escapeHtml(err.message)}</p>`);
       }
     }
   }

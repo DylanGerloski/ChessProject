@@ -18,22 +18,31 @@ const { buildRepertoireTree } = require('./buildRepertoire');
 const { LichessNotFoundError, LichessRateLimitError } = require('./fetchLichess');
 const { ExplorerRateLimitError, ExplorerApiError } = require('./fetchOpeningExplorer');
 const { RATING_BANDS } = require('./processRepertoire');
-const { escapeHtml, renderRepertoirePage } = require('./render');
+const { escapeHtml, renderRepertoirePage, renderDocumentHead, renderHeader, renderFooter } = require('./render');
 
 const DEFAULT_PORT = 8787;
+
+// Nav link targets for the dev server -- matches renderPlayerPage /
+// renderRepertoirePage's own default `nav` param, so every page reached via
+// `npm run serve` shares one identical header, not just the data pages.
+const SERVER_NAV = { player: '/', repertoire: '/repertoire' };
 
 function indexPage() {
   return `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Lichess stats POC</title></head>
-<body style="font-family: system-ui, sans-serif; max-width: 600px; margin: 2rem auto;">
-  <h1>Lichess stats proof of concept</h1>
-  <p>Enter a Lichess username to view rating history and recent games.</p>
-  <form action="/player" method="get">
-    <input name="username" placeholder="e.g. DrNykterstein" required>
-    <button type="submit">View</button>
-  </form>
-  <p><a href="/repertoire">Or try the rating-band opening-repertoire explorer &rarr;</a></p>
+${renderDocumentHead('Lichess stats')}
+<body>
+  ${renderHeader(SERVER_NAV, 'player')}
+  <main>
+    <h1 class="page-title">Lichess stats</h1>
+    <p class="subtitle">Enter a Lichess username to view rating history and recent games.</p>
+    <form action="/player" method="get" class="lookup-form">
+      <input name="username" placeholder="e.g. DrNykterstein" required>
+      <button type="submit">View</button>
+    </form>
+    <p><a href="/repertoire">Or try the rating-band opening-repertoire explorer &rarr;</a></p>
+  </main>
+  ${renderFooter('Local dev server -- data source: <a href="https://lichess.org/api">lichess.org/api</a>.')}
 </body>
 </html>`;
 }
@@ -44,26 +53,27 @@ function repertoireFormPage() {
     .join('');
   return `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Opening repertoire explorer - Lichess stats POC</title></head>
-<body style="font-family: system-ui, sans-serif; max-width: 600px; margin: 2rem auto;">
-  <p><a href="/">&larr; Player lookup</a></p>
-  <h1>Rating-band opening-repertoire explorer</h1>
-  <p>Pick a rating band and a color to see the most-played moves at each ply
-     for players in that band, with win/draw/loss rates per move.</p>
-  <form action="/repertoire" method="get">
-    <label>Rating band:
-      <select name="band">${bandOptions}</select>
-    </label>
-    <br><br>
-    <label>Color:
-      <select name="color">
-        <option value="white">White</option>
-        <option value="black">Black</option>
-      </select>
-    </label>
-    <br><br>
-    <button type="submit">Explore</button>
-  </form>
+${renderDocumentHead('Opening repertoire explorer - Lichess stats')}
+<body>
+  ${renderHeader(SERVER_NAV, 'repertoire')}
+  <main>
+    <h1 class="page-title">Rating-band opening-repertoire explorer</h1>
+    <p class="subtitle">Pick a rating band and a color to see the most-played moves at each ply
+       for players in that band, with win/draw/loss rates per move.</p>
+    <form action="/repertoire" method="get" class="lookup-form">
+      <label>Rating band:
+        <select name="band">${bandOptions}</select>
+      </label>
+      <label>Color:
+        <select name="color">
+          <option value="white">White</option>
+          <option value="black">Black</option>
+        </select>
+      </label>
+      <button type="submit">Explore</button>
+    </form>
+  </main>
+  ${renderFooter('Local dev server -- data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a>.')}
 </body>
 </html>`;
 }

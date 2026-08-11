@@ -5,6 +5,16 @@
  * HTML string. No framework, no templating engine -- just template
  * literals. Kept separate from build.js/server.js so it can be reused by
  * both the static generator and the local dev server.
+ *
+ * This file is also concatenated verbatim (see buildStatic.js's
+ * bundleBrowserModule) into the client-side bundle that runs directly in a
+ * visitor's browser for the static player-lookup page. That means it MUST
+ * NOT use CommonJS module loading anywhere at the top level -- there is no
+ * such loader in that context. The shared design system below (SITE_CSS
+ * / FAVICON_DATA_URI) is therefore defined as plain constants right here,
+ * not pulled in from a separate module, so render.js stays the single
+ * source of truth for markup AND styling that both server.js and
+ * buildStatic.js import from, with nothing to drift.
  */
 
 function escapeHtml(str) {
@@ -15,36 +25,499 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+/**
+ * Shared design tokens + component styles, used identically by every page
+ * across both the local dev server (src/server.js) and the static build
+ * (dist/*.html via src/buildStatic.js). One palette, deliberately: a
+ * restrained, chess-appropriate ink-and-parchment scheme (no dark-mode
+ * toggle -- see task scope).
+ */
+const SITE_CSS = `
+  :root {
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-serif: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+
+    --color-bg: #f5f1e6;
+    --color-surface: #ffffff;
+    --color-surface-alt: #ece3cd;
+    --color-border: #ddd0ac;
+    --color-text: #23271f;
+    --color-muted: #6b6a5c;
+    --color-accent: #3c6e52;
+    --color-accent-dark: #2a4d3a;
+    --color-accent-contrast: #f8f5ea;
+    --color-hover: rgba(60, 110, 82, 0.08);
+    --color-focus: #c97a2e;
+
+    --color-win: #2f7d43;
+    --color-win-bg: #e3f2e6;
+    --color-draw: #93731c;
+    --color-draw-bg: #f4ecd2;
+    --color-loss: #b23b30;
+    --color-loss-bg: #fbe4e0;
+
+    --text-xs: 0.75rem;
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-md: 1.125rem;
+    --text-lg: 1.375rem;
+    --text-xl: 1.875rem;
+    --text-2xl: 2.25rem;
+
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.5rem;
+    --space-6: 2rem;
+    --space-7: 3rem;
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-pill: 999px;
+
+    --shadow-sm: 0 1px 2px rgba(35, 39, 31, 0.08);
+    --shadow-md: 0 8px 24px rgba(35, 39, 31, 0.10);
+  }
+
+  * { box-sizing: border-box; }
+
+  html { background: var(--color-bg); }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-bg);
+    color: var(--color-text);
+    max-width: 880px;
+    margin: 0 auto;
+    padding: var(--space-5) var(--space-4) var(--space-7);
+    line-height: 1.55;
+    font-size: var(--text-base);
+  }
+
+  main { display: block; }
+
+  a { color: var(--color-accent-dark); }
+  a:hover { color: var(--color-accent); }
+
+  :focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  .site-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-bottom: var(--space-4);
+    margin-bottom: var(--space-5);
+    border-bottom: 2px solid var(--color-border);
+  }
+
+  .brand {
+    font-family: var(--font-serif);
+    font-weight: 700;
+    font-size: var(--text-md);
+    color: var(--color-accent-dark);
+    letter-spacing: 0.01em;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6em;
+    height: 1.6em;
+    border-radius: var(--radius-pill);
+    background: var(--color-accent-dark);
+    color: var(--color-accent-contrast);
+    font-size: 0.95em;
+  }
+
+  .site-nav { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+  .site-nav a {
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+
+  .site-nav a:hover { background: var(--color-hover); color: var(--color-accent-dark); }
+  .site-nav a[aria-current="page"] { background: var(--color-accent-dark); color: var(--color-accent-contrast); }
+
+  h1, h2, h3 { font-family: var(--font-serif); color: var(--color-accent-dark); line-height: 1.2; }
+  h1.page-title { font-size: var(--text-2xl); margin: 0; }
+  h2 { font-size: var(--text-lg); margin: var(--space-6) 0 var(--space-3); }
+  h3 { font-size: var(--text-md); margin: var(--space-5) 0 var(--space-2); }
+
+  .subtitle { color: var(--color-muted); margin: var(--space-2) 0 0; font-size: var(--text-base); }
+
+  .empty-note {
+    color: var(--color-muted);
+    background: var(--color-surface-alt);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+  }
+
+  .table-hint {
+    display: none;
+    font-size: var(--text-xs);
+    color: var(--color-muted);
+    margin: 0 0 var(--space-2);
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    margin: var(--space-3) 0 var(--space-6);
+    background: var(--color-surface);
+  }
+
+  table {
+    width: 100%;
+    min-width: 480px;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+
+  thead th {
+    text-align: left;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-accent-dark);
+    color: var(--color-accent-contrast);
+    font-weight: 600;
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  tbody td {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) { background: var(--color-surface-alt); }
+  tbody tr:hover td { background: var(--color-hover); }
+
+  tr.result-win td:first-child { box-shadow: inset 3px 0 0 var(--color-win); }
+  tr.result-loss td:first-child { box-shadow: inset 3px 0 0 var(--color-loss); }
+  tr.result-draw td:first-child { box-shadow: inset 3px 0 0 var(--color-draw); }
+
+  .delta { font-weight: 700; }
+  .delta--pos { color: var(--color-win); }
+  .delta--neg { color: var(--color-loss); }
+  .delta--zero { color: var(--color-muted); }
+
+  .badge {
+    display: inline-block;
+    padding: 0.15em 0.6em;
+    border-radius: var(--radius-pill);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .badge--win { background: var(--color-win-bg); color: var(--color-win); }
+  .badge--loss { background: var(--color-loss-bg); color: var(--color-loss); }
+  .badge--draw { background: var(--color-draw-bg); color: var(--color-draw); }
+
+  .summary-line {
+    color: var(--color-muted);
+    margin: var(--space-2) 0 var(--space-4);
+  }
+
+  .lookup-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin: var(--space-4) 0 var(--space-6);
+  }
+
+  .lookup-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--color-muted);
+  }
+
+  .lookup-form input,
+  .lookup-form select {
+    flex: 1 1 240px;
+    font: inherit;
+    font-size: var(--text-base);
+    padding: var(--space-3) var(--space-4);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+
+  .lookup-form input:hover,
+  .lookup-form select:hover { border-color: var(--color-accent); }
+  .lookup-form input:focus-visible,
+  .lookup-form select:focus-visible {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-hover);
+    outline: none;
+  }
+
+  .lookup-form button {
+    font: inherit;
+    font-size: var(--text-base);
+    font-weight: 700;
+    padding: var(--space-3) var(--space-5);
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--color-accent-dark);
+    color: var(--color-accent-contrast);
+    cursor: pointer;
+    transition: background-color 120ms ease, transform 120ms ease;
+  }
+
+  .lookup-form button:hover { background: var(--color-accent); }
+  .lookup-form button:active { transform: translateY(1px); }
+
+  .status-message {
+    border-radius: var(--radius-md);
+    padding: var(--space-4) var(--space-5);
+    margin: var(--space-3) 0 var(--space-6);
+    font-size: var(--text-base);
+  }
+
+  .status-message--loading {
+    background: var(--color-surface-alt);
+    color: var(--color-muted);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .status-message--loading::before {
+    content: "";
+    width: 1.1em;
+    height: 1.1em;
+    border-radius: var(--radius-pill);
+    border: 2.5px solid var(--color-border);
+    border-top-color: var(--color-accent);
+    animation: spin 800ms linear infinite;
+  }
+
+  .status-message--error {
+    background: var(--color-loss-bg);
+    color: var(--color-loss);
+    border: 1px solid var(--color-loss);
+    font-weight: 600;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .move-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.1em 0.6em;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-serif);
+    font-weight: 700;
+    font-size: var(--text-sm);
+  }
+
+  .move-chip--white {
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-accent-dark);
+    color: var(--color-accent-dark);
+  }
+
+  .move-chip--black {
+    background: var(--color-accent-dark);
+    border: 1.5px solid var(--color-accent-dark);
+    color: var(--color-accent-contrast);
+  }
+
+  .wdl-bar {
+    display: inline-flex;
+    width: 110px;
+    height: 8px;
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+    background: var(--color-border);
+    vertical-align: middle;
+  }
+
+  .wdl-seg--win { background: var(--color-win); height: 100%; }
+  .wdl-seg--draw { background: var(--color-draw); height: 100%; }
+  .wdl-seg--loss { background: var(--color-loss); height: 100%; }
+
+  .wdl-label { font-size: var(--text-xs); color: var(--color-muted); }
+
+  .repertoire-intro { color: var(--color-muted); margin: 0 0 var(--space-5); }
+
+  ul.repertoire-tree, ul.repertoire-tree ul {
+    list-style: none;
+    margin: 0;
+    padding-left: var(--space-5);
+    border-left: 2px solid var(--color-border);
+  }
+  ul.repertoire-tree { padding-left: 0; border-left: none; }
+
+  .repertoire-tree li { margin: var(--space-3) 0; }
+
+  .rep-node-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-4);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .rep-games { font-size: var(--text-sm); color: var(--color-text); }
+  .rep-pct { color: var(--color-muted); }
+  .rep-rating { color: var(--color-muted); font-size: var(--text-xs); }
+
+  footer.site-footer {
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+    margin-top: var(--space-7);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+  }
+
+  @media (max-width: 640px) {
+    body { padding: var(--space-4) var(--space-3) var(--space-6); }
+    h1.page-title { font-size: var(--text-xl); }
+    .table-hint { display: block; }
+    .wdl-bar { width: 72px; }
+    .rep-node-row { padding: var(--space-2) var(--space-3); }
+    .lookup-form { flex-direction: column; align-items: stretch; }
+  }
+`;
+
+/**
+ * A minimalist chess-pawn favicon as an inline SVG data URI -- no external
+ * asset, no build step. Colors are hardcoded here (not pulled from the CSS
+ * tokens above) because a favicon is loaded by the browser as its own
+ * standalone resource and does not inherit the page's CSS custom
+ * properties; they're kept visually in sync with --color-accent-dark /
+ * --color-accent-contrast by hand.
+ */
+const FAVICON_DATA_URI = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%232a4d3a'/%3E%3Ccircle cx='32' cy='23' r='9' fill='%23f8f5ea'/%3E%3Cpath d='M21 40c0-3 4-5 11-5s11 2 11 5l3 9H18z' fill='%23f8f5ea'/%3E%3Crect x='15' y='50' width='34' height='8' rx='3' fill='%23f8f5ea'/%3E%3C/svg%3E";
+
+/**
+ * @param {string} title document <title>
+ * @returns {string} a full <head>...</head> block shared by every page.
+ */
+function renderDocumentHead(title) {
+  return `<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(title)}</title>
+  <link rel="icon" href="${FAVICON_DATA_URI}">
+  <style>${SITE_CSS}</style>
+</head>`;
+}
+
+/**
+ * @param {{player: string, repertoire: string}} nav link targets -- either
+ *   the dynamic dev-server routes (server.js's default) or flat static
+ *   filenames (buildStatic.js).
+ * @param {'player'|'repertoire'|null} [active] which nav link, if any,
+ *   represents the current page.
+ * @returns {string} the shared header/nav markup used on every page.
+ */
+function renderHeader(nav, active = null) {
+  return `<header class="site-header">
+    <span class="brand"><span class="brand-mark" aria-hidden="true">&#9822;</span>Lichess Stats</span>
+    <nav class="site-nav">
+      <a href="${escapeHtml(nav.player)}"${active === 'player' ? ' aria-current="page"' : ''}>Player lookup</a>
+      <a href="${escapeHtml(nav.repertoire)}"${active === 'repertoire' ? ' aria-current="page"' : ''}>Repertoire explorer</a>
+    </nav>
+  </header>`;
+}
+
+/**
+ * @param {string} innerHtml page-specific footer copy (data-source credit,
+ *   etc). Callers should NOT claim the site is only local/unpublished --
+ *   this app is deployed to GitHub Pages.
+ */
+function renderFooter(innerHtml) {
+  return `<footer class="site-footer">${innerHtml}</footer>`;
+}
+
+/**
+ * Wraps a `<table>...</table>` string in a horizontally-scrollable
+ * container with a visible "there's more, scroll" affordance on narrow
+ * viewports, instead of letting the table silently overflow the page.
+ */
+function wrapTable(tableHtml) {
+  return `
+    <p class="table-hint">Scroll to see more &rarr;</p>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable data table">${tableHtml}</div>`;
+}
+
+function deltaClassFor(change) {
+  if (change == null) return 'delta--zero';
+  if (change > 0) return 'delta--pos';
+  if (change < 0) return 'delta--neg';
+  return 'delta--zero';
+}
+
 function renderRatingTable(ratingRows) {
   if (ratingRows.length === 0) {
-    return '<p>No rating history found.</p>';
+    return '<p class="empty-note">No rating history found.</p>';
   }
   const rows = ratingRows
-    .map(
-      (row) => `
+    .map((row) => {
+      const deltaText = row.change == null ? '-' : `${row.change >= 0 ? '+' : ''}${row.change}`;
+      return `
       <tr>
         <td>${escapeHtml(row.variant)}</td>
         <td>${row.current ?? '-'}</td>
         <td>${row.peak ?? '-'}</td>
         <td>${row.low ?? '-'}</td>
-        <td>${row.change >= 0 ? '+' : ''}${row.change ?? '-'}</td>
+        <td class="delta ${deltaClassFor(row.change)}">${deltaText}</td>
         <td>${row.gamesRecorded}</td>
-      </tr>`
-    )
+      </tr>`;
+    })
     .join('');
 
-  return `
+  return wrapTable(`
     <table>
       <thead>
         <tr><th>Variant</th><th>Current</th><th>Peak</th><th>Low</th><th>Change</th><th>Data points</th></tr>
       </thead>
       <tbody>${rows}</tbody>
-    </table>`;
+    </table>`);
+}
+
+function resultBadge(result) {
+  const label = result === 'win' ? 'Win' : result === 'loss' ? 'Loss' : 'Draw';
+  return `<span class="badge badge--${escapeHtml(result)}">${label}</span>`;
 }
 
 function renderGamesTable(gameSummary) {
   if (gameSummary.totalGames === 0) {
-    return '<p>No recent games found.</p>';
+    return '<p class="empty-note">No recent games found.</p>';
   }
   const rows = gameSummary.results
     .map(
@@ -55,83 +528,84 @@ function renderGamesTable(gameSummary) {
         <td>${r.opponentRating ?? '-'}</td>
         <td>${escapeHtml(r.color)}</td>
         <td>${escapeHtml(r.variant)} / ${escapeHtml(r.speed)}</td>
-        <td>${escapeHtml(r.result)}</td>
+        <td>${resultBadge(r.result)}</td>
       </tr>`
     )
     .join('');
 
   return `
-    <p>${gameSummary.wins}W / ${gameSummary.losses}L / ${gameSummary.draws}D
+    <p class="summary-line">${gameSummary.wins}W / ${gameSummary.losses}L / ${gameSummary.draws}D
        out of ${gameSummary.totalGames} games (win rate ${gameSummary.winRate}%,
-       avg opponent rating ${gameSummary.avgOpponentRating ?? 'n/a'})</p>
+       avg opponent rating ${gameSummary.avgOpponentRating ?? 'n/a'})</p>` +
+    wrapTable(`
     <table>
       <thead>
         <tr><th>Date</th><th>Opponent</th><th>Opp. rating</th><th>Color</th><th>Variant/Speed</th><th>Result</th></tr>
       </thead>
       <tbody>${rows}</tbody>
-    </table>`;
+    </table>`);
 }
 
 /**
- * @param {{username: string, ratingRows: Array, gameSummary: object}} data
+ * @param {{username: string, ratingRows: Array, gameSummary: object,
+ *   nav?: {player: string, repertoire: string}}} data
  * @returns {string} a full standalone HTML document
  */
-function renderPlayerPage({ username, ratingRows, gameSummary }) {
+function renderPlayerPage({ username, ratingRows, gameSummary, nav = { player: '/', repertoire: '/repertoire' } }) {
   return `<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>${escapeHtml(username)} - Lichess stats (proof of concept)</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; color: #222; }
-    h1 { margin-bottom: 0; }
-    .subtitle { color: #666; margin-top: 0.25rem; }
-    table { border-collapse: collapse; width: 100%; margin: 1rem 0 2rem; }
-    th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #ddd; }
-    th { background: #f5f5f5; }
-    tr.result-win { background: #eafaf0; }
-    tr.result-loss { background: #fdecec; }
-    tr.result-draw { background: #fafafa; }
-    footer { color: #999; font-size: 0.8rem; margin-top: 3rem; }
-  </style>
-</head>
+${renderDocumentHead(`${username} - Lichess stats`)}
 <body>
-  <h1>${escapeHtml(username)}</h1>
-  <p class="subtitle">Lichess rating history and recent games (engineering pipeline proof of concept)</p>
+  ${renderHeader(nav, 'player')}
+  <main>
+    <h1 class="page-title">${escapeHtml(username)}</h1>
+    <p class="subtitle">Lichess rating history and recent games</p>
 
-  <h2>Ratings by variant</h2>
-  ${renderRatingTable(ratingRows)}
+    <h2>Ratings by variant</h2>
+    ${renderRatingTable(ratingRows)}
 
-  <h2>Recent games</h2>
-  ${renderGamesTable(gameSummary)}
-
-  <footer>Data source: <a href="https://lichess.org/api">lichess.org/api</a>. Generated locally; not deployed or published.</footer>
+    <h2>Recent games</h2>
+    ${renderGamesTable(gameSummary)}
+  </main>
+  ${renderFooter('Data source: <a href="https://lichess.org/api">lichess.org/api</a>.')}
 </body>
 </html>
 `;
 }
 
 function renderRepertoireNode(node) {
-  const winPct = node.winPct ?? '-';
-  const drawPct = node.drawPct ?? '-';
-  const lossPct = node.lossPct ?? '-';
-  const ratingNote = node.averageRating ? ` &middot; avg rating ${node.averageRating}` : '';
+  const winPct = typeof node.winPct === 'number' ? node.winPct : null;
+  const drawPct = typeof node.drawPct === 'number' ? node.drawPct : null;
+  const lossPct = typeof node.lossPct === 'number' ? node.lossPct : null;
+  const ratingNote = node.averageRating ? `<span class="rep-rating">avg rating ${node.averageRating}</span>` : '';
   const children = node.children && node.children.length > 0
     ? `<ul>${node.children.map(renderRepertoireNode).join('')}</ul>`
     : '';
+  const wdlTitle = `${node.mover} win/draw/loss: ${winPct ?? '-'}% / ${drawPct ?? '-'}% / ${lossPct ?? '-'}%`;
+  const wdlBar = winPct == null
+    ? ''
+    : `<span class="wdl-bar" title="${escapeHtml(wdlTitle)}">
+        <span class="wdl-seg--win" style="width:${winPct}%"></span>
+        <span class="wdl-seg--draw" style="width:${drawPct}%"></span>
+        <span class="wdl-seg--loss" style="width:${lossPct}%"></span>
+      </span>
+      <span class="wdl-label">${winPct}% / ${drawPct}% / ${lossPct}%</span>`;
 
   return `
     <li>
-      <span class="move move-${escapeHtml(node.mover)}">${escapeHtml(node.san)}</span>
-      <span class="stats">${node.games.toLocaleString()} games (${node.playedPct ?? '-'}% of this position)
-        &middot; ${node.mover} W/D/L: ${winPct}% / ${drawPct}% / ${lossPct}%${ratingNote}</span>
+      <div class="rep-node-row">
+        <span class="move-chip move-chip--${escapeHtml(node.mover)}">${escapeHtml(node.san)}</span>
+        <span class="rep-games">${node.games.toLocaleString()} games <span class="rep-pct">(${node.playedPct ?? '-'}% of this position)</span></span>
+        ${wdlBar}
+        ${ratingNote}
+      </div>
       ${children}
     </li>`;
 }
 
 function renderRepertoireTree(tree) {
   if (!Array.isArray(tree) || tree.length === 0) {
-    return '<p>No repertoire data found for this rating band and color.</p>';
+    return '<p class="empty-note">No repertoire data found for this rating band and color.</p>';
   }
   return `<ul class="repertoire-tree">${tree.map(renderRepertoireNode).join('')}</ul>`;
 }
@@ -149,42 +623,25 @@ function renderRepertoirePage({ ratingBand, color, opening, totals, tree, nav = 
   const totalGames = totals ? totals.white + totals.draws + totals.black : null;
   const openingNote = opening ? ` &mdash; starting from ${escapeHtml(opening.name)} (${escapeHtml(opening.eco)})` : '';
   const totalsNote = totals
-    ? `<p>${totalGames.toLocaleString()} games played from the starting position in this rating band
+    ? `<p class="summary-line">${totalGames.toLocaleString()} games played from the starting position in this rating band
         (${totals.white.toLocaleString()}W / ${totals.draws.toLocaleString()}D / ${totals.black.toLocaleString()}L).</p>`
     : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Opening repertoire explorer (${escapeHtml(ratingBand)}, ${escapeHtml(color)}) - Lichess stats POC</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 820px; margin: 2rem auto; padding: 0 1rem; color: #222; }
-    nav { margin-bottom: 1.5rem; }
-    nav a { margin-right: 1rem; }
-    h1 { margin-bottom: 0; }
-    .subtitle { color: #666; margin-top: 0.25rem; }
-    ul.repertoire-tree, ul.repertoire-tree ul { list-style: none; padding-left: 1.25rem; border-left: 2px solid #eee; }
-    ul.repertoire-tree { padding-left: 0; border-left: none; }
-    li { margin: 0.6rem 0; }
-    .move { font-weight: 600; margin-right: 0.5rem; }
-    .move-white { color: #234; }
-    .move-black { color: #555; font-style: italic; }
-    .stats { color: #666; font-size: 0.85rem; }
-    footer { color: #999; font-size: 0.8rem; margin-top: 3rem; }
-  </style>
-</head>
+${renderDocumentHead(`Opening repertoire explorer (${ratingBand}, ${color}) - Lichess stats`)}
 <body>
-  <nav><a href="${escapeHtml(nav.player)}">Player lookup</a><a href="${escapeHtml(nav.repertoire)}">Repertoire explorer</a></nav>
-  <h1>Opening repertoire explorer</h1>
-  <p class="subtitle">Rating band ${escapeHtml(ratingBand)}, playing as ${escapeHtml(color)}${openingNote}</p>
-  ${totalsNote}
-  <p>Most-played moves at each ply for players in this rating band, with win/draw/loss rates per move.
-     Your color's plies show the top choices actually played at this rating; the opponent's replies show
-     only their single most common response, to keep the tree readable.</p>
-  ${renderRepertoireTree(tree)}
-  <footer>Data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a>
-    (explorer.lichess.ovh, keyless, no account required). Generated locally; not deployed or published.</footer>
+  ${renderHeader(nav, 'repertoire')}
+  <main>
+    <h1 class="page-title">Opening repertoire explorer</h1>
+    <p class="subtitle">Rating band ${escapeHtml(ratingBand)}, playing as ${escapeHtml(color)}${openingNote}</p>
+    ${totalsNote}
+    <p class="repertoire-intro">Most-played moves at each ply for players in this rating band, with win/draw/loss rates per move.
+       Your color's plies show the top choices actually played at this rating; the opponent's replies show
+       only their single most common response, to keep the tree readable.</p>
+    ${renderRepertoireTree(tree)}
+  </main>
+  ${renderFooter('Data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a> (explorer.lichess.ovh, keyless, no account required).')}
 </body>
 </html>
 `;
@@ -195,4 +652,10 @@ module.exports = {
   renderRepertoireTree,
   renderRepertoirePage,
   escapeHtml,
+  SITE_CSS,
+  FAVICON_DATA_URI,
+  renderDocumentHead,
+  renderHeader,
+  renderFooter,
+  wrapTable,
 };
