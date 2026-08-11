@@ -4,3 +4,11 @@ dist/
 *.log
 .lichess-token
 .lichess-token.txt
+
+# Internal planning/testing docs -- not for the public repo (see
+# .claude/rules/public-repo-hygiene.md in the Orchestra project). Kept
+# locally, never pushed.
+TESTING.md
+SEO_PLAN.md
+DISTRIBUTION_DRAFTS_README.md
+draft_*.txt

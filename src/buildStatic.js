@@ -30,7 +30,7 @@
  *   visitor's browser -- no token is read, embedded, or needed for this
  *   page at all.
  *
- * - Content pages (added task-msp056zp-0a26c3, phase 1/3 of the content-depth
+ * - Content pages (phase 1/3 of the content-depth
  *   build): 10 opening pages + the openings hub, pre-rendered the same way
  *   as the repertoire pages via buildContentPages() (src/buildContent.js).
  *   Also token-gated the same way -- see that module's own header comment.
@@ -84,7 +84,7 @@ const COLORS = ['white', 'black'];
 // that actually exist belong here -- 'guides'/'faq' are added in phases 2/3.
 const STATIC_NAV = { player: 'player.html', repertoire: 'index.html', openings: 'openings.html' };
 
-// Compliance pages added task-msp18k2w-9f147e: privacy policy, about, and
+// Compliance pages: privacy policy, about, and
 // contact, linked from every page's footer via renderFooter()'s optional
 // `legalLinks` param (see src/render.js). Kept as flat filenames matching
 // every other static page, and shared with src/renderContent.js's own
@@ -293,18 +293,16 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   fs.writeFileSync(path.join(OUT_DIR, 'player.html'), playerLookupPage(), 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'player-lookup.js'), buildPlayerLookupBundle(), 'utf8');
 
-  // Compliance pages (task-msp18k2w-9f147e): privacy policy, about, contact,
+  // Compliance pages: privacy policy, about, contact,
   // and an ads.txt stub. See src/renderCompliance.js for what each contains
-  // and why (AdSense review requirements per scout's findings,
-  // task-msp04yhl-b57b60). nav omits these three from the top nav bar
+  // and why (AdSense review requirements). nav omits these three from the top nav bar
   // deliberately -- they're reachable from every page's footer instead (via
   // LEGAL_LINKS above), matching how most sites treat legal/about pages.
   fs.writeFileSync(path.join(OUT_DIR, 'privacy.html'), renderPrivacyPage({ nav: STATIC_NAV, legalLinks: LEGAL_LINKS }), 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'about.html'), renderAboutPage({ nav: STATIC_NAV, legalLinks: LEGAL_LINKS }), 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'contact.html'), renderContactPage({ nav: STATIC_NAV, legalLinks: LEGAL_LINKS }), 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'ads.txt'), adsTxtContent(), 'utf8');
-  // Custom domain for GitHub Pages -- the domain was purchased and given to
-  // Orchestra 2026-08-11 (task-msp4dp6c-170d4e). dist/ is gitignored and
+  // Custom domain for GitHub Pages. dist/ is gitignored and
   // regenerated fresh on every `npm run build:static` run, and its contents
   // are what actually gets pushed to the gh-pages branch GitHub Pages
   // serves from (confirmed by diffing dist/ against `git ls-tree gh-pages`

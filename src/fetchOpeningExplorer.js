@@ -10,7 +10,7 @@ const path = require('node:path');
  * not the masters or per-player databases.
  *
  * As of 2026-08-11 Lichess requires a personal access token for this
- * endpoint specifically (anonymous requests get 401) -- see decision-msoru8du-acd01d.
+ * endpoint specifically (anonymous requests get 401).
  * The token is read once, in order: LICHESS_API_TOKEN env var, then a local
  * `.lichess-token` file in the project root (gitignored, never committed).
  * Neither is required to import this module -- fetchExplorerMoves() only
@@ -87,8 +87,7 @@ async function handleExplorerErrors(response, url) {
  * stats for a position. The lichess database is restricted to the given
  * rating bucket(s) and speed(s); the masters database (real
  * grandmaster-level games) ignores rating/speed entirely (Lichess's API
- * itself ignores those params for /masters -- verified by architect's live
- * probe, see task-msp052v4-bf1360's spec section 0).
+ * itself ignores those params for /masters -- verified against a live probe).
  *
  * @param {object} opts
  * @param {string} [opts.fen] FEN of the position to query (defaults to the

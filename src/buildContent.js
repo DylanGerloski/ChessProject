@@ -2,8 +2,8 @@
 
 /**
  * Orchestrates the content-page build: fetch -> validate -> model -> render
- * -> write, for the 10 opening pages plus the openings hub (phase 1 scope --
- * see task-msp056zp-0a26c3). Exports buildContentPages({fetchImpl}) so the
+ * -> write, for the 10 opening pages plus the openings hub (phase 1 scope).
+ * Exports buildContentPages({fetchImpl}) so the
  * whole pipeline is testable with a fake fetch and fixture data, mirroring
  * buildStatic.js's own fetchImpl-injection convention -- no live network
  * calls happen anywhere except when the real build is actually run.

@@ -2,17 +2,13 @@
 
 > Chess website for doing cool stuff
 
-Local-only proof-of-concept built to validate Orchestra's engineering pipeline
-end-to-end (fetch a live public API -> process/aggregate -> render a stats
-page), independent of any final product decision. Uses the
-[Lichess public API](https://lichess.org/api), which needs no API key.
+A chess stats site built end-to-end (fetch a live public API -> process/aggregate -> render a
+stats page). Uses the [Lichess public API](https://lichess.org/api), which needs no API key.
 
-**Status:** the dev server and the static build both run entirely locally.
-Source is mirrored to this public GitHub repo (human-created and approved,
-2026-08-11) as a shareable staging step -- see `TESTING.md` section 6 to run
-the static build yourself. A public GitHub Pages URL, if enabled, is the
-staging link, not a production launch: no custom domain, analytics, or
-monetization is set up (see Orchestra's `docs/GOALS.md` O-4).
+**Status:** live at [Repertoire-Builder.com](https://Repertoire-Builder.com), also reachable
+at [dylangerloski.github.io/ChessProject](https://dylangerloski.github.io/ChessProject/).
+Both a local dev server and a static build are supported -- see below to run either
+yourself.
 
 ## What it does
 
@@ -34,9 +30,8 @@ API](https://lichess.org/api#tag/Opening-Explorer) and walks the position
 tree: at the chosen color's own plies it shows the top-played move choices
 (with win/draw/loss rates per move, for players in that rating band); at the
 opponent's replies it follows only their single most-played response, since
-the user doesn't choose those. This is the differentiation angle validated
-by scout research: "what's actually played and scores well at my rating,"
-not just theory.
+the user doesn't choose those. The angle: "what's actually played and scores
+well at my rating," not just theory.
 
 **Known live-API caveat (found 2026-08-11):** as of this build, Lichess's
 dedicated Opening Explorer subdomain (`explorer.lichess.ovh` /
@@ -149,9 +144,7 @@ npm run build:static
 
 (equivalent to `node src/buildStatic.js`). This produces a self-contained `dist/`
 directory that works entirely as plain files -- no server, no `localhost`, nothing needs
-to keep running. It's the version intended for eventual GitHub Pages hosting (this
-repository still isn't connected to GitHub or published anywhere; that remains a separate,
-not-yet-taken step).
+to keep running. This is what's deployed to GitHub Pages.
 
 What it writes to `dist/`:
 

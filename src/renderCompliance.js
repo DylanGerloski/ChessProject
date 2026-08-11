@@ -1,10 +1,8 @@
 'use strict';
 
 /**
- * Compliance pages: privacy policy, about, contact, and an ads.txt stub
- * (task-msp18k2w-9f147e). Written per docs/DIRECTIVE Revenue Acceleration
- * Plan.md Section 1 items 2 and 5 and scout's monetization-verification
- * findings (task-msp04yhl-b57b60), which found Google AdSense review
+ * Compliance pages: privacy policy, about, contact, and an ads.txt stub.
+ * Google AdSense review
  * requires a privacy policy, an about page, and a contact page (ads.txt is
  * recommended, not required). A SEPARATE module from render.js for the same
  * reason renderContent.js is (see that file's own header comment): these
@@ -18,11 +16,11 @@
  * visitor) would actually see.
  *
  * The privacy policy currently describes GoatCounter analytics (the only
- * analytics live as of this task) and explicitly does NOT claim any
+ * analytics live right now) and explicitly does NOT claim any
  * advertising currently runs, because none does. If/when a future AdSense
- * (or other ad-network) decision brief is approved, PRIVACY_ADS_SECTION
+ * (or other ad-network) is approved, PRIVACY_ADS_SECTION
  * below needs a one-line update to name the actual provider -- flagged here
- * and in this task's --result so it isn't missed.
+ * so it isn't missed.
  */
 
 const { escapeHtml, renderDocumentHead, renderHeader, renderFooter } = require('./render');
@@ -208,8 +206,8 @@ ${renderDocumentHead({ title, description, canonical })}
 
 /**
  * ads.txt stub (IAB/Google spec: https://iabtechlab.com/ads-txt/). Not
- * required for AdSense approval (scout's findings, task-msp04yhl-b57b60),
- * but cheap to add now as a comment-only placeholder. Comment lines (`#`)
+ * required for AdSense approval, but cheap to add now as a comment-only
+ * placeholder. Comment lines (`#`)
  * are valid ads.txt content and make no seller claims -- this file
  * authorizes no ad-tech sellers until a real AdSense (or other network)
  * publisher ID is added.
