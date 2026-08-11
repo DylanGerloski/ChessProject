@@ -1,14 +1,18 @@
 # lichess-stats-poc
 
+> Chess website for doing cool stuff
+
 Local-only proof-of-concept built to validate Orchestra's engineering pipeline
 end-to-end (fetch a live public API -> process/aggregate -> render a stats
 page), independent of any final product decision. Uses the
 [Lichess public API](https://lichess.org/api), which needs no API key.
 
-**This is not deployed anywhere and is not intended to be.** No domain,
-hosting, or publishing is registered as part of this task -- that is a
-separate, future human decision once a product direction is chosen (see
-Orchestra's `docs/GOALS.md` O-4 and its action policy on deployment).
+**Status:** the dev server and the static build both run entirely locally.
+Source is mirrored to this public GitHub repo (human-created and approved,
+2026-08-11) as a shareable staging step -- see `TESTING.md` section 6 to run
+the static build yourself. A public GitHub Pages URL, if enabled, is the
+staging link, not a production launch: no custom domain, analytics, or
+monetization is set up (see Orchestra's `docs/GOALS.md` O-4).
 
 ## What it does
 
