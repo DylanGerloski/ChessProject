@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Player lookup - Lichess stats POC (static build)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    nav { margin-bottom: 1.5rem; }
+    nav a { margin-right: 1rem; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0 2rem; }
+    th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #ddd; }
+    th { background: #f5f5f5; }
+    tr.result-win { background: #eafaf0; }
+    tr.result-loss { background: #fdecec; }
+    tr.result-draw { background: #fafafa; }
+    .error { color: #a33; }
+    footer { color: #999; font-size: 0.8rem; margin-top: 3rem; }
+  </style>
+</head>
+<body>
+  <nav><a href="index.html">Home</a></nav>
+  <h1>Player lookup</h1>
+  <p>Enter a Lichess username to view rating history and recent games. This runs
+     entirely in your browser, calling Lichess's public API directly -- no token
+     needed and none is used.</p>
+  <form id="lookup-form">
+    <input id="username" name="username" placeholder="e.g. DrNykterstein" required>
+    <button type="submit">View</button>
+  </form>
+  <div id="result"></div>
+  <footer>Data source: <a href="https://lichess.org/api">lichess.org/api</a>, called directly from this page. Generated locally; not deployed or published.</footer>
+  <script src="player-lookup.js"></script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Lichess stats POC (static build)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 700px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    li { margin: 0.3rem 0; }
+    footer { color: #999; font-size: 0.8rem; margin-top: 3rem; }
+  </style>
+</head>
+<body>
+  <h1>Lichess stats proof of concept (static build)</h1>
+  <p>This is a fully static version of the app: every page here is a plain file, no
+     server required. It's the version intended for eventual GitHub Pages hosting
+     (publishing itself is a separate, not-yet-taken step).</p>
+
+  <h2>Player lookup</h2>
+  <p><a href="player.html">Look up any Lichess username &rarr;</a> (fetches live data
+     directly in your browser when you open this page; nothing is pre-baked).</p>
+
+  <h2>Rating-band opening-repertoire explorer</h2>
+  <p>Pre-rendered at build time for these 8 rating-band / color combinations:</p>
+  <ul>
+        <li><a href="repertoire-1400-1600-white.html">1400-1600, white</a></li>
+        <li><a href="repertoire-1400-1600-black.html">1400-1600, black</a></li>
+        <li><a href="repertoire-1600-1800-white.html">1600-1800, white</a></li>
+        <li><a href="repertoire-1600-1800-black.html">1600-1800, black</a></li>
+        <li><a href="repertoire-1800-2000-white.html">1800-2000, white</a></li>
+        <li><a href="repertoire-1800-2000-black.html">1800-2000, black</a></li>
+        <li><a href="repertoire-2000-white.html">2000+, white</a></li>
+        <li><a href="repertoire-2000-black.html">2000+, black</a></li>
+  </ul>
+
+  <footer>Data source: <a href="https://lichess.org/api">lichess.org/api</a>. Generated locally; not deployed or published. See TESTING.md.</footer>
+</body>
+</html>
