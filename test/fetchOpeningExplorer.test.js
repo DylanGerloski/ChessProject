@@ -90,3 +90,34 @@ test('fetchExplorerMoves omits the play param when no moves have been played', a
   const parsed = new URL(capturedUrl);
   assert.equal(parsed.searchParams.has('play'), false);
 });
+
+test('fetchExplorerMoves hits the /masters endpoint and omits ratings/speeds when database is "masters"', async () => {
+  let capturedUrl = null;
+  const fetchImpl = async (url) => {
+    capturedUrl = url;
+    return fakeResponse({ status: 200, json: { ...explorerResponseFixture, topGames: [] } });
+  };
+  await fetchExplorerMoves({ database: 'masters', play: ['e2e4'], moves: 8, topGames: 5, fetchImpl });
+  assert.match(capturedUrl, /^https:\/\/explorer\.lichess\.org\/masters\?/);
+  const parsed = new URL(capturedUrl);
+  assert.equal(parsed.searchParams.has('ratings'), false);
+  assert.equal(parsed.searchParams.has('speeds'), false);
+  assert.equal(parsed.searchParams.get('topGames'), '5');
+});
+
+test('fetchExplorerMoves does not require ratings for the masters database', async () => {
+  const fetchImpl = async () => fakeResponse({ status: 200, json: explorerResponseFixture });
+  await assert.doesNotReject(() => fetchExplorerMoves({ database: 'masters', fetchImpl }));
+});
+
+test('fetchExplorerMoves passes topGames/recentGames through as query params', async () => {
+  let capturedUrl = null;
+  const fetchImpl = async (url) => {
+    capturedUrl = url;
+    return fakeResponse({ status: 200, json: explorerResponseFixture });
+  };
+  await fetchExplorerMoves({ ratings: [1600], topGames: 3, recentGames: 4, fetchImpl });
+  const parsed = new URL(capturedUrl);
+  assert.equal(parsed.searchParams.get('topGames'), '3');
+  assert.equal(parsed.searchParams.get('recentGames'), '4');
+});

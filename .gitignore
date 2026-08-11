@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.cache/
 *.log
 .lichess-token
 .lichess-token.txt

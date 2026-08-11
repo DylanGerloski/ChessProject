@@ -14,31 +14,25 @@ const {
   playerLookupPage,
   repertoireFileName,
   assertNoTokenLeak,
+  assertFilenamesUnique,
 } = require('../src/buildStatic');
 const { RATING_BANDS } = require('../src/processRepertoire');
+const { makeSmartExplorerFetch } = require('./helpers/fakeExplorer');
 
 const FIXTURES = path.join(__dirname, 'fixtures');
 const rootFixture = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'explorer-response.json'), 'utf8'));
 
-// A generic fake fetch that answers every Opening Explorer request with the
-// same root-position fixture, regardless of the `play` param. It doesn't
-// produce a realistic multi-ply tree, but buildStatic() only cares that
-// buildRepertoireTree() resolves and returns *some* valid tree shape for
-// each of the 8 band/color combinations -- no live network calls are made
-// anywhere in this file.
+// buildStatic() now also drives buildContentPages() (the 10 opening pages +
+// hub), which needs move-order validation to succeed for every configured
+// opening line -- a fetch that blindly returns the same fixture for every
+// `play` param (as the old repertoire-only fake did) would fail that
+// validation. makeSmartExplorerFetch() handles opening-line requests
+// correctly and falls back to the original root fixture for everything
+// else (the repertoire explorer's own open-ended tree walk), so both
+// pipelines get a coherent fake. No live network calls are made anywhere in
+// this file.
 function fakeExplorerFetch() {
-  let callCount = 0;
-  const fetchImpl = async () => {
-    callCount += 1;
-    return {
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      headers: { get: () => null },
-      json: async () => rootFixture,
-    };
-  };
-  return { fetchImpl, getCallCount: () => callCount };
+  return makeSmartExplorerFetch({ fallbackJson: rootFixture });
 }
 
 function withTempDist(fn) {
@@ -69,10 +63,17 @@ function withTempDist(fn) {
     });
 }
 
+// useCache: false everywhere in this file, deliberately -- buildStatic()'s
+// real (non-test) call path wraps fetchImpl in the on-disk Explorer cache
+// (src/explorerCache.js), keyed only by request URL (fen/play/ratings/...),
+// not by which fetchImpl produced the answer. Leaving caching on here would
+// write this file's FAKE fixture responses into the project's real
+// .cache/explorer/ directory, where a later real `npm run build:static`
+// could silently read them back instead of hitting the live API.
 test('buildStatic writes all 8 pre-rendered repertoire pages, an index, and the player-lookup page+bundle', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();
-    const { outDir, repertoireLinks } = await buildStatic({ fetchImpl });
+    const { outDir, repertoireLinks } = await buildStatic({ fetchImpl, useCache: false });
 
     assert.equal(repertoireLinks.length, 8);
     const expectedBands = Object.keys(RATING_BANDS);
@@ -93,13 +94,58 @@ test('buildStatic writes all 8 pre-rendered repertoire pages, an index, and the 
   })
 );
 
+test('buildStatic also writes the 10 opening pages plus the openings hub, and the home page links to them', () =>
+  withTempDist(async () => {
+    const { fetchImpl } = fakeExplorerFetch();
+    const { outDir, contentWritten } = await buildStatic({ fetchImpl, useCache: false });
+
+    assert.equal(contentWritten.length, 11); // 10 openings + hub
+    for (const { file } of contentWritten) {
+      assert.ok(fs.existsSync(path.join(outDir, file)), `expected ${file} to exist on disk`);
+    }
+    const homeHtml = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
+    assert.match(homeHtml, /href="openings\.html"/);
+  })
+);
+
+test('buildStatic also writes privacy.html, about.html, contact.html, and ads.txt, and the footer links to them', () =>
+  withTempDist(async () => {
+    const { fetchImpl } = fakeExplorerFetch();
+    const { outDir } = await buildStatic({ fetchImpl, useCache: false });
+
+    for (const file of ['privacy.html', 'about.html', 'contact.html', 'ads.txt']) {
+      assert.ok(fs.existsSync(path.join(outDir, file)), `expected ${file} to exist on disk`);
+    }
+
+    const adsTxt = fs.readFileSync(path.join(outDir, 'ads.txt'), 'utf8');
+    assert.match(adsTxt, /^# ads\.txt for/);
+
+    const homeHtml = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
+    assert.match(homeHtml, /href="privacy\.html">Privacy policy<\/a>/);
+    assert.match(homeHtml, /href="about\.html">About<\/a>/);
+    assert.match(homeHtml, /href="contact\.html">Contact<\/a>/);
+    assert.match(homeHtml, /class="disclosure-note"/);
+
+    const repertoireHtml = fs.readFileSync(path.join(outDir, 'repertoire-1600-1800-white.html'), 'utf8');
+    assert.match(repertoireHtml, /href="privacy\.html">Privacy policy<\/a>/);
+
+    const openingHtml = fs.readFileSync(path.join(outDir, 'italian-game.html'), 'utf8');
+    assert.match(openingHtml, /href="privacy\.html">Privacy policy<\/a>/);
+  })
+);
+
+test('assertFilenamesUnique throws on a duplicate filename and passes for a unique list', () => {
+  assert.throws(() => assertFilenamesUnique(['a.html', 'b.html', 'a.html']), /Duplicate output filename/);
+  assert.doesNotThrow(() => assertFilenamesUnique(['a.html', 'b.html', 'c.html']));
+});
+
 test('buildStatic never writes the Lichess API token into any generated file', () =>
   withTempDist(async () => {
     const previousToken = process.env.LICHESS_API_TOKEN;
     process.env.LICHESS_API_TOKEN = 'test-fixture-fake-token-do-not-leak-12345';
     try {
       const { fetchImpl } = fakeExplorerFetch();
-      const { outDir } = await buildStatic({ fetchImpl });
+      const { outDir } = await buildStatic({ fetchImpl, useCache: false });
 
       for (const file of fs.readdirSync(outDir)) {
         const full = path.join(outDir, file);

@@ -1,0 +1,48 @@
+{
+  "opening": { "eco": "C50", "name": "Italian Game" },
+  "white": 25987134,
+  "draws": 2050196,
+  "black": 23311378,
+  "moves": [
+    {
+      "uci": "f8c5",
+      "san": "Bc5",
+      "averageRating": 1690,
+      "white": 9000000,
+      "draws": 700000,
+      "black": 7500000,
+      "opening": { "eco": "C50", "name": "Italian Game: Giuoco Piano" }
+    },
+    {
+      "uci": "g8f6",
+      "san": "Nf6",
+      "averageRating": 1685,
+      "white": 8500000,
+      "draws": 650000,
+      "black": 7800000,
+      "opening": { "eco": "C55", "name": "Italian Game: Two Knights Defense" }
+    },
+    {
+      "uci": "f7f5",
+      "san": "f5",
+      "averageRating": 1550,
+      "white": 620000,
+      "draws": 30000,
+      "black": 350000
+    }
+  ],
+  "topGames": [],
+  "recentGames": [
+    {
+      "uci": "f8c5",
+      "id": "aB3dEfGh",
+      "winner": "white",
+      "speed": "blitz",
+      "mode": "rated",
+      "white": { "name": "clubplayer1", "rating": 1705 },
+      "black": { "name": "clubplayer2", "rating": 1698 },
+      "year": 2026,
+      "month": "2026-08"
+    }
+  ]
+}

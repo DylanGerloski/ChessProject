@@ -22,6 +22,7 @@ const path = require('node:path');
  */
 
 const EXPLORER_BASE_URL = 'https://explorer.lichess.org/lichess';
+const MASTERS_BASE_URL = 'https://explorer.lichess.org/masters';
 const TOKEN_FILE_PATH = path.join(__dirname, '..', '.lichess-token');
 
 function readLocalToken() {
@@ -82,36 +83,54 @@ async function handleExplorerErrors(response, url) {
 }
 
 /**
- * GET https://explorer.lichess.ovh/lichess -> aggregated move stats for a
- * position, restricted to the given rating bucket(s) and speed(s).
+ * GET https://explorer.lichess.org/lichess (or /masters) -> aggregated move
+ * stats for a position. The lichess database is restricted to the given
+ * rating bucket(s) and speed(s); the masters database (real
+ * grandmaster-level games) ignores rating/speed entirely (Lichess's API
+ * itself ignores those params for /masters -- verified by architect's live
+ * probe, see task-msp052v4-bf1360's spec section 0).
  *
  * @param {object} opts
  * @param {string} [opts.fen] FEN of the position to query (defaults to the
  *   standard starting position).
  * @param {string[]} [opts.play] UCI moves played so far from `fen`, used to
  *   walk forward to a deeper position without computing FENs ourselves.
- * @param {number[]} opts.ratings Rating bucket lower-bounds, e.g. [1600].
+ * @param {'lichess'|'masters'} [opts.database] which Explorer database to
+ *   query. Defaults to 'lichess' -- existing callers are unaffected.
+ * @param {number[]} [opts.ratings] Rating bucket lower-bounds, e.g. [1600].
  *   Valid Lichess buckets: 0, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500.
  *   Passing more than one combines those buckets into one aggregate result.
+ *   Required (non-empty) when database is 'lichess'; ignored for 'masters'.
  * @param {string[]} [opts.speeds] Game speeds to include, e.g.
  *   ['blitz', 'rapid']. Valid values: ultraBullet, bullet, blitz, rapid,
- *   classical, correspondence.
+ *   classical, correspondence. Ignored for 'masters'.
  * @param {number} [opts.moves] Max number of candidate moves to return.
+ * @param {number} [opts.topGames] Max number of master-level top games to
+ *   include (0 by default -- existing callers keep byte-identical behavior).
+ * @param {number} [opts.recentGames] Max number of recent games to include
+ *   (0 by default -- existing callers keep byte-identical behavior).
  * @param {Function} [opts.fetchImpl]
  * @returns {Promise<{white:number, draws:number, black:number,
  *   moves: Array<{uci:string, san:string, averageRating:number,
- *   white:number, draws:number, black:number}>,
- *   opening: {eco:string, name:string}|null}>}
+ *   white:number, draws:number, black:number, opening?:{eco:string,name:string}}>,
+ *   opening: {eco:string, name:string}|null,
+ *   topGames?: Array, recentGames?: Array}>}
  */
 async function fetchExplorerMoves({
   fen = START_FEN,
   play = [],
+  database = 'lichess',
   ratings,
   speeds = ['blitz', 'rapid'],
   moves = 8,
+  topGames = 0,
+  recentGames = 0,
   fetchImpl = fetch,
 } = {}) {
-  if (!Array.isArray(ratings) || ratings.length === 0) {
+  if (database !== 'lichess' && database !== 'masters') {
+    throw new Error(`fetchExplorerMoves: database must be "lichess" or "masters", got "${database}"`);
+  }
+  if (database === 'lichess' && (!Array.isArray(ratings) || ratings.length === 0)) {
     throw new Error('fetchExplorerMoves requires a non-empty `ratings` array');
   }
 
@@ -120,13 +139,16 @@ async function fetchExplorerMoves({
   if (Array.isArray(play) && play.length > 0) {
     params.set('play', play.join(','));
   }
-  params.set('ratings', ratings.join(','));
-  params.set('speeds', speeds.join(','));
+  if (database === 'lichess') {
+    params.set('ratings', ratings.join(','));
+    params.set('speeds', speeds.join(','));
+  }
   params.set('moves', String(moves));
-  params.set('topGames', '0');
-  params.set('recentGames', '0');
+  params.set('topGames', String(topGames));
+  params.set('recentGames', String(recentGames));
 
-  const url = `${EXPLORER_BASE_URL}?${params.toString()}`;
+  const baseUrl = database === 'masters' ? MASTERS_BASE_URL : EXPLORER_BASE_URL;
+  const url = `${baseUrl}?${params.toString()}`;
   const headers = { Accept: 'application/json' };
   const token = getApiToken();
   if (token) {
@@ -139,6 +161,7 @@ async function fetchExplorerMoves({
 
 module.exports = {
   EXPLORER_BASE_URL,
+  MASTERS_BASE_URL,
   START_FEN,
   fetchExplorerMoves,
   ExplorerRateLimitError,

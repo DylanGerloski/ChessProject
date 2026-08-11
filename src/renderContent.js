@@ -1,0 +1,374 @@
+'use strict';
+
+/**
+ * Markup for the content layer added in this build: board diagrams, opening
+ * pages, and the openings hub. Deliberately a SEPARATE module from render.js
+ * (which is concatenated verbatim into the browser bundle -- see that file's
+ * own header comment) -- this module MAY require() render.js/site.js/
+ * chessPosition.js because it is never bundled into anything that runs in a
+ * visitor's browser; every content page is fully pre-rendered static HTML
+ * with zero client-side JS.
+ *
+ * Phase-1 scope only (task-msp056zp-0a26c3): opening pages + the openings
+ * hub. Article/FAQ/home-page templates are phase 2; JSON-LD structured data
+ * is phase 3 (see that task's description for the exact split). Titles,
+ * meta descriptions, and canonical links ARE in scope here -- they were not
+ * excluded, and a page without them isn't a finished page.
+ */
+
+const { escapeHtml, renderDocumentHead, renderHeader, renderFooter, wrapTable } = require('./render');
+const { FILES, RANKS, START_BOARD, applyUciMoves } = require('./chessPosition');
+const { SITE_NAME, BUILD_DATE, absoluteUrl } = require('./site');
+
+const PIECE_GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
+
+// This module's pages are always part of the static build (never dynamic
+// dev-server routes -- see this file's own header comment), so unlike
+// render.js's renderRepertoirePage(), these footer links can be hardcoded to
+// the static compliance-page filenames directly rather than threaded
+// through as a parameter. Keep in sync with buildStatic.js's LEGAL_LINKS,
+// which points at the same three flat filenames.
+const CONTENT_LEGAL_LINKS = { privacy: 'privacy.html', about: 'about.html', contact: 'contact.html' };
+
+function pieceSpanHtml(piece) {
+  if (!piece) return '';
+  const isWhite = piece === piece.toUpperCase();
+  const glyph = PIECE_GLYPH[piece.toLowerCase()];
+  return `<span class="board-pc--${isWhite ? 'w' : 'b'}">${glyph}</span>`;
+}
+
+/**
+ * @param {Record<string,string>} board square -> FEN piece letter (see chessPosition.js)
+ * @param {{flip?: boolean, label: string}} opts `label` becomes both the
+ *   aria-label and the visible figcaption text (spec 1.7: nothing is
+ *   diagram-only, so a missing glyph degrades to "diagram missing", never
+ *   "content missing").
+ */
+function renderBoard(board, { flip = false, label = '' } = {}) {
+  const fileOrder = flip ? [...FILES].reverse() : FILES;
+  const rankOrder = flip ? RANKS : [...RANKS].reverse();
+  const squares = [];
+  for (const rank of rankOrder) {
+    for (const file of fileOrder) {
+      const square = `${file}${rank}`;
+      const isDark = (FILES.indexOf(file) + RANKS.indexOf(rank)) % 2 === 0;
+      squares.push(
+        `<span class="board-sq board-sq--${isDark ? 'dark' : 'light'}">${pieceSpanHtml(board[square])}</span>`
+      );
+    }
+  }
+  return `<div class="board" role="img" aria-label="${escapeHtml(label)}">${squares.join('')}</div>`;
+}
+
+/**
+ * @param {Array<{label:string, href?:string}>} items the last item should
+ *   have no `href` (it's the current page).
+ */
+function renderBreadcrumb(items) {
+  const parts = items
+    .map((item, i) => {
+      const isLast = i === items.length - 1;
+      return isLast || !item.href
+        ? `<li aria-current="page">${escapeHtml(item.label)}</li>`
+        : `<li><a href="${escapeHtml(item.href)}">${escapeHtml(item.label)}</a></li>`;
+    })
+    .join('<li class="breadcrumb-sep" aria-hidden="true">/</li>');
+  return `<nav class="breadcrumb" aria-label="Breadcrumb"><ol>${parts}</ol></nav>`;
+}
+
+/**
+ * @param {Array<{label:string, href:string, note?:string}>} items
+ */
+function renderRelated(items, heading = 'Related') {
+  if (!items || items.length === 0) return '';
+  const cards = items
+    .map(
+      (i) => `<div class="card"><h3><a href="${escapeHtml(i.href)}">${escapeHtml(i.label)}</a></h3>${
+        i.note ? `<p>${escapeHtml(i.note)}</p>` : ''
+      }</div>`
+    )
+    .join('');
+  return `<section><h2>${escapeHtml(heading)}</h2><div class="card-grid">${cards}</div></section>`;
+}
+
+function formatGamesAbbrev(n) {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+  return String(n);
+}
+
+/** "1.e4 e5 2.Nf3 Nc6 3.Bc4" style move text from an openings.js `line` array. */
+function formatSanLine(line) {
+  return line
+    .map((ply, i) => (i % 2 === 0 ? `${Math.floor(i / 2) + 1}.${ply.san}` : ply.san))
+    .join(' ');
+}
+
+function lichessAnalysisUrl(line) {
+  return `https://lichess.org/analysis/pgn/${encodeURIComponent(formatSanLine(line))}`;
+}
+
+function lichessOpeningUrl(name) {
+  return `https://lichess.org/opening/${encodeURIComponent(name.replace(/\s+/g, '_'))}`;
+}
+
+function wdlBar(winPct, drawPct, lossPct, title) {
+  if (winPct == null) return '<span class="wdl-label">not enough games</span>';
+  return `<span class="wdl-bar" title="${escapeHtml(title)}">
+      <span class="wdl-seg--win" style="width:${winPct}%"></span>
+      <span class="wdl-seg--draw" style="width:${drawPct}%"></span>
+      <span class="wdl-seg--loss" style="width:${lossPct}%"></span>
+    </span>
+    <span class="wdl-label">${winPct}% / ${drawPct}% / ${lossPct}%</span>`;
+}
+
+function renderBandsTable(model) {
+  const rows = model.bands
+    .map((b) => {
+      if (!b.enoughData) {
+        return `<tr><td>${escapeHtml(b.band)}</td><td>${b.games.toLocaleString()}</td><td colspan="4" class="rep-pct">Not enough games at this band yet.</td></tr>`;
+      }
+      return `<tr>
+        <td>${escapeHtml(b.band)}</td>
+        <td>${b.games.toLocaleString()}</td>
+        <td>${wdlBar(b.whitePct, b.drawPct, b.blackPct, `White/draw/black: ${b.whitePct}% / ${b.drawPct}% / ${b.blackPct}%`)}</td>
+        <td>${b.scoreForSide}%</td>
+      </tr>`;
+    })
+    .join('');
+  return wrapTable(`
+    <table>
+      <caption class="sr-only">Win/draw/loss rate by rating band</caption>
+      <thead>
+        <tr><th scope="col">Rating band</th><th scope="col">Games</th><th scope="col">White / draw / Black</th><th scope="col">Score for ${escapeHtml(model.side)}</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`);
+}
+
+function renderTopRepliesTable(model) {
+  if (model.topReplies.length === 0) {
+    return '<p class="empty-note">No reply data available for this band yet.</p>';
+  }
+  const rows = model.topReplies
+    .map((m) => {
+      const label = m.opening ? ` <span class="rep-pct">(${escapeHtml(m.opening.name)})</span>` : '';
+      return `<tr>
+        <td><a href="https://lichess.org/analysis/pgn/${encodeURIComponent(m.san)}">${escapeHtml(m.san)}</a>${label}</td>
+        <td>${m.games.toLocaleString()}</td>
+        <td>${m.playedPct}%</td>
+        <td>${wdlBar(m.winPct, m.drawPct, m.lossPct, `${m.san} win/draw/loss`)}</td>
+      </tr>`;
+    })
+    .join('');
+  return wrapTable(`
+    <table>
+      <caption class="sr-only">Most common replies at ${escapeHtml(model.defaultBand)}</caption>
+      <thead><tr><th scope="col">Move</th><th scope="col">Games</th><th scope="col">Played</th><th scope="col">Win / draw / loss</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`);
+}
+
+function renderMistakesSection(model) {
+  if (model.mistakes.length === 0) {
+    return '<p class="empty-note">No move at this band is both common and clearly low-scoring -- players at this rating aren\'t making an obvious mistake here.</p>';
+  }
+  const items = model.mistakes
+    .map((m) => {
+      const base = `<strong>${escapeHtml(m.san)}</strong> is played in ${m.playedPct}% of games here but scores only ${m.score}% for ${escapeHtml(model.opponentColor)}.`;
+      const follow = m.punishingReply
+        ? ` After ${escapeHtml(m.san)}, <strong>${escapeHtml(m.punishingReply.san)}</strong> is the most common answer and scores ${m.punishingReply.winPct != null ? Number((m.punishingReply.winPct + m.punishingReply.drawPct / 2).toFixed(1)) : '?'}% for ${escapeHtml(model.side)}.`
+        : '';
+      return `<li class="callout">${base}${follow}</li>`;
+    })
+    .join('');
+  return `<ul style="list-style:none; padding:0; margin:0;">${items}</ul>`;
+}
+
+function renderGameRows(games, { asMaster = false } = {}) {
+  if (!games || games.length === 0) return null;
+  return games
+    .map((g) => {
+      const white = g.white ? `${escapeHtml(g.white.name)} (${g.white.rating ?? '?'})` : 'White';
+      const black = g.black ? `${escapeHtml(g.black.name)} (${g.black.rating ?? '?'})` : 'Black';
+      const result = g.winner === 'white' ? '1-0' : g.winner === 'black' ? '0-1' : '½-½';
+      const link = g.id ? `https://lichess.org/${escapeHtml(g.id)}` : null;
+      const dateNote = g.year ? `${g.year}` : '';
+      return `<tr>
+        <td>${white}</td>
+        <td>${black}</td>
+        <td>${result}</td>
+        <td>${dateNote}</td>
+        <td>${link ? `<a href="${link}">View game</a>` : '–'}</td>
+      </tr>`;
+    })
+    .join('');
+}
+
+function renderGamesTable(games, caption) {
+  const rows = renderGameRows(games);
+  if (!rows) return '<p class="empty-note">No games available for this section yet.</p>';
+  return wrapTable(`
+    <table>
+      <caption class="sr-only">${escapeHtml(caption)}</caption>
+      <thead><tr><th scope="col">White</th><th scope="col">Black</th><th scope="col">Result</th><th scope="col">Year</th><th scope="col">Game</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`);
+}
+
+/**
+ * @param {object} opts
+ * @param {object} opts.model output of processOpenings.buildOpeningModel
+ * @param {object} opts.openingConfig the matching openings.js entry (for line/slug)
+ * @param {object} opts.nav nav object for renderHeader (STATIC_NAV plus `openings`)
+ * @param {Array<{label,href,note}>} [opts.related]
+ * @param {{white:string, black:string}} [opts.repertoireLinks] filenames of
+ *   the matching repertoire-<band>-<color>.html pages for "Build a
+ *   repertoire from here"
+ */
+function renderOpeningPage({ model, openingConfig, nav, related = [], repertoireLinks = {} }) {
+  const line = openingConfig.line;
+  const board = applyUciMoves(START_BOARD, line.map((p) => p.uci));
+  const flip = openingConfig.side === 'black';
+  const sanLine = formatSanLine(line);
+  const mainBand = model.bands.find((b) => b.band === model.defaultBand) || model.bands[0];
+  const totalGamesNote = mainBand && mainBand.games
+    ? `data from ${mainBand.games.toLocaleString()} Lichess blitz & rapid games at ${escapeHtml(model.defaultBand)}`
+    : 'data from Lichess blitz & rapid games';
+
+  const title = `${model.name} (${model.eco}): Win Rates by Rating | ${SITE_NAME}`;
+  let description = mainBand && mainBand.scoreForSide != null
+    ? `${model.name} (${sanLine}) scores ${mainBand.scoreForSide}% for ${model.side} across ${formatGamesAbbrev(mainBand.games)} Lichess games. Win rates, replies, and master games by rating.`
+    : `${model.name} (${model.eco}): win rates, replies, and master games by rating band, from real Lichess data.`;
+  // Meta descriptions must stay <=160 chars (spec 2.2) -- fall back to a
+  // shorter form rather than truncate mid-sentence for the handful of
+  // longer opening names/lines (e.g. "King's Indian Defense").
+  if (description.length > 160) {
+    description = mainBand && mainBand.scoreForSide != null
+      ? `${model.name} scores ${mainBand.scoreForSide}% for ${model.side} across ${formatGamesAbbrev(mainBand.games)} Lichess games. Win rates, replies, and master games by rating.`
+      : `${model.name} (${model.eco}): win rates and master games by rating band, from real Lichess data.`;
+  }
+  const canonical = absoluteUrl(`${openingConfig.slug}.html`);
+
+  const repFile = repertoireLinks[openingConfig.side];
+
+  return `<!DOCTYPE html>
+<html lang="en">
+${renderDocumentHead({ title, description, canonical, ogType: 'article' })}
+<body>
+  ${renderHeader(nav, 'openings')}
+  <main>
+    ${renderBreadcrumb([{ label: 'Home', href: nav.repertoire }, { label: 'Openings', href: nav.openings }, { label: model.name }])}
+    <h1 class="page-title">${escapeHtml(model.name)} (${escapeHtml(model.eco)}) &mdash; win rates at club level</h1>
+    <p class="subtitle">${escapeHtml(sanLine)}, playing as ${escapeHtml(model.side)} &mdash; ${totalGamesNote}.</p>
+
+    <h2>The position</h2>
+    <figure class="board-figure">
+      ${renderBoard(board, { flip, label: `Position after ${sanLine}` })}
+      <figcaption>Position after ${escapeHtml(sanLine)}.
+        <a href="${lichessAnalysisUrl(line)}">Open this line on Lichess &rarr;</a> &middot;
+        <a href="${lichessOpeningUrl(model.name)}">${escapeHtml(model.name)} on Lichess</a>
+      </figcaption>
+    </figure>
+
+    <h2>How it scores at your rating</h2>
+    ${renderBandsTable(model)}
+
+    <h2>What ${escapeHtml(model.opponentColor)} actually plays next</h2>
+    <p>Top replies at ${escapeHtml(model.defaultBand)}:</p>
+    ${renderTopRepliesTable(model)}
+
+    <h2>Common mistakes at ${escapeHtml(model.defaultBand)}</h2>
+    ${renderMistakesSection(model)}
+
+    <h2>Model games</h2>
+    <p>Real games from the Lichess masters database.</p>
+    ${renderGamesTable(model.masterGames, 'Master games in this line')}
+
+    <h2>Recent club games in this line</h2>
+    <p>Recent rated games at ${escapeHtml(model.defaultBand)} &mdash; not model games, just what actually happens at that rating.</p>
+    ${renderGamesTable(model.recentGames, 'Recent games in this line')}
+
+    <h2>Build a repertoire from here</h2>
+    <p>See the full move tree for players in your rating band:
+      ${repFile ? `<a href="${escapeHtml(repFile)}">${escapeHtml(model.defaultBand)} repertoire explorer (${escapeHtml(openingConfig.side)}) &rarr;</a>` : 'repertoire explorer coming soon.'}
+    </p>
+
+    ${renderRelated(related, 'Related openings')}
+  </main>
+  ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a> (lichess database, blitz + rapid), retrieved ${BUILD_DATE}. Master games from the Lichess masters database.`, CONTENT_LEGAL_LINKS)}
+</body>
+</html>
+`;
+}
+
+/**
+ * @param {Array<{openingConfig:object, model:object}>} entries
+ */
+function renderOpeningsHub(entries, { nav }) {
+  const title = `Chess Openings by Real Win Rate | ${SITE_NAME}`;
+  const description = `${entries.length} chess openings compared by real Lichess win rate, move-by-move, across four rating bands from 1400 to 2000+.`;
+  const canonical = absoluteUrl('openings.html');
+
+  const rows = entries
+    .map(({ openingConfig, model }) => {
+      const band = model.bands.find((b) => b.band === '1600-1800') || model.bands[0];
+      return `<tr>
+        <td><a href="${escapeHtml(openingConfig.slug)}.html">${escapeHtml(model.name)}</a></td>
+        <td>${escapeHtml(model.eco)}</td>
+        <td>${escapeHtml(formatSanLine(openingConfig.line))}</td>
+        <td>${band ? band.games.toLocaleString() : '–'}</td>
+        <td>${band && band.scoreForSide != null ? `${band.scoreForSide}%` : 'n/a'}</td>
+      </tr>`;
+    })
+    .join('');
+
+  const cards = entries
+    .map(({ openingConfig, model }) => {
+      const band = model.bands.find((b) => b.band === '1600-1800') || model.bands[0];
+      const scoreNote = band && band.scoreForSide != null
+        ? `Scores ${band.scoreForSide}% for ${model.side} at 1600-1800.`
+        : `Playing as ${model.side}.`;
+      return `<div class="card"><h3><a href="${escapeHtml(openingConfig.slug)}.html">${escapeHtml(model.name)}</a></h3><p>${escapeHtml(scoreNote)}</p></div>`;
+    })
+    .join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+${renderDocumentHead({ title, description, canonical })}
+<body>
+  ${renderHeader(nav, 'openings')}
+  <main>
+    ${renderBreadcrumb([{ label: 'Home', href: nav.repertoire }, { label: 'Openings' }])}
+    <h1 class="page-title">Chess openings by real win rate</h1>
+    <p class="subtitle">${entries.length} openings, each backed by real Lichess data across four rating bands &mdash; not opinion.</p>
+
+    <h2>Compare all ${entries.length} openings</h2>
+    ${wrapTable(`
+      <table>
+        <caption class="sr-only">Opening comparison at 1600-1800</caption>
+        <thead>
+          <tr><th scope="col">Opening</th><th scope="col">ECO</th><th scope="col">First moves</th><th scope="col">Games (1600-1800)</th><th scope="col">Score for its side</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`)}
+
+    <h2>Browse by opening</h2>
+    <div class="card-grid">${cards}</div>
+  </main>
+  ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}.`, CONTENT_LEGAL_LINKS)}
+</body>
+</html>
+`;
+}
+
+module.exports = {
+  renderBoard,
+  renderBreadcrumb,
+  renderRelated,
+  renderOpeningPage,
+  renderOpeningsHub,
+  formatSanLine,
+  lichessAnalysisUrl,
+  lichessOpeningUrl,
+};

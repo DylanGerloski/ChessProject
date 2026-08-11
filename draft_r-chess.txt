@@ -1,0 +1,44 @@
+VENUE: r/chess
+RULES CITED: Reddit 90/10 self-promotion guideline + r/chess norm (general discussion, analysis focus)
+MANUAL-ONLY: YES (must be posted by human, not scheduled/automated)
+RECOMMENDED CADENCE: Post 2–3 days after r/chessbeginners post; no re-post for 30+ days
+---
+
+DRAFT POST (Reddit text post):
+
+Title: Free Tool: Rating-Band Opening-Repertoire Explorer (Lichess Data, 1400–2000+ Rating Levels)
+
+Body:
+
+Hi r/chess,
+
+I built a tool to solve a question I kept running into: "What openings do players actually play at each rating level, and which ones score well?"
+
+**The Approach:**
+Rather than arguing about opening merit, I pulled millions of real Lichess games and built an opening-repertoire explorer that shows:
+- Top moves by rating band and color
+- Win/draw/loss rates per move (what actually scores)
+- One-move-deep continuations for opponent responses
+
+8 pre-rendered pages (1400–1600, 1600–1800, 1800–2000, 2000+ for both white and black), all free, no login.
+
+**Link:** https://dylangerloski.github.io/ChessProject/
+
+**Use cases I built it for:**
+- Repertoire builders who want to see what their target-rating cohort plays
+- Theory enthusiasts curious about rating-specific differences (a line's viability changes at 1800+)
+- Players analyzing their own opening choices against cohort data
+
+**Audience:**
+This is a tool for improving players and analysts, not for theory-heavy posts, but I thought the data might interest folks here who dig into rating-specific opening trends.
+
+Feedback welcome—especially if you spot data issues or have ideas for useful additions.
+
+---
+
+POSTING NOTES:
+- Post as a text post with the link embedded (not a link-only post)
+- Tone: Analytical and humble. Don't oversell. This is data, not a coaching service.
+- Anticipate technical questions: "How many games per rating band?" (Answer varies, but Lichess's open API provides consistent coverage within each band; see tool sidebar or README for details)
+- If asked "Why Lichess and not Chess.com?": "Lichess publishes their full opening explorer API publicly; Chess.com restricts it to their own platform. This is meant as a free, complementary tool, not a replacement."
+- r/chess is sophisticated; they'll notice if data is incomplete or biased. Be honest about limitations (e.g., "2000+ is a smaller sample" if true).

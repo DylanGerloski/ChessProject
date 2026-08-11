@@ -1,0 +1,21 @@
+{
+  "opening": { "eco": "C50", "name": "Italian Game" },
+  "white": 4200,
+  "draws": 3100,
+  "black": 2600,
+  "moves": [
+    { "uci": "f8c5", "san": "Bc5", "averageRating": 2600, "white": 2000, "draws": 1800, "black": 1400 }
+  ],
+  "topGames": [
+    {
+      "uci": "f8c5",
+      "id": "9fWPVa8k",
+      "winner": "black",
+      "white": { "name": "Caruana, Fabiano", "rating": 2835 },
+      "black": { "name": "Carlsen, Magnus", "rating": 2863 },
+      "year": 2020,
+      "month": "2020-06"
+    }
+  ],
+  "recentGames": []
+}

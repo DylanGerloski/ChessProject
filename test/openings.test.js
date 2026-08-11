@@ -1,0 +1,51 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const {
+  OPENINGS,
+  getOpening,
+  slugToFilename,
+  assertOpeningsWellFormed,
+} = require('../src/openings');
+
+test('there are exactly 10 openings (the fixed set from the spec, no expansion)', () => {
+  assert.equal(OPENINGS.length, 10);
+});
+
+test('every opening has a unique, URL-safe slug', () => {
+  const slugs = OPENINGS.map((o) => o.slug);
+  assert.equal(new Set(slugs).size, slugs.length);
+  for (const slug of slugs) {
+    assert.match(slug, /^[a-z0-9-]+$/);
+  }
+});
+
+test('every opening has a valid side and a non-empty line with matching san/uci pairs', () => {
+  for (const o of OPENINGS) {
+    assert.ok(o.side === 'white' || o.side === 'black', `${o.slug}: invalid side`);
+    assert.ok(Array.isArray(o.line) && o.line.length > 0, `${o.slug}: empty line`);
+    for (const ply of o.line) {
+      assert.ok(typeof ply.uci === 'string' && ply.uci.length >= 4, `${o.slug}: bad uci`);
+      assert.ok(typeof ply.san === 'string' && ply.san.length > 0, `${o.slug}: bad san`);
+    }
+  }
+});
+
+test('no opening slug collides with a reserved static filename', () => {
+  for (const o of OPENINGS) {
+    const file = slugToFilename(o.slug);
+    assert.notEqual(file, 'index.html');
+    assert.notEqual(file, 'player.html');
+    assert.notEqual(file, 'openings.html');
+  }
+});
+
+test('getOpening finds a known slug and returns null for an unknown one', () => {
+  assert.equal(getOpening('italian-game').name, 'Italian Game');
+  assert.equal(getOpening('not-a-real-opening'), null);
+});
+
+test('assertOpeningsWellFormed passes for the real config', () => {
+  assert.equal(assertOpeningsWellFormed(), true);
+});
