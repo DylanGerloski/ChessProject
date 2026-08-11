@@ -52,9 +52,22 @@
 
     --shadow-sm: 0 1px 2px rgba(35, 39, 31, 0.08);
     --shadow-md: 0 8px 24px rgba(35, 39, 31, 0.10);
+
+    --color-board-light: #ece3cd;
+    --color-board-dark: #c2ad82;
   }
 
   * { box-sizing: border-box; }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 
   html { background: var(--color-bg); }
 
@@ -376,6 +389,149 @@
     border-top: 1px solid var(--color-border);
   }
 
+  .support-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+  }
+  .support-links a {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-accent-dark);
+    text-decoration: none;
+    background: var(--color-surface);
+  }
+  .support-links a:hover {
+    background: var(--color-hover);
+    border-color: var(--color-accent);
+  }
+
+  .disclosure-note {
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+    margin: var(--space-3) 0 0;
+    max-width: 60ch;
+  }
+
+  .legal-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+    font-size: var(--text-xs);
+  }
+  .legal-links a { color: var(--color-muted); }
+  .legal-links a:hover { color: var(--color-accent-dark); }
+
+  .prose { max-width: 68ch; }
+  .prose p { margin: 0 0 var(--space-4); line-height: 1.7; }
+  .prose h2 { margin-top: var(--space-6); }
+  .prose ul, .prose ol { padding-left: var(--space-5); line-height: 1.7; }
+  .prose blockquote {
+    border-left: 3px solid var(--color-accent);
+    padding-left: var(--space-4);
+    color: var(--color-muted);
+    font-family: var(--font-serif);
+    margin: var(--space-5) 0;
+  }
+
+  .breadcrumb { font-size: var(--text-xs); color: var(--color-muted); margin-bottom: var(--space-3); }
+  .breadcrumb a { color: var(--color-muted); }
+  .breadcrumb ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .breadcrumb li { display: inline; }
+  .breadcrumb .breadcrumb-sep { color: var(--color-border); }
+
+  .article-meta {
+    font-size: var(--text-xs);
+    color: var(--color-muted);
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-3);
+    margin: var(--space-3) 0 var(--space-5);
+  }
+
+  .toc {
+    background: var(--color-surface-alt);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4) var(--space-5);
+    margin: 0 0 var(--space-6);
+    font-size: var(--text-sm);
+  }
+
+  .card-grid {
+    display: grid;
+    gap: var(--space-4);
+    margin: var(--space-4) 0 var(--space-6);
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+
+  .card {
+    position: relative;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 120ms ease, transform 120ms ease;
+  }
+  .card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .card h3 { margin: 0 0 var(--space-2); font-size: var(--text-base); }
+  .card p { margin: 0; font-size: var(--text-sm); color: var(--color-muted); }
+  .card a { text-decoration: none; }
+  .card a::after { content: ""; position: absolute; inset: 0; }
+
+  .callout {
+    background: var(--color-surface-alt);
+    border-left: 4px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    padding: var(--space-4) var(--space-5);
+    margin: var(--space-5) 0;
+    font-size: var(--text-sm);
+  }
+
+  .stat-row { display: flex; flex-wrap: wrap; gap: var(--space-4); margin: var(--space-4) 0 var(--space-6); }
+  .stat {
+    flex: 1 1 140px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+  }
+  .stat-value { font-family: var(--font-serif); font-size: var(--text-xl); color: var(--color-accent-dark); line-height: 1.1; }
+  .stat-label { font-size: var(--text-xs); color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .source-list { font-size: var(--text-sm); color: var(--color-muted); }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    width: min(320px, 100%);
+    aspect-ratio: 1 / 1;
+    border: 2px solid var(--color-accent-dark);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin: 0;
+  }
+  .board-sq {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(18px, 5.2vw, 30px);
+    line-height: 1;
+    font-family: "Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols 2", "DejaVu Sans", sans-serif;
+  }
+  .board-sq--light { background: var(--color-board-light); }
+  .board-sq--dark { background: var(--color-board-dark); }
+  .board-pc--w { color: #ffffff; text-shadow: 0 0 1px #23271f, 0 0 1px #23271f, 0 0 2px #23271f; }
+  .board-pc--b { color: #23271f; }
+  figure.board-figure { margin: var(--space-4) 0 var(--space-6); }
+  figcaption { font-size: var(--text-sm); color: var(--color-muted); margin-top: var(--space-2); }
+
   @media (max-width: 640px) {
     body { padding: var(--space-4) var(--space-3) var(--space-6); }
     h1.page-title { font-size: var(--text-xl); }
@@ -383,15 +539,19 @@
     .wdl-bar { width: 72px; }
     .rep-node-row { padding: var(--space-2) var(--space-3); }
     .lookup-form { flex-direction: column; align-items: stretch; }
+    .board { width: 100%; }
+    .card-grid { grid-template-columns: 1fr; }
   }
 </style>
+  <script data-goatcounter="https://dylangerrrr.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </head>
 <body>
   <header class="site-header">
-    <span class="brand"><span class="brand-mark" aria-hidden="true">&#9822;</span>Lichess Stats</span>
-    <nav class="site-nav">
-      <a href="player.html">Player lookup</a>
+    <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">&#9822;</span>Lichess Stats</a>
+    <nav class="site-nav" aria-label="Main">
       <a href="index.html" aria-current="page">Repertoire explorer</a>
+      <a href="openings.html">Openings</a>
+      <a href="player.html">Player lookup</a>
     </nav>
   </header>
   <main>
@@ -754,6 +914,16 @@
     </li></ul>
     </li></ul>
   </main>
-  <footer class="site-footer">Data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a> (explorer.lichess.ovh, keyless, no account required).</footer>
+  <footer class="site-footer">Data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a> (explorer.lichess.ovh, keyless, no account required).
+  <div class="support-links">
+    <a href="https://ko-fi.com/dylangerloski" target="_blank" rel="noopener noreferrer">&#9749; Support on Ko-fi</a>
+    <a href="https://buymeacoffee.com/dylanger254" target="_blank" rel="noopener noreferrer">&#9749; Buy Me a Coffee</a>
+  </div>
+  <p class="disclosure-note">Disclosure: this site includes voluntary support links (Ko-fi, Buy Me a Coffee) and may in the future include affiliate links that earn a small commission on qualifying purchases at no extra cost to you. Support and affiliate links never influence the win-rate data, rankings, or analysis shown on this site -- all of that comes directly from Lichess's public API and Opening Explorer, unaffected by any link on this page.</p>
+  <nav class="legal-links" aria-label="Legal">
+    <a href="privacy.html">Privacy policy</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+  </nav></footer>
 </body>
 </html>

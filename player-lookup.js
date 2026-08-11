@@ -324,9 +324,22 @@ const SITE_CSS = `
 
     --shadow-sm: 0 1px 2px rgba(35, 39, 31, 0.08);
     --shadow-md: 0 8px 24px rgba(35, 39, 31, 0.10);
+
+    --color-board-light: #ece3cd;
+    --color-board-dark: #c2ad82;
   }
 
   * { box-sizing: border-box; }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 
   html { background: var(--color-bg); }
 
@@ -648,6 +661,149 @@ const SITE_CSS = `
     border-top: 1px solid var(--color-border);
   }
 
+  .support-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+  }
+  .support-links a {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-accent-dark);
+    text-decoration: none;
+    background: var(--color-surface);
+  }
+  .support-links a:hover {
+    background: var(--color-hover);
+    border-color: var(--color-accent);
+  }
+
+  .disclosure-note {
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+    margin: var(--space-3) 0 0;
+    max-width: 60ch;
+  }
+
+  .legal-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+    font-size: var(--text-xs);
+  }
+  .legal-links a { color: var(--color-muted); }
+  .legal-links a:hover { color: var(--color-accent-dark); }
+
+  .prose { max-width: 68ch; }
+  .prose p { margin: 0 0 var(--space-4); line-height: 1.7; }
+  .prose h2 { margin-top: var(--space-6); }
+  .prose ul, .prose ol { padding-left: var(--space-5); line-height: 1.7; }
+  .prose blockquote {
+    border-left: 3px solid var(--color-accent);
+    padding-left: var(--space-4);
+    color: var(--color-muted);
+    font-family: var(--font-serif);
+    margin: var(--space-5) 0;
+  }
+
+  .breadcrumb { font-size: var(--text-xs); color: var(--color-muted); margin-bottom: var(--space-3); }
+  .breadcrumb a { color: var(--color-muted); }
+  .breadcrumb ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .breadcrumb li { display: inline; }
+  .breadcrumb .breadcrumb-sep { color: var(--color-border); }
+
+  .article-meta {
+    font-size: var(--text-xs);
+    color: var(--color-muted);
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-3);
+    margin: var(--space-3) 0 var(--space-5);
+  }
+
+  .toc {
+    background: var(--color-surface-alt);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4) var(--space-5);
+    margin: 0 0 var(--space-6);
+    font-size: var(--text-sm);
+  }
+
+  .card-grid {
+    display: grid;
+    gap: var(--space-4);
+    margin: var(--space-4) 0 var(--space-6);
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+
+  .card {
+    position: relative;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 120ms ease, transform 120ms ease;
+  }
+  .card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .card h3 { margin: 0 0 var(--space-2); font-size: var(--text-base); }
+  .card p { margin: 0; font-size: var(--text-sm); color: var(--color-muted); }
+  .card a { text-decoration: none; }
+  .card a::after { content: ""; position: absolute; inset: 0; }
+
+  .callout {
+    background: var(--color-surface-alt);
+    border-left: 4px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    padding: var(--space-4) var(--space-5);
+    margin: var(--space-5) 0;
+    font-size: var(--text-sm);
+  }
+
+  .stat-row { display: flex; flex-wrap: wrap; gap: var(--space-4); margin: var(--space-4) 0 var(--space-6); }
+  .stat {
+    flex: 1 1 140px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+  }
+  .stat-value { font-family: var(--font-serif); font-size: var(--text-xl); color: var(--color-accent-dark); line-height: 1.1; }
+  .stat-label { font-size: var(--text-xs); color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .source-list { font-size: var(--text-sm); color: var(--color-muted); }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    width: min(320px, 100%);
+    aspect-ratio: 1 / 1;
+    border: 2px solid var(--color-accent-dark);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin: 0;
+  }
+  .board-sq {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(18px, 5.2vw, 30px);
+    line-height: 1;
+    font-family: "Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols 2", "DejaVu Sans", sans-serif;
+  }
+  .board-sq--light { background: var(--color-board-light); }
+  .board-sq--dark { background: var(--color-board-dark); }
+  .board-pc--w { color: #ffffff; text-shadow: 0 0 1px #23271f, 0 0 1px #23271f, 0 0 2px #23271f; }
+  .board-pc--b { color: #23271f; }
+  figure.board-figure { margin: var(--space-4) 0 var(--space-6); }
+  figcaption { font-size: var(--text-sm); color: var(--color-muted); margin-top: var(--space-2); }
+
   @media (max-width: 640px) {
     body { padding: var(--space-4) var(--space-3) var(--space-6); }
     h1.page-title { font-size: var(--text-xl); }
@@ -655,6 +811,8 @@ const SITE_CSS = `
     .wdl-bar { width: 72px; }
     .rep-node-row { padding: var(--space-2) var(--space-3); }
     .lookup-form { flex-direction: column; align-items: stretch; }
+    .board { width: 100%; }
+    .card-grid { grid-template-columns: 1fr; }
   }
 `;
 
@@ -669,44 +827,136 @@ const SITE_CSS = `
 const FAVICON_DATA_URI = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%232a4d3a'/%3E%3Ccircle cx='32' cy='23' r='9' fill='%23f8f5ea'/%3E%3Cpath d='M21 40c0-3 4-5 11-5s11 2 11 5l3 9H18z' fill='%23f8f5ea'/%3E%3Crect x='15' y='50' width='34' height='8' rx='3' fill='%23f8f5ea'/%3E%3C/svg%3E";
 
 /**
- * @param {string} title document <title>
+ * @param {string|{title:string, description?:string, canonical?:string,
+ *   ogType?:'website'|'article', jsonLd?:string, noindex?:boolean}} arg
+ *   Back-compat: a plain string is treated exactly as before (just a
+ *   <title>). An object form additionally emits a meta description, a
+ *   canonical link, and OpenGraph/Twitter tags -- used by content pages
+ *   (src/renderContent.js). `jsonLd` (a pre-serialized <script type=
+ *   "application/ld+json"> block or blocks) is phase-3 scope; content pages
+ *   in this build pass no jsonLd, so nothing changes for them yet.
  * @returns {string} a full <head>...</head> block shared by every page.
  */
-function renderDocumentHead(title) {
+function renderDocumentHead(arg) {
+  const opts = typeof arg === 'string' ? { title: arg } : (arg || {});
+  const { title, description, canonical, ogType = 'website', jsonLd, noindex } = opts;
+
+  const metaDescription = description
+    ? `\n  <meta name="description" content="${escapeHtml(description)}">`
+    : '';
+  const canonicalLink = canonical
+    ? `\n  <link rel="canonical" href="${escapeHtml(canonical)}">`
+    : '';
+  const robotsMeta = noindex ? '\n  <meta name="robots" content="noindex">' : '';
+  const og = canonical || description
+    ? `\n  <meta property="og:title" content="${escapeHtml(title)}">` +
+      (description ? `\n  <meta property="og:description" content="${escapeHtml(description)}">` : '') +
+      (canonical ? `\n  <meta property="og:url" content="${escapeHtml(canonical)}">` : '') +
+      `\n  <meta property="og:type" content="${escapeHtml(ogType)}">` +
+      `\n  <meta property="og:site_name" content="Lichess Stats">` +
+      `\n  <meta name="twitter:card" content="summary">`
+    : '';
+  const jsonLdBlock = jsonLd ? `\n  ${jsonLd}` : '';
+
   return `<head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(title)}</title>
+  <title>${escapeHtml(title)}</title>${metaDescription}${canonicalLink}${robotsMeta}${og}
   <link rel="icon" href="${FAVICON_DATA_URI}">
-  <style>${SITE_CSS}</style>
+  <style>${SITE_CSS}</style>${jsonLdBlock}
+  <script data-goatcounter="https://dylangerrrr.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </head>`;
 }
 
+// Fixed nav order for every page that has more than the original two links.
+// renderHeader() below renders only the keys actually PRESENT in the `nav`
+// object it's given, in this order -- so server.js's existing 2-key nav
+// (player/repertoire) renders identically to before, while the static build
+// can pass additional keys as those pages come online (openings in this
+// phase; guides/faq in later phases) without editing server.js at all.
+const NAV_ORDER = ['repertoire', 'openings', 'guides', 'faq', 'player'];
+const NAV_LABELS = {
+  repertoire: 'Repertoire explorer',
+  openings: 'Openings',
+  guides: 'Guides',
+  faq: 'FAQ',
+  player: 'Player lookup',
+};
+
 /**
- * @param {{player: string, repertoire: string}} nav link targets -- either
- *   the dynamic dev-server routes (server.js's default) or flat static
- *   filenames (buildStatic.js).
- * @param {'player'|'repertoire'|null} [active] which nav link, if any,
- *   represents the current page.
+ * @param {{player?: string, repertoire?: string, openings?: string,
+ *   guides?: string, faq?: string}} nav link targets for whichever pages
+ *   currently exist -- either the dynamic dev-server routes (server.js's
+ *   default, 2 keys) or flat static filenames (buildStatic.js, up to 5
+ *   keys). Only keys present in this object are rendered.
+ * @param {'player'|'repertoire'|'openings'|'guides'|'faq'|null} [active]
+ *   which nav link, if any, represents the current page.
  * @returns {string} the shared header/nav markup used on every page.
  */
 function renderHeader(nav, active = null) {
+  const links = NAV_ORDER.filter((key) => nav[key] != null)
+    .map((key) => `<a href="${escapeHtml(nav[key])}"${active === key ? ' aria-current="page"' : ''}>${escapeHtml(NAV_LABELS[key])}</a>`)
+    .join('\n      ');
+
   return `<header class="site-header">
-    <span class="brand"><span class="brand-mark" aria-hidden="true">&#9822;</span>Lichess Stats</span>
-    <nav class="site-nav">
-      <a href="${escapeHtml(nav.player)}"${active === 'player' ? ' aria-current="page"' : ''}>Player lookup</a>
-      <a href="${escapeHtml(nav.repertoire)}"${active === 'repertoire' ? ' aria-current="page"' : ''}>Repertoire explorer</a>
+    <a class="brand" href="${escapeHtml(nav.home || nav.repertoire || '/')}"><span class="brand-mark" aria-hidden="true">&#9822;</span>Lichess Stats</a>
+    <nav class="site-nav" aria-label="Main">
+      ${links}
     </nav>
   </header>`;
+}
+
+// Support-link URLs, added once here so every page picks them up from this
+// single shared footer instead of being pasted into each render*.js call
+// site. Real accounts created by the human 2026-08-11 -- do not modify
+// these strings. Disclosure copy for these links is a separate task
+// (task-msp18k2w-9f147e); this is just the links/buttons themselves.
+const KOFI_URL = 'https://ko-fi.com/dylangerloski';
+const BMC_URL = 'https://buymeacoffee.com/dylanger254';
+
+/**
+ * Affiliate/support-link disclosure (task-msp18k2w-9f147e). Exported as its
+ * own function -- not just inlined into renderFooter() below -- so it's a
+ * genuine standalone snippet/component, reusable on any future page that
+ * carries affiliate or support links even outside the shared footer (e.g. a
+ * future dedicated review/comparison page). renderFooter() also calls this
+ * unconditionally (see below) because every page's footer already renders
+ * the Ko-fi/Buy Me a Coffee support links (KOFI_URL/BMC_URL above, wired in
+ * task-msp4dp6c-170d4e) -- the disclosure that covers them has to appear
+ * everywhere those do.
+ */
+function renderDisclosure() {
+  return `<p class="disclosure-note">Disclosure: this site includes voluntary support links (Ko-fi, Buy Me a Coffee) and may in the future include affiliate links that earn a small commission on qualifying purchases at no extra cost to you. Support and affiliate links never influence the win-rate data, rankings, or analysis shown on this site -- all of that comes directly from Lichess's public API and Opening Explorer, unaffected by any link on this page.</p>`;
 }
 
 /**
  * @param {string} innerHtml page-specific footer copy (data-source credit,
  *   etc). Callers should NOT claim the site is only local/unpublished --
  *   this app is deployed to GitHub Pages.
+ * @param {{privacy?: string, about?: string, contact?: string}} [legalLinks]
+ *   Optional footer link targets for the compliance pages added in
+ *   task-msp18k2w-9f147e (src/renderCompliance.js). Only callers that know
+ *   those pages actually exist at those paths should pass this -- the
+ *   local-only dev server (src/server.js) has no routes for them and
+ *   deliberately omits it, so its footer renders with no legal-links row
+ *   rather than a broken link. The disclosure paragraph above, by contrast,
+ *   is unconditional (see renderDisclosure()'s own comment).
  */
-function renderFooter(innerHtml) {
-  return `<footer class="site-footer">${innerHtml}</footer>`;
+function renderFooter(innerHtml, legalLinks) {
+  const legalRow = legalLinks
+    ? `
+  <nav class="legal-links" aria-label="Legal">
+    ${legalLinks.privacy ? `<a href="${escapeHtml(legalLinks.privacy)}">Privacy policy</a>` : ''}
+    ${legalLinks.about ? `<a href="${escapeHtml(legalLinks.about)}">About</a>` : ''}
+    ${legalLinks.contact ? `<a href="${escapeHtml(legalLinks.contact)}">Contact</a>` : ''}
+  </nav>`
+    : '';
+  return `<footer class="site-footer">${innerHtml}
+  <div class="support-links">
+    <a href="${KOFI_URL}" target="_blank" rel="noopener noreferrer">&#9749; Support on Ko-fi</a>
+    <a href="${BMC_URL}" target="_blank" rel="noopener noreferrer">&#9749; Buy Me a Coffee</a>
+  </div>
+  ${renderDisclosure()}${legalRow}</footer>`;
 }
 
 /**
@@ -858,13 +1108,16 @@ function renderRepertoireTree(tree) {
 /**
  * @param {{ratingBand: string, color: string, opening: {eco:string,name:string}|null,
  *   totals: {white:number,draws:number,black:number}|null, tree: Array,
- *   nav?: {player: string, repertoire: string}}} data `nav` lets callers point
- *   the top-of-page links at either the dynamic dev-server routes (the
- *   default, used by server.js) or flat static filenames (used by the
- *   static build, e.g. {player: 'player.html', repertoire: 'index.html'}).
+ *   nav?: {player: string, repertoire: string},
+ *   legalLinks?: {privacy?: string, about?: string, contact?: string}}} data
+ *   `nav` lets callers point the top-of-page links at either the dynamic
+ *   dev-server routes (the default, used by server.js) or flat static
+ *   filenames (used by the static build, e.g. {player: 'player.html',
+ *   repertoire: 'index.html'}). `legalLinks` is forwarded to renderFooter()
+ *   -- see that function's own doc comment; only the static build passes it.
  * @returns {string} a full standalone HTML document
  */
-function renderRepertoirePage({ ratingBand, color, opening, totals, tree, nav = { player: '/', repertoire: '/repertoire' } }) {
+function renderRepertoirePage({ ratingBand, color, opening, totals, tree, nav = { player: '/', repertoire: '/repertoire' }, legalLinks }) {
   const totalGames = totals ? totals.white + totals.draws + totals.black : null;
   const openingNote = opening ? ` &mdash; starting from ${escapeHtml(opening.name)} (${escapeHtml(opening.eco)})` : '';
   const totalsNote = totals
@@ -886,7 +1139,7 @@ ${renderDocumentHead(`Opening repertoire explorer (${ratingBand}, ${color}) - Li
        only their single most common response, to keep the tree readable.</p>
     ${renderRepertoireTree(tree)}
   </main>
-  ${renderFooter('Data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a> (explorer.lichess.ovh, keyless, no account required).')}
+  ${renderFooter('Data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a> (explorer.lichess.ovh, keyless, no account required).', legalLinks)}
 </body>
 </html>
 `;
