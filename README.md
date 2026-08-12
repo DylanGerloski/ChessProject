@@ -162,8 +162,9 @@ What it writes to `dist/`:
   page.
 
 Open `dist/index.html` directly in a browser (a `file://` URL) and click through both
-features. See `TESTING.md` section 6 for a plain-language walkthrough, including what to
-expect and how to double-check the token isn't in there yourself.
+features. To confirm the Lichess API token never ends up in the build yourself, search the
+`dist/` folder's files for the token string from your local `.lichess-token` file -- it
+should not appear anywhere.
 
 ## Running the tests
 

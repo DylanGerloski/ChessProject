@@ -1,12 +1,12 @@
 'use strict';
 
 /**
- * Editorial guide (phase 2 of the content-depth build). Every number in
- * `render()` is pulled from `ctx.entries` at build time -- the same
- * already-fetched opening models the opening pages themselves use -- so this
- * file has no hand-typed statistics to go stale or be wrong. See this
- * project's TESTING.md for how to regenerate it and where the human-review
- * step belongs before this ships publicly.
+ * Editorial guide. Every number in `render()` is pulled from `ctx.entries`
+ * at build time -- the same already-fetched opening models the opening
+ * pages themselves use -- so this file has no hand-typed statistics to go
+ * stale or be wrong. To regenerate it, re-run `npm run build:static`, which
+ * re-fetches the underlying opening data and re-renders this page from it;
+ * a human should spot-check the rendered output before it ships publicly.
  */
 
 const SLUG = 'how-to-beat-the-london-system';
