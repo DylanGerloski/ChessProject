@@ -1,9 +1,4 @@
 # ads.txt for Lichess Stats
-# No authorized digital sellers are configured yet -- this is a placeholder.
-# ads.txt is not required for Google AdSense approval, but is recommended
-# once an ad account exists, to declare authorized sellers of this site's
-# ad inventory. See https://iabtechlab.com/ads-txt/ for the spec.
-#
-# Once an AdSense account is approved, add a line here in the form:
-# google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0
-# (replace pub-XXXXXXXXXXXXXXXX with this site's real AdSense publisher ID)
+# Declares authorized sellers of this site's ad inventory.
+# See https://iabtechlab.com/ads-txt/ for the spec.
+google.com, pub-9767914878112531, DIRECT, f08c47fec0942fa0

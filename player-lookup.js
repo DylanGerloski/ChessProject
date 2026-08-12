@@ -865,6 +865,7 @@ function renderDocumentHead(arg) {
   <link rel="icon" href="${FAVICON_DATA_URI}">
   <style>${SITE_CSS}</style>${jsonLdBlock}
   <script data-goatcounter="https://dylangerrrr.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9767914878112531" crossorigin="anonymous"></script>
 </head>`;
 }
 
@@ -1144,6 +1145,7 @@ ${renderDocumentHead(`Opening repertoire explorer (${ratingBand}, ${color}) - Li
 </html>
 `;
 }
+
 
 
 'use strict';
