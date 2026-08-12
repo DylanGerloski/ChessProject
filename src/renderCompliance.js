@@ -75,7 +75,7 @@ ${renderDocumentHead({ title, description, canonical })}
     <h2>Third-party links</h2>
     <p>Pages on this site link out to <a href="https://lichess.org" target="_blank" rel="noopener noreferrer">lichess.org</a>
       for game analysis and data, and to voluntary support links
-      (<a href="https://ko-fi.com/dylangerloski" target="_blank" rel="noopener noreferrer">Ko-fi</a>,
+      (<a href="https://ko-fi.com/flavaa" target="_blank" rel="noopener noreferrer">Ko-fi</a>,
       <a href="https://buymeacoffee.com/dylanger254" target="_blank" rel="noopener noreferrer">Buy Me a Coffee</a>).
       Each of those is operated by its own company under its own privacy policy &mdash; review
       theirs before using them. See the disclosure note in this site&rsquo;s footer for more on
