@@ -32,12 +32,12 @@ function withTempDist(fn) {
     });
 }
 
-test('buildContentPages writes 10 opening pages plus the openings hub, all with a unique title/description and one H1', () =>
+test('buildContentPages writes 10 opening pages plus the openings hub, 6 guides, the guides hub, and the FAQ -- all with a unique title/description and one H1', () =>
   withTempDist(async (outDir) => {
     const { fetchImpl } = makeSmartExplorerFetch();
     const { written } = await buildContentPages({ fetchImpl, outDir });
 
-    assert.equal(written.length, 11); // 10 openings + 1 hub
+    assert.equal(written.length, 19); // 10 openings + 1 hub + 6 guides + 1 guides hub + 1 FAQ
 
     const titles = new Set();
     const descriptions = new Set();
@@ -53,7 +53,7 @@ test('buildContentPages writes 10 opening pages plus the openings hub, all with 
         assert.ok(!descriptions.has(page.description), `${page.file}'s description must be unique`);
         descriptions.add(page.description);
       }
-      assert.match(page.html, /<link rel="canonical" href="https:\/\/dylangerloski\.github\.io\/ChessProject\//);
+      assert.match(page.html, /<link rel="canonical" href="https:\/\/repertoire-builder\.com\//);
     }
   })
 );
@@ -120,3 +120,111 @@ test('buildOpeningModel + renderOpeningPage handle a realistic full-shape fixtur
   const h1Matches = html.match(/<h1[ >]/g) || [];
   assert.equal(h1Matches.length, 1);
 });
+
+test('phase 2: the guides hub links to all 6 guide articles, and every guide has exactly one H1 and real data pulled from entries', () =>
+  withTempDist(async (outDir) => {
+    const { fetchImpl } = makeSmartExplorerFetch();
+    const { written } = await buildContentPages({ fetchImpl, outDir });
+
+    const hub = written.find((p) => p.file === 'guides.html');
+    assert.ok(hub, 'guides.html should be written');
+    const guideFiles = [
+      'how-to-beat-the-london-system.html',
+      'best-chess-openings-for-beginners.html',
+      'sicilian-vs-french-vs-caro-kann.html',
+      'most-common-opening-mistakes-1600-1800.html',
+      'should-you-study-openings-under-1500.html',
+      'scandinavian-defense-at-club-level.html',
+    ];
+    for (const file of guideFiles) {
+      assert.match(hub.html, new RegExp(`href="${file}"`), `guides hub should link to ${file}`);
+      const page = written.find((p) => p.file === file);
+      assert.ok(page, `${file} should be written`);
+      const h1Matches = page.html.match(/<h1[ >]/g) || [];
+      assert.equal(h1Matches.length, 1, `${file} should have exactly one H1`);
+      assert.match(page.html, /class="prose"/, `${file} should use the shared .prose article wrapper`);
+    }
+
+    // best-chess-openings-for-beginners ranks openings by real score data --
+    // every opening name that appears in its table must be a real name from
+    // OPENINGS, not a placeholder.
+    const rankingPage = written.find((p) => p.file === 'best-chess-openings-for-beginners.html');
+    const namedCount = OPENINGS.filter((o) => rankingPage.html.includes(o.name)).length;
+    assert.ok(namedCount >= 5, 'the beginner-ranking guide should reference several real opening names pulled from entries');
+  })
+);
+
+test('phase 2: the FAQ page has 12 questions, no fabricated author byline, and is reachable from nav', () =>
+  withTempDist(async (outDir) => {
+    const { fetchImpl } = makeSmartExplorerFetch();
+    const { written } = await buildContentPages({ fetchImpl, outDir });
+
+    const faq = written.find((p) => p.file === 'chess-opening-faq.html');
+    assert.ok(faq, 'chess-opening-faq.html should be written');
+    const h2Matches = faq.html.match(/<h2>/g) || [];
+    assert.equal(h2Matches.length, 12);
+    const h1Matches = faq.html.match(/<h1[ >]/g) || [];
+    assert.equal(h1Matches.length, 1);
+    // Nothing on this site should invent a personal name (see src/site.js's
+    // SITE_AUTHOR comment) -- the FAQ text itself never names an individual.
+    assert.doesNotMatch(faq.html, /\bByline\b/i);
+  })
+);
+
+function jsonLdBlocksOf(html) {
+  return [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
+}
+
+test('phase 3: every emitted page has well-formed JSON-LD, and every JSON-LD block describes only what that page actually is', () =>
+  withTempDist(async (outDir) => {
+    const { fetchImpl } = makeSmartExplorerFetch();
+    const { written } = await buildContentPages({ fetchImpl, outDir });
+
+    for (const page of written) {
+      const blocks = jsonLdBlocksOf(page.html);
+      assert.ok(blocks.length > 0, `${page.file} should have at least one JSON-LD block`);
+      for (const block of blocks) {
+        assert.equal(block['@context'], 'https://schema.org');
+      }
+    }
+
+    // Opening pages and guide pages: BreadcrumbList only (no Article on an
+    // opening page, no FAQPage anywhere except the FAQ page itself).
+    const italian = written.find((p) => p.file === 'italian-game.html');
+    const italianTypes = jsonLdBlocksOf(italian.html).map((b) => b['@type']);
+    assert.deepEqual(italianTypes, ['BreadcrumbList']);
+
+    // Guides: BreadcrumbList + Article, author/publisher are the site
+    // Organization, never an invented person.
+    const guide = written.find((p) => p.file === 'how-to-beat-the-london-system.html');
+    const guideBlocks = jsonLdBlocksOf(guide.html);
+    assert.deepEqual(guideBlocks.map((b) => b['@type']).sort(), ['Article', 'BreadcrumbList']);
+    const article = guideBlocks.find((b) => b['@type'] === 'Article');
+    assert.equal(article.author['@type'], 'Organization');
+    assert.equal(article.publisher['@type'], 'Organization');
+    // Author must be the site itself (src/site.js's SITE_AUTHOR), never an
+    // invented individual name -- see the binding spec's section 5.2.
+    assert.equal(article.author.name, require('../src/site').SITE_AUTHOR);
+
+    // FAQ page: BreadcrumbList + FAQPage (and ONLY there -- spec 2.6).
+    const faq = written.find((p) => p.file === 'chess-opening-faq.html');
+    const faqBlocks = jsonLdBlocksOf(faq.html);
+    assert.deepEqual(faqBlocks.map((b) => b['@type']).sort(), ['BreadcrumbList', 'FAQPage']);
+    const faqPage = faqBlocks.find((b) => b['@type'] === 'FAQPage');
+    assert.equal(faqPage.mainEntity.length, 12);
+    for (const q of faqPage.mainEntity) {
+      assert.doesNotMatch(q.acceptedAnswer.text, /<[a-z]/i); // plain text, no leftover HTML tags
+    }
+    for (const page of written) {
+      if (page.file !== 'chess-opening-faq.html') {
+        assert.ok(!jsonLdBlocksOf(page.html).some((b) => b['@type'] === 'FAQPage'), `${page.file} must not carry FAQPage structured data`);
+      }
+    }
+
+    // Hubs: BreadcrumbList only.
+    const hub = written.find((p) => p.file === 'openings.html');
+    assert.deepEqual(jsonLdBlocksOf(hub.html).map((b) => b['@type']), ['BreadcrumbList']);
+    const guidesHub = written.find((p) => p.file === 'guides.html');
+    assert.deepEqual(jsonLdBlocksOf(guidesHub.html).map((b) => b['@type']), ['BreadcrumbList']);
+  })
+);

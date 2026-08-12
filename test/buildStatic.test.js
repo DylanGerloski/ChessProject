@@ -99,12 +99,41 @@ test('buildStatic also writes the 10 opening pages plus the openings hub, and th
     const { fetchImpl } = fakeExplorerFetch();
     const { outDir, contentWritten } = await buildStatic({ fetchImpl, useCache: false });
 
-    assert.equal(contentWritten.length, 11); // 10 openings + hub
+    // 10 openings + openings hub + 6 guides + guides hub + FAQ (phase 2).
+    assert.equal(contentWritten.length, 19);
     for (const { file } of contentWritten) {
       assert.ok(fs.existsSync(path.join(outDir, file)), `expected ${file} to exist on disk`);
     }
     const homeHtml = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
     assert.match(homeHtml, /href="openings\.html"/);
+  })
+);
+
+test('buildStatic also writes the guides hub, all 6 guide articles, and the FAQ page, all reachable from nav', () =>
+  withTempDist(async () => {
+    const { fetchImpl } = fakeExplorerFetch();
+    const { outDir } = await buildStatic({ fetchImpl, useCache: false });
+
+    for (const file of [
+      'guides.html',
+      'chess-opening-faq.html',
+      'how-to-beat-the-london-system.html',
+      'best-chess-openings-for-beginners.html',
+      'sicilian-vs-french-vs-caro-kann.html',
+      'most-common-opening-mistakes-1600-1800.html',
+      'should-you-study-openings-under-1500.html',
+      'scandinavian-defense-at-club-level.html',
+    ]) {
+      assert.ok(fs.existsSync(path.join(outDir, file)), `expected ${file} to exist on disk`);
+    }
+
+    const homeHtml = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
+    assert.match(homeHtml, /href="guides\.html"/);
+    assert.match(homeHtml, /href="chess-opening-faq\.html"/);
+
+    const openingHtml = fs.readFileSync(path.join(outDir, 'italian-game.html'), 'utf8');
+    assert.match(openingHtml, /href="guides\.html"/);
+    assert.match(openingHtml, /href="chess-opening-faq\.html"/);
   })
 );
 
@@ -221,3 +250,40 @@ test('playerLookupPage references the bundled script and has no server-only rout
   assert.match(html, /id="result"/);
   assert.doesNotMatch(html, /action="\/player"/);
 });
+
+test('indexPage embeds WebSite + Organization JSON-LD', () => {
+  const html = indexPage([]);
+  const scripts = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
+  const types = scripts.map((s) => s['@type']).sort();
+  assert.deepEqual(types, ['Organization', 'WebSite']);
+});
+
+test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pages) and robots.txt pointing at it', () =>
+  withTempDist(async () => {
+    const { fetchImpl } = fakeExplorerFetch();
+    const { outDir, repertoireLinks, contentWritten, pageFilenames } = await buildStatic({ fetchImpl, useCache: false });
+
+    assert.ok(fs.existsSync(path.join(outDir, 'sitemap.xml')));
+    assert.ok(fs.existsSync(path.join(outDir, 'robots.txt')));
+
+    // index + player + 8 repertoire + 10 openings + hub + 6 guides + hub + FAQ + privacy/about/contact.
+    const expectedPageCount = 2 + repertoireLinks.length + contentWritten.length + 3;
+    assert.equal(pageFilenames.length, expectedPageCount);
+
+    const sitemapXml = fs.readFileSync(path.join(outDir, 'sitemap.xml'), 'utf8');
+    assert.match(sitemapXml, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
+    const locMatches = [...sitemapXml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+    assert.equal(locMatches.length, expectedPageCount);
+    assert.ok(locMatches.includes('https://repertoire-builder.com/'), 'home should canonicalize to the directory form');
+    assert.ok(locMatches.includes('https://repertoire-builder.com/italian-game.html'));
+    assert.ok(locMatches.includes('https://repertoire-builder.com/chess-opening-faq.html'));
+    assert.ok(locMatches.includes('https://repertoire-builder.com/privacy.html'));
+    // player-lookup.js/ads.txt/CNAME are not pages and must not appear.
+    assert.ok(!sitemapXml.includes('player-lookup.js'));
+    assert.ok(!sitemapXml.includes('ads.txt'));
+
+    const robotsTxt = fs.readFileSync(path.join(outDir, 'robots.txt'), 'utf8');
+    assert.match(robotsTxt, /^User-agent: \*/);
+    assert.match(robotsTxt, /Sitemap: https:\/\/repertoire-builder\.com\/sitemap\.xml/);
+  })
+);

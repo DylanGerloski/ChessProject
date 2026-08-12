@@ -2,7 +2,14 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { scoreFor, findCommonMistakes, buildOpeningModel } = require('../src/processOpenings');
+const {
+  scoreFor,
+  findCommonMistakes,
+  buildOpeningModel,
+  rankOpeningsByScore,
+  aggregateMistakesAcrossOpenings,
+  scoreRangeAcrossBands,
+} = require('../src/processOpenings');
 
 test('scoreFor: win + draw/2, as a percentage', () => {
   // 100 white wins, 50 draws, 50 black wins out of 200 -> white score = (100+25)/200 = 62.5
@@ -128,4 +135,65 @@ test('buildOpeningModel attaches a punishing reply to the worst mistake when a f
   if (model.mistakes.length > 0) {
     assert.ok('punishingReply' in model.mistakes[0]);
   }
+});
+
+function fakeEntry({ slug, name, side, band, games, scoreForSide, mistakes = [] }) {
+  return {
+    openingConfig: { slug, name, side },
+    model: {
+      name,
+      side,
+      opponentColor: side === 'white' ? 'black' : 'white',
+      defaultBand: band,
+      bands: [{ band, games, scoreForSide, enoughData: games >= 1000 }],
+      mistakes,
+    },
+  };
+}
+
+test('rankOpeningsByScore sorts by score-for-side descending and excludes bands without enough data', () => {
+  const entries = [
+    fakeEntry({ slug: 'a', name: 'Opening A', side: 'white', band: '1600-1800', games: 5000, scoreForSide: 48 }),
+    fakeEntry({ slug: 'b', name: 'Opening B', side: 'white', band: '1600-1800', games: 6000, scoreForSide: 55 }),
+    fakeEntry({ slug: 'c', name: 'Opening C', side: 'white', band: '1600-1800', games: 50, scoreForSide: 90 }), // not enough games -- excluded
+  ];
+  const ranked = rankOpeningsByScore(entries, '1600-1800');
+  assert.equal(ranked.length, 2);
+  assert.equal(ranked[0].slug, 'b');
+  assert.equal(ranked[1].slug, 'a');
+});
+
+test('aggregateMistakesAcrossOpenings flattens and sorts every opening\'s mistakes worst-score-first', () => {
+  const entries = [
+    fakeEntry({
+      slug: 'a', name: 'Opening A', side: 'white', band: '1600-1800', games: 5000, scoreForSide: 48,
+      mistakes: [{ san: 'Nf6', playedPct: 5, score: 41 }],
+    }),
+    fakeEntry({
+      slug: 'b', name: 'Opening B', side: 'black', band: '1600-1800', games: 5000, scoreForSide: 52,
+      mistakes: [{ san: 'd5', playedPct: 8, score: 35 }],
+    }),
+  ];
+  const all = aggregateMistakesAcrossOpenings(entries);
+  assert.equal(all.length, 2);
+  assert.equal(all[0].san, 'd5'); // worst score (35) first
+  assert.equal(all[0].name, 'Opening B');
+  assert.equal(all[1].san, 'Nf6');
+});
+
+test('scoreRangeAcrossBands finds the min/max scoring bands and returns null with fewer than 2 usable bands', () => {
+  const model = {
+    bands: [
+      { band: '1400-1600', games: 5000, scoreForSide: 50, enoughData: true },
+      { band: '1600-1800', games: 6000, scoreForSide: 55, enoughData: true },
+      { band: '1800-2000', games: 20, scoreForSide: 90, enoughData: false },
+    ],
+  };
+  const range = scoreRangeAcrossBands(model);
+  assert.equal(range.minBand, '1400-1600');
+  assert.equal(range.maxBand, '1600-1800');
+  assert.equal(range.range, 5);
+
+  const singleBandModel = { bands: [{ band: '1400-1600', games: 5000, scoreForSide: 50, enoughData: true }] };
+  assert.equal(scoreRangeAcrossBands(singleBandModel), null);
 });

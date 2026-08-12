@@ -30,13 +30,17 @@
  *   visitor's browser -- no token is read, embedded, or needed for this
  *   page at all.
  *
- * - Content pages (phase 1/3 of the content-depth
- *   build): 10 opening pages + the openings hub, pre-rendered the same way
- *   as the repertoire pages via buildContentPages() (src/buildContent.js).
+ * - Content pages (phases 1-2 of the content-depth
+ *   build): 10 opening pages + the openings hub (phase 1), plus an FAQ page
+ *   and 6 editorial guide articles + a guides hub (phase 2), all
+ *   pre-rendered the same way via buildContentPages() (src/buildContent.js).
  *   Also token-gated the same way -- see that module's own header comment.
- *   FAQ/editorial articles (phase 2) and sitemap.xml/robots.txt/structured
- *   data (phase 3) are explicitly NOT part of this build yet; the home page
- *   below only links to what actually exists today.
+ *
+ * - sitemap.xml / robots.txt / structured data (phase 3): sitemap.xml and
+ *   robots.txt (src/sitemap.js) are generated from the actual list of
+ *   .html filenames this build writes, so they can't drift from what's
+ *   really on disk. JSON-LD (src/structuredData.js) is emitted per-page by
+ *   src/renderContent.js/src/buildStatic.js's indexPage(), not here.
  *
  * Usage: node src/buildStatic.js [--no-cache]
  */
@@ -50,6 +54,9 @@ const { getApiToken } = require('./fetchOpeningExplorer');
 const { buildContentPages } = require('./buildContent');
 const { withExplorerCache } = require('./explorerCache');
 const { renderPrivacyPage, renderAboutPage, renderContactPage, adsTxtContent } = require('./renderCompliance');
+const { renderSitemapXml, robotsTxtContent } = require('./sitemap');
+const { homeJsonLd } = require('./structuredData');
+const { SITE_TAGLINE, absoluteUrl } = require('./site');
 
 // Pre-rendering all 8 band/color combinations issues many sequential
 // Explorer API requests (each combination expands several plies), which can
@@ -80,9 +87,9 @@ const COLORS = ['white', 'black'];
 
 // Nav link targets for the static build -- flat filenames, no server routes.
 // Shared with renderRepertoirePage() (see repertoire page rendering below)
-// so every static page's header links are identical. Only keys for pages
-// that actually exist belong here -- 'guides'/'faq' are added in phases 2/3.
-const STATIC_NAV = { player: 'player.html', repertoire: 'index.html', openings: 'openings.html' };
+// so every static page's header links are identical. 'guides'/'faq' added
+// added once guides.html/chess-opening-faq.html actually existed.
+const STATIC_NAV = { player: 'player.html', repertoire: 'index.html', openings: 'openings.html', guides: 'guides.html', faq: 'chess-opening-faq.html' };
 
 // Compliance pages: privacy policy, about, and
 // contact, linked from every page's footer via renderFooter()'s optional
@@ -157,9 +164,11 @@ function indexPage(repertoireLinks, contentEntries = []) {
     </div>`
     : '';
 
+  const homeJsonLdBlock = homeJsonLd({ url: absoluteUrl(''), description: SITE_TAGLINE });
+
   return `<!DOCTYPE html>
 <html lang="en">
-${renderDocumentHead('Lichess stats (static build)')}
+${renderDocumentHead({ title: 'Lichess stats (static build)', jsonLd: homeJsonLdBlock })}
 <body>
   ${renderHeader(STATIC_NAV, 'repertoire')}
   <main>
@@ -312,21 +321,33 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   // scheme, no www -- GitHub Pages requires the bare domain string.
   fs.writeFileSync(path.join(OUT_DIR, 'CNAME'), 'Repertoire-Builder.com', 'utf8');
 
-  assertFilenamesUnique([
+  const pageFilenames = [
     'index.html',
     'player.html',
-    'player-lookup.js',
-    'CNAME',
     'privacy.html',
     'about.html',
     'contact.html',
-    'ads.txt',
     ...repertoireLinks.map((r) => r.file),
     ...contentWritten.map((c) => c.file),
+  ];
+
+  assertFilenamesUnique([
+    ...pageFilenames,
+    'player-lookup.js',
+    'CNAME',
+    'ads.txt',
   ]);
   assertNoTokenLeak(OUT_DIR, getApiToken());
 
-  return { outDir: OUT_DIR, repertoireLinks, contentWritten };
+  // sitemap.xml / robots.txt (phase 3): generated from the actual list of
+  // .html pages just written above, so they can't drift from what's really
+  // on disk -- written last, after the uniqueness/token checks, so a
+  // failed build never leaves a stale sitemap pointing at pages that
+  // didn't actually get (re)written this run.
+  fs.writeFileSync(path.join(OUT_DIR, 'sitemap.xml'), renderSitemapXml(pageFilenames), 'utf8');
+  fs.writeFileSync(path.join(OUT_DIR, 'robots.txt'), robotsTxtContent(), 'utf8');
+
+  return { outDir: OUT_DIR, repertoireLinks, contentWritten, pageFilenames };
 }
 
 async function main() {
@@ -344,6 +365,7 @@ async function main() {
       console.log(`  - ${file}`);
     }
     console.log('  - privacy.html, about.html, contact.html, ads.txt (compliance pages)');
+    console.log('  - sitemap.xml, robots.txt (generated from the pages actually written above)');
     console.log('Verified: no Lichess API token string appears in any generated file.');
     console.log('Verified: no filename collisions across the static build.');
     console.log('Open dist/index.html directly in a browser (file:// URL) -- no server needed.');

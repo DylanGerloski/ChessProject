@@ -157,9 +157,96 @@ function buildOpeningModel({
   };
 }
 
+/**
+ * Ranks the 10 tracked openings by score-for-its-own-side at one rating
+ * band, for cross-opening comparison articles (phase 2). Openings whose
+ * band doesn't have enough games yet (see buildOpeningModel's
+ * minGamesForPct) are left out entirely rather than shown with a noisy
+ * percentage -- same "don't print a confident number from 8 games" rule as
+ * the per-opening page itself.
+ *
+ * @param {Array<{openingConfig:object, model:object}>} entries
+ * @param {string} band a RATING_BANDS key, e.g. '1600-1800'
+ * @returns {Array<{slug,name,side,band,games,scoreForSide}>} best score first
+ */
+function rankOpeningsByScore(entries, band) {
+  return entries
+    .map(({ openingConfig, model }) => {
+      const b = (model.bands || []).find((x) => x.band === band);
+      return {
+        slug: openingConfig.slug,
+        name: model.name,
+        side: model.side,
+        band,
+        games: b ? b.games : 0,
+        scoreForSide: b ? b.scoreForSide : null,
+        enoughData: b ? b.enoughData : false,
+      };
+    })
+    .filter((e) => e.enoughData)
+    .sort((a, b) => b.scoreForSide - a.scoreForSide);
+}
+
+/**
+ * Flattens every opening's already-computed `mistakes` (findCommonMistakes
+ * output, see buildOpeningModel) into one list tagged with which opening and
+ * side it came from, worst-scoring first -- the data source for the
+ * "most common opening mistakes" article (phase 2), which is unique to this
+ * site precisely because nobody else aggregates this across openings.
+ *
+ * @param {Array<{openingConfig:object, model:object}>} entries
+ * @returns {Array<{slug,name,opponentColor,defaultBand,san,playedPct,score,punishingReply}>}
+ */
+function aggregateMistakesAcrossOpenings(entries) {
+  const out = [];
+  for (const { openingConfig, model } of entries) {
+    for (const m of model.mistakes || []) {
+      out.push({
+        slug: openingConfig.slug,
+        name: model.name,
+        opponentColor: model.opponentColor,
+        defaultBand: model.defaultBand,
+        san: m.san,
+        playedPct: m.playedPct,
+        score: m.score,
+        punishingReply: m.punishingReply || null,
+      });
+    }
+  }
+  return out.sort((a, b) => a.score - b.score);
+}
+
+/**
+ * For a single opening's model, the spread between its highest- and
+ * lowest-scoring rating band (bands with enough data only) -- how much the
+ * featured side's score for this exact line moves across 1400-1600 through
+ * 2000+. Used by the "does opening choice matter under 1500" article to ask
+ * a computable version of that question instead of asserting an opinion.
+ *
+ * @param {object} model output of buildOpeningModel
+ * @returns {{minBand:string, minScore:number, maxBand:string, maxScore:number, range:number}|null}
+ *   null if fewer than 2 bands have enough data to compare.
+ */
+function scoreRangeAcrossBands(model) {
+  const withData = (model.bands || []).filter((b) => b.enoughData && b.scoreForSide != null);
+  if (withData.length < 2) return null;
+  const min = withData.reduce((a, b) => (b.scoreForSide < a.scoreForSide ? b : a));
+  const max = withData.reduce((a, b) => (b.scoreForSide > a.scoreForSide ? b : a));
+  return {
+    minBand: min.band,
+    minScore: min.scoreForSide,
+    maxBand: max.band,
+    maxScore: max.scoreForSide,
+    range: Number((max.scoreForSide - min.scoreForSide).toFixed(1)),
+  };
+}
+
 module.exports = {
   scoreFor,
   findCommonMistakes,
   buildOpeningModel,
   opponentOf,
+  rankOpeningsByScore,
+  aggregateMistakesAcrossOpenings,
+  scoreRangeAcrossBands,
 };

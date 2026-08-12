@@ -160,19 +160,12 @@ ${renderDocumentHead({ title, description, canonical })}
 /**
  * @param {{nav: object, legalLinks: {privacy:string, about:string, contact:string}}} opts
  * @returns {string} a full standalone HTML document
- *
- * IMPORTANT: the contact "address" below is a deliberate, clearly-marked
- * placeholder -- per this task's explicit instruction, no real contact
- * address is invented here. A human must replace it with a real,
- * human-controlled email address before this page is relied on (e.g. before
- * submitting the site for AdSense review, which expects a working contact
- * mechanism).
  */
 function renderContactPage({ nav, legalLinks }) {
   const title = `Contact | ${SITE_NAME}`;
   const description = `How to reach ${SITE_NAME} with questions, corrections, or privacy requests.`;
   const canonical = absoluteUrl('contact.html');
-  const PLACEHOLDER_EMAIL = '[PLACEHOLDER -- replace with a real contact email you control before relying on this page]';
+  const CONTACT_EMAIL = 'dylanger2525@gmail.com';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -186,13 +179,7 @@ ${renderDocumentHead({ title, description, canonical })}
       privacy requests? Reach out using the contact method below.</p>
 
     <p class="callout">
-      <strong>Placeholder -- not a real address yet.</strong>
-      ${escapeHtml(PLACEHOLDER_EMAIL)}
-      This text must be replaced with a real, human-controlled email address (or a working
-      contact form) before this page is used for anything that depends on it actually
-      working -- including AdSense review, which expects a working contact mechanism. No
-      email address has been invented here; this is intentionally left for a human to fill
-      in.
+      <a href="mailto:${escapeHtml(CONTACT_EMAIL)}">${escapeHtml(CONTACT_EMAIL)}</a>
     </p>
 
     <p>See also the <a href="${escapeHtml(legalLinks.privacy)}">Privacy policy</a> and

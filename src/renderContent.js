@@ -1,24 +1,27 @@
 'use strict';
 
 /**
- * Markup for the content layer added in this build: board diagrams, opening
- * pages, and the openings hub. Deliberately a SEPARATE module from render.js
- * (which is concatenated verbatim into the browser bundle -- see that file's
- * own header comment) -- this module MAY require() render.js/site.js/
- * chessPosition.js because it is never bundled into anything that runs in a
- * visitor's browser; every content page is fully pre-rendered static HTML
- * with zero client-side JS.
+ * Markup for the content layer: board diagrams, opening pages, the openings
+ * hub, editorial guide articles, the guides hub, and the FAQ page.
+ * Deliberately a SEPARATE module from render.js (which is concatenated
+ * verbatim into the browser bundle -- see that file's own header comment) --
+ * this module MAY require() render.js/site.js/chessPosition.js because it is
+ * never bundled into anything that runs in a visitor's browser; every
+ * content page is fully pre-rendered static HTML with zero client-side JS.
  *
- * Phase-1 scope only (task-msp056zp-0a26c3): opening pages + the openings
- * hub. Article/FAQ/home-page templates are phase 2; JSON-LD structured data
- * is phase 3 (see that task's description for the exact split). Titles,
- * meta descriptions, and canonical links ARE in scope here -- they were not
- * excluded, and a page without them isn't a finished page.
+ * Titles, meta descriptions, and canonical links are in scope on every page
+ * type here -- they were never treated as optional, since a page without
+ * them isn't a finished page. JSON-LD structured data (BreadcrumbList on
+ * every page below that renders a visible breadcrumb, Article on guide
+ * pages, FAQPage on the FAQ page) is built via src/structuredData.js and
+ * passed through renderDocumentHead's `jsonLd` param -- each block mirrors
+ * only what that same page already renders visibly, never anything extra.
  */
 
 const { escapeHtml, renderDocumentHead, renderHeader, renderFooter, wrapTable } = require('./render');
 const { FILES, RANKS, START_BOARD, applyUciMoves } = require('./chessPosition');
-const { SITE_NAME, BUILD_DATE, absoluteUrl } = require('./site');
+const { SITE_NAME, SITE_AUTHOR, BUILD_DATE, absoluteUrl } = require('./site');
+const { breadcrumbJsonLd, articleJsonLd, faqPageJsonLd } = require('./structuredData');
 
 const PIECE_GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
 
@@ -249,16 +252,18 @@ function renderOpeningPage({ model, openingConfig, nav, related = [], repertoire
       : `${model.name} (${model.eco}): win rates and master games by rating band, from real Lichess data.`;
   }
   const canonical = absoluteUrl(`${openingConfig.slug}.html`);
+  const openingFile = `${openingConfig.slug}.html`;
+  const breadcrumbItems = [{ label: 'Home', href: nav.repertoire }, { label: 'Openings', href: nav.openings }, { label: model.name, href: openingFile }];
 
   const repFile = repertoireLinks[openingConfig.side];
 
   return `<!DOCTYPE html>
 <html lang="en">
-${renderDocumentHead({ title, description, canonical, ogType: 'article' })}
+${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd: breadcrumbJsonLd(breadcrumbItems) })}
 <body>
   ${renderHeader(nav, 'openings')}
   <main>
-    ${renderBreadcrumb([{ label: 'Home', href: nav.repertoire }, { label: 'Openings', href: nav.openings }, { label: model.name }])}
+    ${renderBreadcrumb(breadcrumbItems)}
     <h1 class="page-title">${escapeHtml(model.name)} (${escapeHtml(model.eco)}) &mdash; win rates at club level</h1>
     <p class="subtitle">${escapeHtml(sanLine)}, playing as ${escapeHtml(model.side)} &mdash; ${totalGamesNote}.</p>
 
@@ -309,6 +314,7 @@ function renderOpeningsHub(entries, { nav }) {
   const title = `Chess Openings by Real Win Rate | ${SITE_NAME}`;
   const description = `${entries.length} chess openings compared by real Lichess win rate, move-by-move, across four rating bands from 1400 to 2000+.`;
   const canonical = absoluteUrl('openings.html');
+  const breadcrumbItems = [{ label: 'Home', href: nav.repertoire }, { label: 'Openings', href: 'openings.html' }];
 
   const rows = entries
     .map(({ openingConfig, model }) => {
@@ -335,11 +341,11 @@ function renderOpeningsHub(entries, { nav }) {
 
   return `<!DOCTYPE html>
 <html lang="en">
-${renderDocumentHead({ title, description, canonical })}
+${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(breadcrumbItems) })}
 <body>
   ${renderHeader(nav, 'openings')}
   <main>
-    ${renderBreadcrumb([{ label: 'Home', href: nav.repertoire }, { label: 'Openings' }])}
+    ${renderBreadcrumb(breadcrumbItems)}
     <h1 class="page-title">Chess openings by real win rate</h1>
     <p class="subtitle">${entries.length} openings, each backed by real Lichess data across four rating bands &mdash; not opinion.</p>
 
@@ -362,13 +368,142 @@ ${renderDocumentHead({ title, description, canonical })}
 `;
 }
 
+/**
+ * Full page wrapper for one editorial guide/article (phase 2). The article's
+ * OWN markup (headings, tables, callouts -- all built from real computed
+ * data, see src/content/*.js) is passed in pre-rendered as `bodyHtml`; this
+ * function only owns the shared document chrome (head/nav/breadcrumb/
+ * dateline/footer), same division of labor as renderOpeningPage.
+ *
+ * Emits BreadcrumbList and Article JSON-LD (phase 3). Article's `author`
+ * comes from src/site.js's SITE_AUTHOR, which is the site name as an
+ * Organization -- never an invented person (see that file's own comment).
+ * `meta.datePublished`/BUILD_DATE map to Article's datePublished/dateModified.
+ *
+ * @param {object} opts
+ * @param {{slug:string, title:string, description:string, datePublished:string}} opts.meta
+ * @param {string} opts.bodyHtml pre-rendered article content (inside <article class="prose">)
+ * @param {object} opts.nav nav object for renderHeader (STATIC_NAV plus `guides`/`faq`)
+ * @param {Array<{label,href,note}>} [opts.related]
+ */
+function renderArticlePage({ meta, bodyHtml, nav, related = [] }) {
+  const title = `${meta.title} | ${SITE_NAME}`;
+  const canonical = absoluteUrl(`${meta.slug}.html`);
+  const breadcrumbItems = [{ label: 'Home', href: nav.repertoire }, { label: 'Guides', href: nav.guides }, { label: meta.title, href: `${meta.slug}.html` }];
+  const jsonLd = [
+    breadcrumbJsonLd(breadcrumbItems),
+    articleJsonLd({
+      headline: meta.title,
+      description: meta.description,
+      datePublished: meta.datePublished,
+      dateModified: BUILD_DATE,
+      url: canonical,
+      authorName: SITE_AUTHOR,
+      publisherName: SITE_NAME,
+    }),
+  ].join('\n  ');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+${renderDocumentHead({ title, description: meta.description, canonical, ogType: 'article', jsonLd })}
+<body>
+  ${renderHeader(nav, 'guides')}
+  <main>
+    ${renderBreadcrumb(breadcrumbItems)}
+    <article class="prose">
+      <h1 class="page-title">${escapeHtml(meta.title)}</h1>
+      <p class="article-meta">Published ${escapeHtml(meta.datePublished)} &middot; data refreshed ${BUILD_DATE}.</p>
+      ${bodyHtml}
+    </article>
+    ${renderRelated(related, 'Related')}
+  </main>
+  ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}. This article is written to reflect that data -- not a substitute for a coach's judgment about your own games.`, CONTENT_LEGAL_LINKS)}
+</body>
+</html>
+`;
+}
+
+/**
+ * @param {Array<{slug:string, title:string, description:string}>} articles
+ * @param {object} opts
+ * @param {object} opts.nav
+ */
+function renderGuidesHub(articles, { nav }) {
+  const title = `Chess Opening Guides, Backed by Real Data | ${SITE_NAME}`;
+  const description = `${articles.length} data-grounded guides on opening choice, common mistakes, and rating-band trends, backed by real Lichess Opening Explorer numbers.`;
+  const canonical = absoluteUrl('guides.html');
+  const breadcrumbItems = [{ label: 'Home', href: nav.repertoire }, { label: 'Guides', href: 'guides.html' }];
+
+  const cards = articles
+    .map(
+      (a) => `<div class="card"><h3><a href="${escapeHtml(a.slug)}.html">${escapeHtml(a.title)}</a></h3><p>${escapeHtml(a.description)}</p></div>`
+    )
+    .join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(breadcrumbItems) })}
+<body>
+  ${renderHeader(nav, 'guides')}
+  <main>
+    ${renderBreadcrumb(breadcrumbItems)}
+    <h1 class="page-title">Chess opening guides</h1>
+    <p class="subtitle">${articles.length} articles, each grounded in this site's own Lichess Opening Explorer data &mdash; not opinion.</p>
+    <div class="card-grid">${cards}</div>
+  </main>
+  ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}.`, CONTENT_LEGAL_LINKS)}
+</body>
+</html>
+`;
+}
+
+/**
+ * @param {object} opts
+ * @param {Array<{question:string, answerHtml:string}>} opts.faqs `answerHtml`
+ *   is already-escaped/pre-built markup (may include internal links), never
+ *   raw user input.
+ * @param {object} opts.nav
+ */
+function renderFaqPage({ faqs, nav }) {
+  const title = `Chess Opening FAQ: Data-Backed Answers | ${SITE_NAME}`;
+  const description = 'Plain-language answers about chess openings, ECO codes, and how to read Lichess Opening Explorer data -- grounded in this site\'s own numbers where possible.';
+  const canonical = absoluteUrl('chess-opening-faq.html');
+  const breadcrumbItems = [{ label: 'Home', href: nav.repertoire }, { label: 'FAQ', href: 'chess-opening-faq.html' }];
+  // FAQPage JSON-LD lives ONLY on this page, never bolted onto any other --
+  // FAQ rich results were removed by Google on 2026-05-07, so this is for
+  // parsing value only, not a SERP-feature bet.
+  const jsonLd = [breadcrumbJsonLd(breadcrumbItems), faqPageJsonLd(faqs)].join('\n  ');
+
+  const items = faqs.map((f) => `<h2>${escapeHtml(f.question)}</h2>${f.answerHtml}`).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+${renderDocumentHead({ title, description, canonical, jsonLd })}
+<body>
+  ${renderHeader(nav, 'faq')}
+  <main>
+    ${renderBreadcrumb(breadcrumbItems)}
+    <h1 class="page-title">Chess opening FAQ</h1>
+    <p class="subtitle">Plain answers -- most of them backed directly by this site's own Lichess data, not just opinion.</p>
+    <div class="prose">${items}</div>
+  </main>
+  ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}.`, CONTENT_LEGAL_LINKS)}
+</body>
+</html>
+`;
+}
+
 module.exports = {
   renderBoard,
   renderBreadcrumb,
   renderRelated,
   renderOpeningPage,
   renderOpeningsHub,
+  renderArticlePage,
+  renderGuidesHub,
+  renderFaqPage,
   formatSanLine,
+  formatGamesAbbrev,
   lichessAnalysisUrl,
   lichessOpeningUrl,
 };

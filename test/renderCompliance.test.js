@@ -32,15 +32,12 @@ test('renderAboutPage produces a full document and does not invent a personal au
   assert.match(html, /href="contact\.html"/);
 });
 
-test('renderContactPage produces a full document with a clearly-marked placeholder, not a real address', () => {
+test('renderContactPage produces a full document with a real, working mailto contact address', () => {
   const html = renderContactPage({ nav: NAV, legalLinks: LEGAL_LINKS });
   assert.match(html, /<!DOCTYPE html>/);
   assert.match(html, /<title>Contact \| Lichess Stats<\/title>/);
-  assert.match(html, /Placeholder -- not a real address yet/);
-  assert.match(html, /PLACEHOLDER/);
-  // Sanity check: no plausible real-looking email address (word@word.tld) appears
-  // anywhere outside the placeholder bracket text itself.
-  assert.doesNotMatch(html, /[a-zA-Z0-9._%+-]+@(?!example\.com)[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  assert.match(html, /href="mailto:dylanger2525@gmail\.com"/);
+  assert.match(html, /dylanger2525@gmail\.com/);
 });
 
 test('adsTxtContent is a comment-only stub that authorizes no real seller yet', () => {

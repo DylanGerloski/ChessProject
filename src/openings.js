@@ -128,15 +128,18 @@ const OPENINGS = [
 ];
 
 // Static filenames this build already writes outside of openings.js's own
-// slugs (existing tool pages + this phase's hub pages), used by the
-// collision check below. Phase 2/3 article slugs aren't known here -- their
-// own build step is expected to re-run this same kind of check against this
-// list once they exist.
+// slugs (existing tool pages + hub pages), used by the collision check
+// below. Guide/article slugs (src/content/*.js) aren't individually listed
+// here -- buildStatic.js's own assertFilenamesUnique() checks the full,
+// final file list (repertoire + opening + guide + hub + compliance pages)
+// after every page is actually written, which is the authoritative check.
 const RESERVED_STATIC_FILENAMES = [
   'index.html',
   'player.html',
   'player-lookup.js',
   'openings.html',
+  'guides.html',
+  'chess-opening-faq.html',
 ];
 
 function getOpening(slug) {

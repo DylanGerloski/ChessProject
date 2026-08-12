@@ -7,8 +7,8 @@
  * I/O -- safe to require from anywhere, including renderContent.js.
  */
 
-const SITE_ORIGIN = 'https://dylangerloski.github.io';
-const BASE_PATH = '/ChessProject/';
+const SITE_ORIGIN = 'https://repertoire-builder.com';
+const BASE_PATH = '/';
 const SITE_NAME = 'Lichess Stats';
 const SITE_TAGLINE = 'Chess opening stats by rating band, from real Lichess games.';
 // No individually-attributed human byline has been supplied for this build --
