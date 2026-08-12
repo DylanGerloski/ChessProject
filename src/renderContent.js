@@ -18,9 +18,9 @@
  * only what that same page already renders visibly, never anything extra.
  */
 
-const { escapeHtml, renderDocumentHead, renderHeader, renderFooter, wrapTable } = require('./render');
+const { escapeHtml, formatPct, renderDocumentHead, renderHeader, renderFooter, wrapTable, renderPageHead } = require('./render');
 const { FILES, RANKS, START_BOARD, applyUciMoves } = require('./chessPosition');
-const { SITE_NAME, SITE_AUTHOR, BUILD_DATE, absoluteUrl } = require('./site');
+const { SITE_NAME, SITE_AUTHOR, BUILD_DATE, absoluteUrl, pageTitle } = require('./site');
 const { breadcrumbJsonLd, articleJsonLd, faqPageJsonLd } = require('./structuredData');
 
 const PIECE_GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
@@ -86,12 +86,42 @@ function renderRelated(items, heading = 'Related') {
   if (!items || items.length === 0) return '';
   const cards = items
     .map(
-      (i) => `<div class="card"><h3><a href="${escapeHtml(i.href)}">${escapeHtml(i.label)}</a></h3>${
+      (i) => `<div class="card card--nav"><h3><a href="${escapeHtml(i.href)}">${escapeHtml(i.label)}</a></h3>${
         i.note ? `<p>${escapeHtml(i.note)}</p>` : ''
       }</div>`
     )
     .join('');
   return `<section><h2>${escapeHtml(heading)}</h2><div class="card-grid">${cards}</div></section>`;
+}
+
+/**
+ * An opening card for an entry page (homepage "Openings by real win
+ * rate" list, the openings hub) that carries the WDL bar + score number for
+ * the site's default 1600-1800 band inline, so a visitor never has to click
+ * through two pages to see whether an opening is worth their time. Reads
+ * the exact same `model.bands` array renderBandsTable() already consumes
+ * for the opening's own page -- no separate fetch, no separate model.
+ * Falls back to a plain nav-style card (no bar, no number) whenever that
+ * band isn't populated/doesn't have enough games -- this NEVER approximates
+ * or invents a score.
+ * @param {{slug: string}} openingConfig
+ * @param {{name: string, eco: string, side: string, bands?: Array}} model
+ * @param {string} [extraClass] e.g. 'card--outline' for a demoted homepage card
+ * @returns {string}
+ */
+function renderOpeningStatCard(openingConfig, model, extraClass = '') {
+  const href = `${escapeHtml(openingConfig.slug)}.html`;
+  const band = (model.bands || []).find((b) => b.band === '1600-1800') || null;
+  const hasData = band && band.enoughData && band.scoreForSide != null && band.whitePct != null;
+  const classes = ['card', hasData ? 'card--stat' : 'card--nav', extraClass].filter(Boolean).join(' ');
+  if (!hasData) {
+    return `<div class="${classes}"><h3><a href="${href}">${escapeHtml(model.name)}</a></h3><p>${escapeHtml(model.eco)}, playing as ${escapeHtml(model.side)}</p></div>`;
+  }
+  return `<div class="${classes}">
+    <h3><a href="${href}">${escapeHtml(model.name)}</a></h3>
+    <div class="card-wdl-row">${wdlBar(band.whitePct, band.drawPct, band.blackPct, `White/draw/black at 1600-1800: ${formatPct(band.whitePct)}% / ${formatPct(band.drawPct)}% / ${formatPct(band.blackPct)}%`)}</div>
+    <p class="card-score">Scores ${formatPct(band.scoreForSide)}% for ${escapeHtml(model.side)} at 1600-1800 (${band.games.toLocaleString()} games)</p>
+  </div>`;
 }
 
 function formatGamesAbbrev(n) {
@@ -115,27 +145,34 @@ function lichessOpeningUrl(name) {
   return `https://lichess.org/opening/${encodeURIComponent(name.replace(/\s+/g, '_'))}`;
 }
 
-function wdlBar(winPct, drawPct, lossPct, title) {
+/**
+ * @param {{large?: boolean}} [opts] `large` widens the bar to fill its
+ *   cell (`.wdl-bar--lg`, render.js), used only for the one hero table per
+ *   opening page (renderBandsTable below). The adjacent percentages
+ *   (.wdl-label) always render too, so color is never the sole encoding.
+ */
+function wdlBar(winPct, drawPct, lossPct, title, opts = {}) {
   if (winPct == null) return '<span class="wdl-label">not enough games</span>';
-  return `<span class="wdl-bar" title="${escapeHtml(title)}">
+  const barClass = opts.large ? 'wdl-bar wdl-bar--lg' : 'wdl-bar';
+  return `<span class="${barClass}" title="${escapeHtml(title)}">
       <span class="wdl-seg--win" style="width:${winPct}%"></span>
       <span class="wdl-seg--draw" style="width:${drawPct}%"></span>
       <span class="wdl-seg--loss" style="width:${lossPct}%"></span>
     </span>
-    <span class="wdl-label">${winPct}% / ${drawPct}% / ${lossPct}%</span>`;
+    <span class="wdl-label">${formatPct(winPct)}% / ${formatPct(drawPct)}% / ${formatPct(lossPct)}%</span>`;
 }
 
 function renderBandsTable(model) {
   const rows = model.bands
     .map((b) => {
       if (!b.enoughData) {
-        return `<tr><td>${escapeHtml(b.band)}</td><td>${b.games.toLocaleString()}</td><td colspan="4" class="rep-pct">Not enough games at this band yet.</td></tr>`;
+        return `<tr><td>${escapeHtml(b.band)}</td><td class="num">${b.games.toLocaleString()}</td><td colspan="4" class="rep-pct">Not enough games at this band yet.</td></tr>`;
       }
       return `<tr>
         <td>${escapeHtml(b.band)}</td>
-        <td>${b.games.toLocaleString()}</td>
-        <td>${wdlBar(b.whitePct, b.drawPct, b.blackPct, `White/draw/black: ${b.whitePct}% / ${b.drawPct}% / ${b.blackPct}%`)}</td>
-        <td>${b.scoreForSide}%</td>
+        <td class="num">${b.games.toLocaleString()}</td>
+        <td>${wdlBar(b.whitePct, b.drawPct, b.blackPct, `White/draw/black: ${formatPct(b.whitePct)}% / ${formatPct(b.drawPct)}% / ${formatPct(b.blackPct)}%`, { large: true })}</td>
+        <td class="num">${formatPct(b.scoreForSide)}%</td>
       </tr>`;
     })
     .join('');
@@ -143,7 +180,7 @@ function renderBandsTable(model) {
     <table>
       <caption class="sr-only">Win/draw/loss rate by rating band</caption>
       <thead>
-        <tr><th scope="col">Rating band</th><th scope="col">Games</th><th scope="col">White / draw / Black</th><th scope="col">Score for ${escapeHtml(model.side)}</th></tr>
+        <tr><th scope="col">Rating band</th><th scope="col" class="num">Games</th><th scope="col">White / draw / Black</th><th scope="col" class="num">Score for ${escapeHtml(model.side)}</th></tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>`);
@@ -158,8 +195,8 @@ function renderTopRepliesTable(model) {
       const label = m.opening ? ` <span class="rep-pct">(${escapeHtml(m.opening.name)})</span>` : '';
       return `<tr>
         <td><a href="https://lichess.org/analysis/pgn/${encodeURIComponent(m.san)}">${escapeHtml(m.san)}</a>${label}</td>
-        <td>${m.games.toLocaleString()}</td>
-        <td>${m.playedPct}%</td>
+        <td class="num">${m.games.toLocaleString()}</td>
+        <td class="num">${formatPct(m.playedPct)}%</td>
         <td>${wdlBar(m.winPct, m.drawPct, m.lossPct, `${m.san} win/draw/loss`)}</td>
       </tr>`;
     })
@@ -167,20 +204,20 @@ function renderTopRepliesTable(model) {
   return wrapTable(`
     <table>
       <caption class="sr-only">Most common replies at ${escapeHtml(model.defaultBand)}</caption>
-      <thead><tr><th scope="col">Move</th><th scope="col">Games</th><th scope="col">Played</th><th scope="col">Win / draw / loss</th></tr></thead>
+      <thead><tr><th scope="col">Move</th><th scope="col" class="num">Games</th><th scope="col" class="num">Played</th><th scope="col">Win / draw / loss</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`);
 }
 
 function renderMistakesSection(model) {
   if (model.mistakes.length === 0) {
-    return '<p class="empty-note">No move at this band is both common and clearly low-scoring -- players at this rating aren\'t making an obvious mistake here.</p>';
+    return '<p class="empty-note">No move at this band is both common and clearly low-scoring &mdash; players at this rating aren&rsquo;t making an obvious mistake here.</p>';
   }
   const items = model.mistakes
     .map((m) => {
-      const base = `<strong>${escapeHtml(m.san)}</strong> is played in ${m.playedPct}% of games here but scores only ${m.score}% for ${escapeHtml(model.opponentColor)}.`;
+      const base = `<strong>${escapeHtml(m.san)}</strong> is played in ${formatPct(m.playedPct)}% of games here but scores only ${formatPct(m.score)}% for ${escapeHtml(model.opponentColor)}.`;
       const follow = m.punishingReply
-        ? ` After ${escapeHtml(m.san)}, <strong>${escapeHtml(m.punishingReply.san)}</strong> is the most common answer and scores ${m.punishingReply.winPct != null ? Number((m.punishingReply.winPct + m.punishingReply.drawPct / 2).toFixed(1)) : '?'}% for ${escapeHtml(model.side)}.`
+        ? ` After ${escapeHtml(m.san)}, <strong>${escapeHtml(m.punishingReply.san)}</strong> is the most common answer and scores ${m.punishingReply.winPct != null ? formatPct(m.punishingReply.winPct + m.punishingReply.drawPct / 2) : '?'}% for ${escapeHtml(model.side)}.`
         : '';
       return `<li class="callout">${base}${follow}</li>`;
     })
@@ -228,8 +265,13 @@ function renderGamesTable(games, caption) {
  * @param {{white:string, black:string}} [opts.repertoireLinks] filenames of
  *   the matching repertoire-<band>-<color>.html pages for "Build a
  *   repertoire from here"
+ * @param {string} [opts.drillFile] filename of the matching opening-drill
+ *   page (single-opening drill pilot). When present, a "Drill this opening"
+ *   CTA section is emitted right after "The position"; when absent (every
+ *   opening page except the pilot's), this function's output is byte-for-byte
+ *   identical to before the drill pilot existed.
  */
-function renderOpeningPage({ model, openingConfig, nav, related = [], repertoireLinks = {} }) {
+function renderOpeningPage({ model, openingConfig, nav, related = [], repertoireLinks = {}, drillFile = null }) {
   const line = openingConfig.line;
   const board = applyUciMoves(START_BOARD, line.map((p) => p.uci));
   const flip = openingConfig.side === 'black';
@@ -239,16 +281,16 @@ function renderOpeningPage({ model, openingConfig, nav, related = [], repertoire
     ? `data from ${mainBand.games.toLocaleString()} Lichess blitz & rapid games at ${escapeHtml(model.defaultBand)}`
     : 'data from Lichess blitz & rapid games';
 
-  const title = `${model.name} (${model.eco}): Win Rates by Rating | ${SITE_NAME}`;
+  const title = pageTitle(`${model.name} (${model.eco}): Win Rates by Rating`);
   let description = mainBand && mainBand.scoreForSide != null
-    ? `${model.name} (${sanLine}) scores ${mainBand.scoreForSide}% for ${model.side} across ${formatGamesAbbrev(mainBand.games)} Lichess games. Win rates, replies, and master games by rating.`
+    ? `${model.name} (${sanLine}) scores ${formatPct(mainBand.scoreForSide)}% for ${model.side} across ${formatGamesAbbrev(mainBand.games)} Lichess games. Win rates, replies, and master games by rating.`
     : `${model.name} (${model.eco}): win rates, replies, and master games by rating band, from real Lichess data.`;
   // Meta descriptions must stay <=160 chars (spec 2.2) -- fall back to a
   // shorter form rather than truncate mid-sentence for the handful of
   // longer opening names/lines (e.g. "King's Indian Defense").
   if (description.length > 160) {
     description = mainBand && mainBand.scoreForSide != null
-      ? `${model.name} scores ${mainBand.scoreForSide}% for ${model.side} across ${formatGamesAbbrev(mainBand.games)} Lichess games. Win rates, replies, and master games by rating.`
+      ? `${model.name} scores ${formatPct(mainBand.scoreForSide)}% for ${model.side} across ${formatGamesAbbrev(mainBand.games)} Lichess games. Win rates, replies, and master games by rating.`
       : `${model.name} (${model.eco}): win rates and master games by rating band, from real Lichess data.`;
   }
   const canonical = absoluteUrl(`${openingConfig.slug}.html`);
@@ -263,9 +305,12 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd:
 <body>
   ${renderHeader(nav, 'openings')}
   <main>
-    ${renderBreadcrumb(breadcrumbItems)}
-    <h1 class="page-title">${escapeHtml(model.name)} (${escapeHtml(model.eco)}) &mdash; win rates at club level</h1>
-    <p class="subtitle">${escapeHtml(sanLine)}, playing as ${escapeHtml(model.side)} &mdash; ${totalGamesNote}.</p>
+    ${renderPageHead({
+      breadcrumb: renderBreadcrumb(breadcrumbItems),
+      eyebrow: 'Opening guide',
+      title: `${escapeHtml(model.name)} (${escapeHtml(model.eco)}) &mdash; win rates at club level`,
+      subtitle: `${escapeHtml(sanLine)}, playing as ${escapeHtml(model.side)} &mdash; ${totalGamesNote}.`,
+    })}
 
     <h2>The position</h2>
     <figure class="board-figure">
@@ -275,6 +320,13 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd:
         <a href="${lichessOpeningUrl(model.name)}">${escapeHtml(model.name)} on Lichess</a>
       </figcaption>
     </figure>
+
+    ${drillFile ? `<section class="drill-cta">
+      <h2>Drill this opening</h2>
+      <p>Play the position out move by move and find out instantly whether you picked what players at your rating
+        actually pick &mdash; and what that move scores.</p>
+      <p><a href="${escapeHtml(drillFile)}">Open the Italian Game drill &rarr;</a></p>
+    </section>` : ''}
 
     <h2>How it scores at your rating</h2>
     ${renderBandsTable(model)}
@@ -296,7 +348,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd:
 
     <h2>Build a repertoire from here</h2>
     <p>See the full move tree for players in your rating band:
-      ${repFile ? `<a href="${escapeHtml(repFile)}">${escapeHtml(model.defaultBand)} repertoire explorer (${escapeHtml(openingConfig.side)}) &rarr;</a>` : 'repertoire explorer coming soon.'}
+      ${repFile ? `<a href="${escapeHtml(repFile)}">${escapeHtml(model.defaultBand)} repertoire explorer (${escapeHtml(openingConfig.side)}) &rarr;</a>` : 'no repertoire explorer is published for this opening.'}
     </p>
 
     ${renderRelated(related, 'Related openings')}
@@ -323,20 +375,17 @@ function renderOpeningsHub(entries, { nav }) {
         <td><a href="${escapeHtml(openingConfig.slug)}.html">${escapeHtml(model.name)}</a></td>
         <td>${escapeHtml(model.eco)}</td>
         <td>${escapeHtml(formatSanLine(openingConfig.line))}</td>
-        <td>${band ? band.games.toLocaleString() : '–'}</td>
-        <td>${band && band.scoreForSide != null ? `${band.scoreForSide}%` : 'n/a'}</td>
+        <td class="num">${band ? band.games.toLocaleString() : '–'}</td>
+        <td class="num">${band && band.scoreForSide != null ? `${formatPct(band.scoreForSide)}%` : 'n/a'}</td>
       </tr>`;
     })
     .join('');
 
+  // Every card below carries its 1600-1800 WDL bar + score inline
+  // (renderOpeningStatCard, defined above) -- same fallback-to-plain-card
+  // rule as the homepage's equivalent list, never an approximated number.
   const cards = entries
-    .map(({ openingConfig, model }) => {
-      const band = model.bands.find((b) => b.band === '1600-1800') || model.bands[0];
-      const scoreNote = band && band.scoreForSide != null
-        ? `Scores ${band.scoreForSide}% for ${model.side} at 1600-1800.`
-        : `Playing as ${model.side}.`;
-      return `<div class="card"><h3><a href="${escapeHtml(openingConfig.slug)}.html">${escapeHtml(model.name)}</a></h3><p>${escapeHtml(scoreNote)}</p></div>`;
-    })
+    .map(({ openingConfig, model }) => renderOpeningStatCard(openingConfig, model))
     .join('');
 
   return `<!DOCTYPE html>
@@ -347,14 +396,15 @@ ${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(b
   <main>
     ${renderBreadcrumb(breadcrumbItems)}
     <h1 class="page-title">Chess openings by real win rate</h1>
-    <p class="subtitle">${entries.length} openings, each backed by real Lichess data across four rating bands &mdash; not opinion.</p>
+    <p class="subtitle">Ranked by the score each opening actually gets for its own side in real Lichess games at
+      1600-1800. Sample size is shown for every row &mdash; a rate over a small sample is not a signal.</p>
 
     <h2>Compare all ${entries.length} openings</h2>
     ${wrapTable(`
       <table>
         <caption class="sr-only">Opening comparison at 1600-1800</caption>
         <thead>
-          <tr><th scope="col">Opening</th><th scope="col">ECO</th><th scope="col">First moves</th><th scope="col">Games (1600-1800)</th><th scope="col">Score for its side</th></tr>
+          <tr><th scope="col">Opening</th><th scope="col">ECO</th><th scope="col">First moves</th><th scope="col" class="num">Games (1600-1800)</th><th scope="col" class="num">Score for its side</th></tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>`)}
@@ -387,7 +437,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(b
  * @param {Array<{label,href,note}>} [opts.related]
  */
 function renderArticlePage({ meta, bodyHtml, nav, related = [] }) {
-  const title = `${meta.title} | ${SITE_NAME}`;
+  const title = pageTitle(meta.title);
   const canonical = absoluteUrl(`${meta.slug}.html`);
   const breadcrumbItems = [{ label: 'Home', href: nav.repertoire }, { label: 'Guides', href: nav.guides }, { label: meta.title, href: `${meta.slug}.html` }];
   const jsonLd = [
@@ -417,7 +467,7 @@ ${renderDocumentHead({ title, description: meta.description, canonical, ogType: 
     </article>
     ${renderRelated(related, 'Related')}
   </main>
-  ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}. This article is written to reflect that data -- not a substitute for a coach's judgment about your own games.`, CONTENT_LEGAL_LINKS)}
+  ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}. This article is written to reflect that data &mdash; not a substitute for a coach&rsquo;s judgment about your own games.`, CONTENT_LEGAL_LINKS)}
 </body>
 </html>
 `;
@@ -436,7 +486,7 @@ function renderGuidesHub(articles, { nav }) {
 
   const cards = articles
     .map(
-      (a) => `<div class="card"><h3><a href="${escapeHtml(a.slug)}.html">${escapeHtml(a.title)}</a></h3><p>${escapeHtml(a.description)}</p></div>`
+      (a) => `<div class="card card--nav"><h3><a href="${escapeHtml(a.slug)}.html">${escapeHtml(a.title)}</a></h3><p>${escapeHtml(a.description)}</p></div>`
     )
     .join('');
 
@@ -448,7 +498,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(b
   <main>
     ${renderBreadcrumb(breadcrumbItems)}
     <h1 class="page-title">Chess opening guides</h1>
-    <p class="subtitle">${articles.length} articles, each grounded in this site's own Lichess Opening Explorer data &mdash; not opinion.</p>
+    <p class="subtitle">${articles.length} articles, each grounded in this site&rsquo;s own Lichess Opening Explorer data &mdash; not opinion.</p>
     <div class="card-grid">${cards}</div>
   </main>
   ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}.`, CONTENT_LEGAL_LINKS)}
@@ -466,7 +516,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(b
  */
 function renderFaqPage({ faqs, nav }) {
   const title = `Chess Opening FAQ: Data-Backed Answers | ${SITE_NAME}`;
-  const description = 'Plain-language answers about chess openings, ECO codes, and how to read Lichess Opening Explorer data -- grounded in this site\'s own numbers where possible.';
+  const description = 'Plain-language answers about chess openings, ECO codes, and how to read Lichess Opening Explorer data — grounded in this site\'s own numbers where possible.';
   const canonical = absoluteUrl('chess-opening-faq.html');
   const breadcrumbItems = [{ label: 'Home', href: nav.repertoire }, { label: 'FAQ', href: 'chess-opening-faq.html' }];
   // FAQPage JSON-LD lives ONLY on this page, never bolted onto any other --
@@ -484,7 +534,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd })}
   <main>
     ${renderBreadcrumb(breadcrumbItems)}
     <h1 class="page-title">Chess opening FAQ</h1>
-    <p class="subtitle">Plain answers -- most of them backed directly by this site's own Lichess data, not just opinion.</p>
+    <p class="subtitle">Plain answers &mdash; most of them backed directly by this site&rsquo;s own Lichess data, not just opinion.</p>
     <div class="prose">${items}</div>
   </main>
   ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}.`, CONTENT_LEGAL_LINKS)}
@@ -497,6 +547,7 @@ module.exports = {
   renderBoard,
   renderBreadcrumb,
   renderRelated,
+  renderOpeningStatCard,
   renderOpeningPage,
   renderOpeningsHub,
   renderArticlePage,
@@ -506,4 +557,5 @@ module.exports = {
   formatGamesAbbrev,
   lichessAnalysisUrl,
   lichessOpeningUrl,
+  PIECE_GLYPH,
 };

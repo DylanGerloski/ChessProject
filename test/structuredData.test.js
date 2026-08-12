@@ -59,7 +59,7 @@ test('articleJsonLd produces a valid Article block with an Organization author/p
   const ld = parseJsonLdScript(html);
   assert.equal(ld['@type'], 'Article');
   assert.equal(ld.author['@type'], 'Organization');
-  assert.equal(ld.author.name, 'Lichess Stats');
+  assert.equal(ld.author.name, 'Repertoire Builder');
   assert.equal(ld.publisher['@type'], 'Organization');
   assert.equal(ld.mainEntityOfPage['@id'], 'https://repertoire-builder.com/how-to-beat-the-london-system.html');
   assert.ok(ld.headline.length <= 110, 'headline should be <=110 chars per the binding spec');

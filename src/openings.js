@@ -140,6 +140,7 @@ const RESERVED_STATIC_FILENAMES = [
   'openings.html',
   'guides.html',
   'chess-opening-faq.html',
+  'italian-game-drill.html',
 ];
 
 function getOpening(slug) {

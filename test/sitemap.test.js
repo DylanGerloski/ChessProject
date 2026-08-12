@@ -19,6 +19,11 @@ test('buildSitemapEntries filters out non-.html files and sorts the rest', () =>
   }
 });
 
+test('buildSitemapEntries excludes 404.html even though it ends in .html', () => {
+  const entries = buildSitemapEntries(['a.html', '404.html', 'b.html']);
+  assert.deepEqual(entries.map((e) => e.file), ['a.html', 'b.html']);
+});
+
 test('renderSitemapXml produces well-formed, minimal sitemaps.org XML with one <url> per .html page, no priority/changefreq', () => {
   const xml = renderSitemapXml(['index.html', 'italian-game.html', 'player-lookup.js', 'ads.txt']);
   assert.match(xml, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
@@ -31,6 +36,13 @@ test('renderSitemapXml produces well-formed, minimal sitemaps.org XML with one <
   assert.doesNotMatch(xml, /changefreq/);
   assert.doesNotMatch(xml, /player-lookup\.js/);
   assert.doesNotMatch(xml, /ads\.txt/);
+});
+
+test('renderSitemapXml excludes 404.html from the generated sitemap', () => {
+  const xml = renderSitemapXml(['index.html', '404.html', 'italian-game.html']);
+  const urlMatches = xml.match(/<url>/g) || [];
+  assert.equal(urlMatches.length, 2);
+  assert.doesNotMatch(xml, /404/);
 });
 
 test('renderSitemapXml escapes a literal "&" in the URL so the output stays well-formed XML', () => {

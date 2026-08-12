@@ -9,8 +9,8 @@
 
 const SITE_ORIGIN = 'https://repertoire-builder.com';
 const BASE_PATH = '/';
-const SITE_NAME = 'Lichess Stats';
-const SITE_TAGLINE = 'Chess opening stats by rating band, from real Lichess games.';
+const SITE_NAME = 'Repertoire Builder';
+const SITE_TAGLINE = 'The chess opening meta, by rating band: what players at your level actually play, and what actually wins.';
 // No individually-attributed human byline has been supplied for this build --
 // do not invent a person.
 // Article/Organization structured data (phase 3) should use SITE_AUTHOR as an
@@ -27,6 +27,19 @@ function absoluteUrl(file = '') {
   return `${SITE_ORIGIN}${BASE_PATH}${file}`;
 }
 
+/**
+ * @param {string} base a page-specific title, without any site-name suffix.
+ * @returns {string} `${base} | ${SITE_NAME}` -- always. The suffix used to
+ *   be silently dropped when the combined title exceeded the SEO cap (spec
+ *   2.2), which is why some titles shipped with no site name at all. The cap
+ *   is enforced instead at buildContent.js's assertPageMetadata, which now
+ *   fails the build loudly on an over-length title so the base title gets
+ *   shortened at the source instead of the suffix quietly disappearing.
+ */
+function pageTitle(base) {
+  return `${base} | ${SITE_NAME}`;
+}
+
 module.exports = {
   SITE_ORIGIN,
   BASE_PATH,
@@ -35,4 +48,5 @@ module.exports = {
   SITE_AUTHOR,
   BUILD_DATE,
   absoluteUrl,
+  pageTitle,
 };

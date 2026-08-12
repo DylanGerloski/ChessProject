@@ -49,6 +49,12 @@ function stripHtmlToText(html) {
     .replace(/&rarr;/g, '->')
     .replace(/&mdash;/g, '-')
     .replace(/&middot;/g, '-')
+    // Curly quotes/apostrophes (design-standards.md 4.1) are for visible
+    // prose only -- a curly quote inside a structured-data string is a
+    // correctness bug, so these decode to their plain ASCII equivalent here
+    // rather than to the actual Unicode curly character.
+    .replace(/&ldquo;|&rdquo;/g, '"')
+    .replace(/&lsquo;|&rsquo;/g, "'")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&amp;/g, '&')

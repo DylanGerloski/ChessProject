@@ -49,14 +49,17 @@ const fs = require('fs');
 const path = require('path');
 const { buildRepertoireTree } = require('./buildRepertoire');
 const { RATING_BANDS } = require('./processRepertoire');
-const { renderRepertoirePage, escapeHtml, renderDocumentHead, renderHeader, renderFooter } = require('./render');
+const { renderRepertoirePage, escapeHtml, renderDocumentHead, renderHeader, renderFooter, renderPageHead } = require('./render');
+const { renderOpeningStatCard } = require('./renderContent');
 const { getApiToken } = require('./fetchOpeningExplorer');
 const { buildContentPages } = require('./buildContent');
 const { withExplorerCache } = require('./explorerCache');
-const { renderPrivacyPage, renderAboutPage, renderContactPage, adsTxtContent } = require('./renderCompliance');
+const { renderPrivacyPage, renderAboutPage, renderContactPage, render404Page, adsTxtContent } = require('./renderCompliance');
 const { renderSitemapXml, robotsTxtContent } = require('./sitemap');
 const { homeJsonLd } = require('./structuredData');
-const { SITE_TAGLINE, absoluteUrl } = require('./site');
+const { SITE_NAME, SITE_TAGLINE, absoluteUrl, pageTitle } = require('./site');
+const { buildDrillData } = require('./buildDrill');
+const { renderDrillPage } = require('./renderDrill');
 
 // Pre-rendering all 8 band/color combinations issues many sequential
 // Explorer API requests (each combination expands several plies), which can
@@ -85,11 +88,41 @@ async function politeFetch(url, options) {
 const OUT_DIR = path.join(__dirname, '..', 'dist');
 const COLORS = ['white', 'black'];
 
+// Identity artwork committed under assets/ by scripts/build-og-image.js (run
+// by hand, not part of this build -- see that script's own header comment).
+// Copied verbatim into dist/ on every build so a normal `npm run
+// build:static` never needs Playwright itself.
+const ASSETS_DIR = path.join(__dirname, '..', 'assets');
+const IDENTITY_ASSET_FILES = ['og-default.png', 'apple-touch-icon.png', 'favicon.svg'];
+
+// Self-hosted heading webfont (G6 -- see task-msqa2179-b40ef9's result
+// field). assets/fonts/fraunces-variable.woff2 was extracted once from the
+// @fontsource-variable/fraunces devDependency (an OFL-licensed npm package
+// that bundles the actual Google Fonts binary, so the build never fetches
+// anything from Google at runtime or build time); copied verbatim into
+// dist/fonts/ here, same pattern as IDENTITY_ASSET_FILES above. render.js's
+// @font-face/preload reference this exact dist/-relative path.
+const FONT_ASSET_FILES = ['fraunces-variable.woff2'];
+
 // Nav link targets for the static build -- flat filenames, no server routes.
 // Shared with renderRepertoirePage() (see repertoire page rendering below)
 // so every static page's header links are identical. 'guides'/'faq' added
-// added once guides.html/chess-opening-faq.html actually existed.
-const STATIC_NAV = { player: 'player.html', repertoire: 'index.html', openings: 'openings.html', guides: 'guides.html', faq: 'chess-opening-faq.html' };
+// added once guides.html/chess-opening-faq.html actually existed; 'drill'
+// added once italian-game-drill.html existed (single-opening drill pilot).
+const STATIC_NAV = { player: 'player.html', repertoire: '/', openings: 'openings.html', drill: 'italian-game-drill.html', guides: 'guides.html', faq: 'chess-opening-faq.html' };
+
+// The one opening this drill pilot covers, and the rating band its
+// server-rendered starting position and candidate table default to. Kept
+// here (not hardcoded inside renderDrill.js) so a future second-opening
+// pilot only has to change this one call site.
+const DRILL_OPENING_SLUG = 'italian-game';
+const DRILL_DEFAULT_BAND = '1600-1800';
+
+// Maps an opening slug to its drill page filename, so buildContentPages()
+// can thread a "Drill this opening" CTA into that opening's page without
+// buildContent.js needing to know the drill pilot is single-opening -- a
+// future second-opening pilot only needs another entry here.
+const DRILL_PAGES = { [DRILL_OPENING_SLUG]: 'italian-game-drill.html' };
 
 // Compliance pages: privacy policy, about, and
 // contact, linked from every page's footer via renderFooter()'s optional
@@ -105,6 +138,12 @@ const BROWSER_BUNDLE_SOURCES = [
   path.join(__dirname, 'render.js'),
 ];
 const BROWSER_CONTROLLER = path.join(__dirname, 'browser', 'playerLookup.client.js');
+
+const DRILL_BUNDLE_SOURCES = [
+  path.join(__dirname, 'chessPosition.js'),
+  path.join(__dirname, 'drillLogic.js'),
+];
+const DRILL_CONTROLLER = path.join(__dirname, 'browser', 'drill.client.js');
 
 function repertoireFileName(band, color) {
   const safeBand = band.replace(/[^\w-]/g, '');
@@ -145,65 +184,133 @@ function buildPlayerLookupBundle() {
   return [header, ...modules, controller].join('\n\n');
 }
 
-function indexPage(repertoireLinks, contentEntries = []) {
-  const items = repertoireLinks
-    .map(({ band, color, file }) => `<li><a href="${escapeHtml(file)}">${escapeHtml(band)}, ${escapeHtml(color)}</a></li>`)
-    .join('\n        ');
+/**
+ * Same concatenation strategy as buildPlayerLookupBundle(), for the opening
+ * drill's client bundle: src/chessPosition.js + src/drillLogic.js (both
+ * pure, both keep the trailing module.exports block bundleBrowserModule
+ * strips) plus the plain DOM controller. All drill data is baked into the
+ * page at build time (see the #drill-data JSON block src/renderDrill.js
+ * emits) -- this bundle never makes a network request itself.
+ */
+function buildDrillBundle() {
+  const header = [
+    '/* Auto-generated by src/buildStatic.js from src/chessPosition.js,',
+    ' * src/drillLogic.js, and src/browser/drill.client.js. Do not edit this',
+    ' * file directly -- edit the source files above and re-run `node',
+    ' * src/buildStatic.js`.',
+    ' *',
+    ' * This makes no network requests -- every position/percentage it uses',
+    ' * comes from the #drill-data JSON block already on the page. */',
+    '',
+  ].join('\n');
 
+  const modules = DRILL_BUNDLE_SOURCES.map(bundleBrowserModule);
+  const controller = fs.readFileSync(DRILL_CONTROLLER, 'utf8');
+  return [header, ...modules, controller].join('\n\n');
+}
+
+// Drill CTA card for the home page. Kept as its own additive block (a new
+// section, appended without touching any of indexPage()'s existing copy)
+// since a separate, later pass is expected to rework the rest of this
+// page's headline/subtitle/section order -- keeping this isolated avoids
+// that future edit and this one stepping on each other.
+function drillCtaSection(drillFile) {
+  if (!drillFile) return '';
+  return `<h2>Drill it: play the move your rating band plays</h2>
+    <div class="card-grid">
+      <div class="card card--outline card--nav"><h3><a href="${escapeHtml(drillFile)}">Italian Game drill</a></h3><p>Pick the move, see instantly whether it is the move players at your rating actually make, and what that move scores.</p></div>
+    </div>`;
+}
+
+// The four rating-band pickers as one role=group control with 44px pill
+// links (render.js's .band-picker/.band-pill), replacing four floating
+// .card elements that carried the same visual weight as unrelated nav
+// cards on the same page. Link targets/labels unchanged from the old cards
+// (band + color, e.g. "as White").
+function bandPickerHtml(repertoireLinks) {
+  const pills = Object.keys(RATING_BANDS)
+    .flatMap((band) => repertoireLinks
+      .filter((r) => r.band === band)
+      .map(({ color, file }) => `<a class="band-pill" href="${escapeHtml(file)}">${escapeHtml(band)} <span class="band-pill-color">as ${escapeHtml(color === 'white' ? 'White' : 'Black')}</span></a>`))
+    .join('\n      ');
+  return `<div class="band-picker" role="group" aria-label="Pick your rating band and color">
+      ${pills}
+    </div>`;
+}
+
+// Product decision: the rating-band picker below is the homepage's single
+// primary action -- repertoire lookup is the site's core value prop and
+// existing traffic driver (now a single role=group pill control, not four
+// accent-filled cards competing with
+// unrelated nav cards on the same page -- see bandPickerHtml above). The
+// drill card and openings cards (below) stay demoted to outline cards
+// (card--outline) -- same link targets, lower visual weight; see
+// design-standards.md 4.5's "one primary action per view". Openings cards
+// additionally carry inline WDL data via renderOpeningStatCard.
+function indexPage(repertoireLinks, contentEntries = [], drillFile = null) {
   const openingsSection = contentEntries.length > 0
     ? `<h2>Openings by real win rate</h2>
-    <p class="repertoire-intro">${contentEntries.length} opening pages, each backed by real Lichess data across four
-       rating bands -- see <a href="openings.html">all openings &rarr;</a></p>
+    <p class="repertoire-intro">${contentEntries.length} openings, ranked by what they actually score in real games
+       at each rating band &mdash; see <a href="openings.html">all openings &rarr;</a></p>
     <div class="card-grid">
       ${contentEntries
         .slice(0, 6)
-        .map(
-          (e) => `<div class="card"><h3><a href="${escapeHtml(e.openingConfig.slug)}.html">${escapeHtml(e.model.name)}</a></h3><p>${escapeHtml(e.model.eco)}, playing as ${escapeHtml(e.model.side)}</p></div>`
-        )
+        .map((e) => renderOpeningStatCard(e.openingConfig, e.model, 'card--outline'))
         .join('\n      ')}
     </div>`
     : '';
 
-  const homeJsonLdBlock = homeJsonLd({ url: absoluteUrl(''), description: SITE_TAGLINE });
+  const homeDescription = 'Which chess openings players at your rating actually play, and which of those picks actually win. Real win rates from millions of Lichess games.';
+  const homeJsonLdBlock = homeJsonLd({ url: absoluteUrl(''), description: homeDescription });
 
   return `<!DOCTYPE html>
 <html lang="en">
-${renderDocumentHead({ title: 'Lichess stats (static build)', jsonLd: homeJsonLdBlock })}
+${renderDocumentHead({
+    title: `The Chess Opening Meta by Rating Band | ${SITE_NAME}`,
+    description: homeDescription,
+    canonical: absoluteUrl(''),
+    jsonLd: homeJsonLdBlock,
+  })}
 <body>
   ${renderHeader(STATIC_NAV, 'repertoire')}
   <main>
-    <h1 class="page-title">Lichess stats</h1>
-    <p class="subtitle">This is a fully static version of the app: every page here is a plain file, no
-       server required.</p>
+    ${renderPageHead({
+      title: 'The chess opening meta, by rating band',
+      subtitle: 'Which openings players at your rating actually play, and how often those picks actually win. Every number on this site comes from real Lichess games &mdash; no theory, no opinions, no engine lines.',
+    })}
+
+    <h2>Start with your rating band</h2>
+    <p class="repertoire-intro">Openings behave differently at every rating. Pick your band &mdash; everything below is
+       filtered to real games at that level.</p>
+    ${bandPickerHtml(repertoireLinks)}
+
+    ${drillCtaSection(drillFile)}
+
+    ${openingsSection}
 
     <h2>Player lookup</h2>
     <p><a href="player.html">Look up any Lichess username &rarr;</a> (fetches live data
        directly in your browser when you open this page; nothing is pre-baked).</p>
-
-    ${openingsSection}
-
-    <h2>Rating-band opening-repertoire explorer</h2>
-    <p class="repertoire-intro">Pre-rendered at build time for these 8 rating-band / color combinations:</p>
-    <ul>
-        ${items}
-    </ul>
   </main>
-  ${renderFooter('Data source: <a href="https://lichess.org/api">lichess.org/api</a>. See TESTING.md in the project source for how this site is built.', LEGAL_LINKS)}
+  ${renderFooter('Data source: <a href="https://lichess.org/api">lichess.org/api</a>.', LEGAL_LINKS)}
 </body>
 </html>
 `;
 }
 
 function playerLookupPage() {
+  const title = pageTitle('Player lookup');
+  const description = 'Look up any Lichess username to see rating history and recent games, fetched live and rendered directly in your browser — no account or token needed.';
+  const canonical = absoluteUrl('player.html');
   return `<!DOCTYPE html>
 <html lang="en">
-${renderDocumentHead('Player lookup - Lichess stats')}
-<body>
+${renderDocumentHead({ title, description, canonical })}
+<body class="layout--wide">
   ${renderHeader(STATIC_NAV, 'player')}
   <main>
     <h1 class="page-title">Player lookup</h1>
     <p class="subtitle">Enter a Lichess username to view rating history and recent games. This runs
-       entirely in your browser, calling Lichess's public API directly -- no token
+       entirely in your browser, calling Lichess&rsquo;s public API directly &mdash; no token
        needed and none is used.</p>
     <form id="lookup-form" class="lookup-form">
       <input id="username" name="username" placeholder="e.g. DrNykterstein" required>
@@ -223,12 +330,15 @@ async function buildRepertoirePages({ fetchImpl = politeFetch } = {}) {
   for (const band of Object.keys(RATING_BANDS)) {
     for (const color of COLORS) {
       const data = await buildRepertoireTree({ ratingBand: band, color, fetchImpl });
+      const file = repertoireFileName(band, color);
+      const colorLabel = color === 'white' ? 'White' : 'Black';
       const html = renderRepertoirePage({
         ...data,
         nav: STATIC_NAV,
         legalLinks: LEGAL_LINKS,
+        canonical: absoluteUrl(file),
+        description: `Repertoire explorer, ${band}, playing as ${colorLabel}: the moves players actually play at each ply, and how each one scores, from real Lichess games.`,
       });
-      const file = repertoireFileName(band, color);
       fs.writeFileSync(path.join(OUT_DIR, file), html, 'utf8');
       written.push({ band, color, file });
     }
@@ -296,9 +406,28 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     fetchImpl: cachedFetchImpl,
     outDir: OUT_DIR,
     nav: STATIC_NAV,
+    drillPages: DRILL_PAGES,
   });
 
-  fs.writeFileSync(path.join(OUT_DIR, 'index.html'), indexPage(repertoireLinks, contentEntries), 'utf8');
+  // Single-opening drill pilot (beta): baked at build time from the same
+  // rate-limited, cached Explorer endpoint as the content pages above --
+  // see src/buildDrill.js for the request-count budget (25 per band, 100
+  // total). Reuses repertoireFileName() (already defined above) so the
+  // drill's "keep exploring" link points at the real generated filename
+  // rather than a hand-typed one that could drift.
+  const drillData = await buildDrillData({ openingSlug: DRILL_OPENING_SLUG, fetchImpl: cachedFetchImpl });
+  const drillFile = 'italian-game-drill.html';
+  const drillHtml = renderDrillPage({
+    drillData,
+    nav: STATIC_NAV,
+    legalLinks: LEGAL_LINKS,
+    openingLink: `${DRILL_OPENING_SLUG}.html`,
+    repertoireLink: repertoireFileName(DRILL_DEFAULT_BAND, 'white'),
+  });
+  fs.writeFileSync(path.join(OUT_DIR, drillFile), drillHtml, 'utf8');
+  fs.writeFileSync(path.join(OUT_DIR, 'drill.js'), buildDrillBundle(), 'utf8');
+
+  fs.writeFileSync(path.join(OUT_DIR, 'index.html'), indexPage(repertoireLinks, contentEntries, drillFile), 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'player.html'), playerLookupPage(), 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'player-lookup.js'), buildPlayerLookupBundle(), 'utf8');
 
@@ -311,6 +440,47 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   fs.writeFileSync(path.join(OUT_DIR, 'about.html'), renderAboutPage({ nav: STATIC_NAV, legalLinks: LEGAL_LINKS }), 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'contact.html'), renderContactPage({ nav: STATIC_NAV, legalLinks: LEGAL_LINKS }), 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'ads.txt'), adsTxtContent(), 'utf8');
+
+  // 404 page: same header/nav/footer shell as every other page, noindex,
+  // excluded from sitemap.xml (src/sitemap.js filters it out). GitHub Pages
+  // serves this automatically for a custom domain (dist/CNAME above).
+  fs.writeFileSync(
+    path.join(OUT_DIR, '404.html'),
+    render404Page({
+      nav: STATIC_NAV,
+      legalLinks: LEGAL_LINKS,
+      homeLink: STATIC_NAV.repertoire,
+      openingsLink: STATIC_NAV.openings,
+      repertoireLink: repertoireFileName(DRILL_DEFAULT_BAND, 'white'),
+    }),
+    'utf8'
+  );
+
+  // Identity artwork (og-default.png, apple-touch-icon.png, favicon.svg):
+  // committed under assets/ by scripts/build-og-image.js, copied verbatim
+  // here on every build. Fails loudly if a file is missing rather than
+  // silently shipping a site with no og:image -- run
+  // `node scripts/build-og-image.js` once if this throws.
+  for (const assetFile of IDENTITY_ASSET_FILES) {
+    const src = path.join(ASSETS_DIR, assetFile);
+    if (!fs.existsSync(src)) {
+      throw new Error(`Missing identity asset ${src} -- run "node scripts/build-og-image.js" first.`);
+    }
+    fs.copyFileSync(src, path.join(OUT_DIR, assetFile));
+  }
+
+  // Self-hosted heading webfont (see FONT_ASSET_FILES above) -- copied into
+  // dist/fonts/ verbatim, matching the /fonts/fraunces-variable.woff2 path
+  // render.js's @font-face and preload <link> both reference.
+  const FONT_OUT_DIR = path.join(OUT_DIR, 'fonts');
+  fs.mkdirSync(FONT_OUT_DIR, { recursive: true });
+  for (const fontFile of FONT_ASSET_FILES) {
+    const src = path.join(ASSETS_DIR, 'fonts', fontFile);
+    if (!fs.existsSync(src)) {
+      throw new Error(`Missing font asset ${src} -- see assets/fonts/ and src/render.js's --font-serif comment.`);
+    }
+    fs.copyFileSync(src, path.join(FONT_OUT_DIR, fontFile));
+  }
   // Custom domain for GitHub Pages. dist/ is gitignored and
   // regenerated fresh on every `npm run build:static` run, and its contents
   // are what actually gets pushed to the gh-pages branch GitHub Pages
@@ -327,6 +497,8 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     'privacy.html',
     'about.html',
     'contact.html',
+    '404.html',
+    drillFile,
     ...repertoireLinks.map((r) => r.file),
     ...contentWritten.map((c) => c.file),
   ];
@@ -334,8 +506,10 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   assertFilenamesUnique([
     ...pageFilenames,
     'player-lookup.js',
+    'drill.js',
     'CNAME',
     'ads.txt',
+    ...IDENTITY_ASSET_FILES,
   ]);
   assertNoTokenLeak(OUT_DIR, getApiToken());
 
@@ -365,6 +539,7 @@ async function main() {
       console.log(`  - ${file}`);
     }
     console.log('  - privacy.html, about.html, contact.html, ads.txt (compliance pages)');
+    console.log('  - italian-game-drill.html + drill.js (single-opening drill pilot, beta)');
     console.log('  - sitemap.xml, robots.txt (generated from the pages actually written above)');
     console.log('Verified: no Lichess API token string appears in any generated file.');
     console.log('Verified: no filename collisions across the static build.');
@@ -383,6 +558,7 @@ module.exports = {
   buildStatic,
   buildRepertoirePages,
   buildPlayerLookupBundle,
+  buildDrillBundle,
   bundleBrowserModule,
   indexPage,
   playerLookupPage,

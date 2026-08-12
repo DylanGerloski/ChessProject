@@ -121,6 +121,36 @@ test('buildOpeningModel + renderOpeningPage handle a realistic full-shape fixtur
   assert.equal(h1Matches.length, 1);
 });
 
+test('renderOpeningPage: omitting drillFile is byte-identical to no drill CTA; passing it adds exactly one drill-cta section', () => {
+  const openingConfig = OPENINGS.find((o) => o.slug === 'italian-game');
+  const model = buildOpeningModel({
+    openingConfig,
+    bandResponses: { '1600-1800': italianFixture },
+    mastersResponse: mastersItalianFixture,
+    defaultBand: '1600-1800',
+    minGamesForPct: 1000,
+  });
+  const baseOpts = {
+    model,
+    openingConfig,
+    nav: { repertoire: 'index.html', openings: 'openings.html', player: 'player.html' },
+    related: [],
+    repertoireLinks: { white: 'repertoire-1600-1800-white.html', black: 'repertoire-1600-1800-black.html' },
+  };
+
+  const withoutDrill = renderOpeningPage(baseOpts);
+  const withExplicitNull = renderOpeningPage({ ...baseOpts, drillFile: null });
+  assert.equal(withoutDrill, withExplicitNull);
+  assert.doesNotMatch(withoutDrill, /class="drill-cta"/);
+
+  const withDrill = renderOpeningPage({ ...baseOpts, drillFile: 'italian-game-drill.html' });
+  const drillCtaMatches = withDrill.match(/class="drill-cta"/g) || [];
+  assert.equal(drillCtaMatches.length, 1);
+  assert.match(withDrill, /Drill this opening/);
+  assert.match(withDrill, /href="italian-game-drill\.html"/);
+  assert.match(withDrill, /Open the Italian Game drill &rarr;/);
+});
+
 test('phase 2: the guides hub links to all 6 guide articles, and every guide has exactly one H1 and real data pulled from entries', () =>
   withTempDist(async (outDir) => {
     const { fetchImpl } = makeSmartExplorerFetch();
@@ -226,5 +256,26 @@ test('phase 3: every emitted page has well-formed JSON-LD, and every JSON-LD blo
     assert.deepEqual(jsonLdBlocksOf(hub.html).map((b) => b['@type']), ['BreadcrumbList']);
     const guidesHub = written.find((p) => p.file === 'guides.html');
     assert.deepEqual(jsonLdBlocksOf(guidesHub.html).map((b) => b['@type']), ['BreadcrumbList']);
+  })
+);
+
+test('buildContentPages: only the opening named in drillPages gets a drill CTA; every other opening page has none', () =>
+  withTempDist(async (outDir) => {
+    const { fetchImpl } = makeSmartExplorerFetch();
+    const { written } = await buildContentPages({
+      fetchImpl,
+      outDir,
+      drillPages: { 'italian-game': 'italian-game-drill.html' },
+    });
+
+    const italian = written.find((p) => p.file === 'italian-game.html');
+    assert.match(italian.html, /class="drill-cta"/);
+    assert.match(italian.html, /href="italian-game-drill\.html"/);
+
+    const others = written.filter((p) => p.file !== 'italian-game.html' && p.file.endsWith('.html') && p.slug !== 'openings-hub');
+    assert.ok(others.length > 0);
+    for (const page of others) {
+      assert.doesNotMatch(page.html, /class="drill-cta"/, `${page.file} must not carry a drill CTA`);
+    }
   })
 );

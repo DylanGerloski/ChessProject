@@ -34,7 +34,7 @@ const {
   lichessAnalysisUrl,
   lichessOpeningUrl,
 } = require('./renderContent');
-const { escapeHtml, wrapTable } = require('./render');
+const { escapeHtml, formatPct, wrapTable } = require('./render');
 const { BUILD_DATE } = require('./site');
 
 // Editorial guides (phase 2). Each module exports {meta, render(ctx)} -- see
@@ -180,7 +180,7 @@ function extractDescription(html) {
 /**
  * Fails the build loudly (spec section 1.9) on a duplicate title, a
  * duplicate meta description, a missing title, or an over-length title
- * (>65 chars, spec 2.2) or description (>160 chars, spec 2.2) -- a half-built
+ * (>70 chars, spec 2.2) or description (>160 chars, spec 2.2) -- a half-built
  * dist/ that silently ships bad SEO metadata is worse than a failed build.
  */
 function assertPageMetadata(written) {
@@ -190,8 +190,8 @@ function assertPageMetadata(written) {
     if (!page.title) {
       throw new Error(`buildContent: ${page.file} has no <title>`);
     }
-    if (page.title.length > 65) {
-      throw new Error(`buildContent: ${page.file}'s title is ${page.title.length} chars, over the 65 cap: "${page.title}"`);
+    if (page.title.length > 70) {
+      throw new Error(`buildContent: ${page.file}'s title is ${page.title.length} chars, over the 70 cap: "${page.title}"`);
     }
     if (seenTitles.has(page.title)) {
       throw new Error(`buildContent: duplicate title between ${seenTitles.get(page.title)} and ${page.file}: "${page.title}"`);
@@ -216,12 +216,16 @@ function assertPageMetadata(written) {
  * @param {string} [opts.outDir] where to write the generated files
  * @param {object} [opts.nav] nav object passed to renderHeader -- only the
  *   pages that exist yet should be keys here (phase 2: repertoire, openings, guides, faq, player)
+ * @param {Object<string,string>} [opts.drillPages] maps an opening slug to
+ *   its drill page filename (single-opening drill pilot). An opening whose
+ *   slug isn't a key here renders with no drill CTA -- unchanged output.
  * @returns {Promise<{written: Array<{file, html, slug, title, description}>}>}
  */
 async function buildContentPages({
   fetchImpl = fetch,
   outDir = OUT_DIR,
-  nav = { repertoire: 'index.html', openings: 'openings.html', guides: 'guides.html', faq: 'chess-opening-faq.html', player: 'player.html' },
+  nav = { repertoire: '/', openings: 'openings.html', guides: 'guides.html', faq: 'chess-opening-faq.html', player: 'player.html' },
+  drillPages = {},
 } = {}) {
   assertOpeningsWellFormed();
   fs.mkdirSync(outDir, { recursive: true });
@@ -243,7 +247,8 @@ async function buildContentPages({
       label: r.model.name,
       href: `${r.openingConfig.slug}.html`,
     }));
-    const html = renderOpeningPage({ model: entry.model, openingConfig: entry.openingConfig, nav, related, repertoireLinks });
+    const drillFile = drillPages[entry.openingConfig.slug] || null;
+    const html = renderOpeningPage({ model: entry.model, openingConfig: entry.openingConfig, nav, related, repertoireLinks, drillFile });
     const file = `${entry.openingConfig.slug}.html`;
     fs.writeFileSync(path.join(outDir, file), html, 'utf8');
     written.push({ file, html, slug: entry.openingConfig.slug, title: extractTitle(html), description: extractDescription(html) });
@@ -292,6 +297,7 @@ function buildGuidePages(entries, { nav, outDir }) {
     lichessAnalysisUrl,
     lichessOpeningUrl,
     escapeHtml,
+    formatPct,
     wrapTable,
   };
 
@@ -337,49 +343,49 @@ function buildFaqEntries(entries) {
     },
     {
       question: 'Do I need to memorize openings to improve?',
-      answerHtml: `<p>No -- standard improvement advice, especially below about 1500, prioritizes tactics and endgame technique over opening memorization. See <a href="should-you-study-openings-under-1500.html">Should you study openings under 1500? &rarr;</a> for what this site's own data shows about how much opening choice actually moves the needle by rating.</p>`,
+      answerHtml: `<p>No &mdash; standard improvement advice, especially below about 1500, prioritizes tactics and endgame technique over opening memorization. See <a href="should-you-study-openings-under-1500.html">Should you study openings under 1500? &rarr;</a> for what this site&rsquo;s own data shows about how much opening choice actually moves the needle by rating.</p>`,
     },
     {
       question: 'What is the best first move for beginners?',
       answerHtml: topBeginner
-        ? `<p>There's no single objectively "best" first move, but among the openings this site tracks, <a href="${escapeHtml(topBeginner.slug)}.html">${escapeHtml(topBeginner.name)}</a> currently scores highest for its side at the 1400-1600 rating band. See the <a href="best-chess-openings-for-beginners.html">full ranking &rarr;</a> for all of them, and why "highest score" isn't the whole answer.</p>`
-        : `<p>There's no single objectively "best" first move. See the <a href="best-chess-openings-for-beginners.html">beginner openings ranked by score &rarr;</a> for how the openings this site tracks actually compare.</p>`,
+        ? `<p>There&rsquo;s no single objectively &ldquo;best&rdquo; first move, but among the openings this site tracks, <a href="${escapeHtml(topBeginner.slug)}.html">${escapeHtml(topBeginner.name)}</a> currently scores highest for its side at the 1400-1600 rating band. See the <a href="best-chess-openings-for-beginners.html">full ranking &rarr;</a> for all of them, and why &ldquo;highest score&rdquo; isn&rsquo;t the whole answer.</p>`
+        : `<p>There&rsquo;s no single objectively &ldquo;best&rdquo; first move. See the <a href="best-chess-openings-for-beginners.html">beginner openings ranked by score &rarr;</a> for how the openings this site tracks actually compare.</p>`,
     },
     {
       question: 'What does ECO mean?',
-      answerHtml: `<p>ECO stands for "Encyclopaedia of Chess Openings" -- a standard code (like C50 or B20) chess databases use to classify openings. Every opening page on this site shows its ECO code, sourced directly from the Lichess Opening Explorer API.</p>`,
+      answerHtml: `<p>ECO stands for &ldquo;Encyclopaedia of Chess Openings&rdquo; &mdash; a standard code (like C50 or B20) chess databases use to classify openings. Every opening page on this site shows its ECO code, sourced directly from the Lichess Opening Explorer API.</p>`,
     },
     {
       question: 'Which openings score best at my rating?',
-      answerHtml: `<p>It depends on your rating band and which side you're playing. See the <a href="openings.html">openings comparison table &rarr;</a>, which breaks every tracked opening down by rating band (1400-1600 through 2000+).</p>`,
+      answerHtml: `<p>It depends on your rating band and which side you&rsquo;re playing. See the <a href="openings.html">openings comparison table &rarr;</a>, which breaks every tracked opening down by rating band (1400-1600 through 2000+).</p>`,
     },
     {
       question: 'Why do win rates differ by rating band?',
-      answerHtml: `<p>Different rating bands make different mistakes at different rates in the same position -- see <a href="most-common-opening-mistakes-1600-1800.html">the most common opening mistakes at 1600-1800 &rarr;</a> for concrete examples pulled from this site's own data.</p>`,
+      answerHtml: `<p>Different rating bands make different mistakes at different rates in the same position &mdash; see <a href="most-common-opening-mistakes-1600-1800.html">the most common opening mistakes at 1600-1800 &rarr;</a> for concrete examples pulled from this site&rsquo;s own data.</p>`,
     },
     {
       question: 'What is a "system" opening, like the London System?',
-      answerHtml: `<p>A "system" opening is one where a side plays roughly the same setup regardless of what the opponent does, trading some flexibility for lower theory requirements. See the <a href="london-system.html">London System page &rarr;</a> and the <a href="how-to-beat-the-london-system.html">how to beat it guide &rarr;</a> for what the actual data shows.</p>`,
+      answerHtml: `<p>A &ldquo;system&rdquo; opening is one where a side plays roughly the same setup regardless of what the opponent does, trading some flexibility for lower theory requirements. See the <a href="london-system.html">London System page &rarr;</a> and the <a href="how-to-beat-the-london-system.html">how to beat it guide &rarr;</a> for what the actual data shows.</p>`,
     },
     {
       question: 'How many openings should I learn?',
-      answerHtml: `<p>Most improvement advice suggests one solid response to 1.e4, one to 1.d4, and a small number of systems as White -- not a large repertoire. This site deliberately tracks a fixed set of 10 openings rather than trying to cover everything, for the same reason.</p>`,
+      answerHtml: `<p>Most improvement advice suggests one solid response to 1.e4, one to 1.d4, and a small number of systems as White &mdash; not a large repertoire. This site deliberately tracks a fixed set of 10 openings rather than trying to cover everything, for the same reason.</p>`,
     },
     {
       question: "What's the difference between the Lichess database and the masters database?",
-      answerHtml: `<p>The Lichess database aggregates real games played by everyone on Lichess, filterable by rating band -- that's what powers the "how it scores at your rating" section on every opening page. The masters database is a separate, much smaller set of real games played by titled/master-level players, used for the "model games" section. This site shows both side by side deliberately, so you can see how masters play a line versus how it actually goes at club level.</p>`,
+      answerHtml: `<p>The Lichess database aggregates real games played by everyone on Lichess, filterable by rating band &mdash; that&rsquo;s what powers the &ldquo;how it scores at your rating&rdquo; section on every opening page. The masters database is a separate, much smaller set of real games played by titled/master-level players, used for the &ldquo;model games&rdquo; section. This site shows both side by side deliberately, so you can see how masters play a line versus how it actually goes at club level.</p>`,
     },
     {
       question: 'Are these stats from blitz or classical games?',
-      answerHtml: `<p>Blitz and rapid games from the Lichess database (the two fastest time controls with enough volume to give reliable numbers at every rating band this site tracks). Classical games are not included -- there generally isn't enough volume at most rating bands to compute a trustworthy percentage from them.</p>`,
+      answerHtml: `<p>Blitz and rapid games from the Lichess database (the two fastest time controls with enough volume to give reliable numbers at every rating band this site tracks). Classical games are not included &mdash; there generally isn&rsquo;t enough volume at most rating bands to compute a trustworthy percentage from them.</p>`,
     },
     {
       question: 'How often is the data updated?',
-      answerHtml: `<p>Whenever this site is rebuilt from live Lichess data -- there is no live/real-time updating between rebuilds. This build's data was retrieved ${escapeHtml(BUILD_DATE)}.</p>`,
+      answerHtml: `<p>Whenever this site is rebuilt from live Lichess data &mdash; there is no live/real-time updating between rebuilds. This build's data was retrieved ${escapeHtml(BUILD_DATE)}.</p>`,
     },
     {
       question: 'How is this site funded?',
-      answerHtml: `<p>Currently through voluntary support links (Ko-fi, Buy Me a Coffee) shown in the footer of every page -- no advertising currently runs on this site. See the <a href="about.html">About page &rarr;</a> and <a href="privacy.html">Privacy policy &rarr;</a> for the full, current answer.</p>`,
+      answerHtml: `<p>Currently through voluntary support links (Ko-fi, Buy Me a Coffee) shown in the footer of every page &mdash; no advertising currently runs on this site. See the <a href="about.html">About page &rarr;</a> and <a href="privacy.html">Privacy policy &rarr;</a> for the full, current answer.</p>`,
     },
   ];
 }

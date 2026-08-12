@@ -19,6 +19,7 @@ const { LichessNotFoundError, LichessRateLimitError } = require('./fetchLichess'
 const { ExplorerRateLimitError, ExplorerApiError } = require('./fetchOpeningExplorer');
 const { RATING_BANDS } = require('./processRepertoire');
 const { escapeHtml, renderRepertoirePage, renderDocumentHead, renderHeader, renderFooter } = require('./render');
+const { SITE_NAME } = require('./site');
 
 const DEFAULT_PORT = 8787;
 
@@ -30,11 +31,11 @@ const SERVER_NAV = { player: '/', repertoire: '/repertoire' };
 function indexPage() {
   return `<!DOCTYPE html>
 <html lang="en">
-${renderDocumentHead('Lichess stats')}
+${renderDocumentHead(SITE_NAME)}
 <body>
   ${renderHeader(SERVER_NAV, 'player')}
   <main>
-    <h1 class="page-title">Lichess stats</h1>
+    <h1 class="page-title">${escapeHtml(SITE_NAME)}</h1>
     <p class="subtitle">Enter a Lichess username to view rating history and recent games.</p>
     <form action="/player" method="get" class="lookup-form">
       <input name="username" placeholder="e.g. DrNykterstein" required>
@@ -42,7 +43,7 @@ ${renderDocumentHead('Lichess stats')}
     </form>
     <p><a href="/repertoire">Or try the rating-band opening-repertoire explorer &rarr;</a></p>
   </main>
-  ${renderFooter('Local dev server -- data source: <a href="https://lichess.org/api">lichess.org/api</a>.')}
+  ${renderFooter('Local dev server &mdash; data source: <a href="https://lichess.org/api">lichess.org/api</a>.')}
 </body>
 </html>`;
 }
@@ -53,7 +54,7 @@ function repertoireFormPage() {
     .join('');
   return `<!DOCTYPE html>
 <html lang="en">
-${renderDocumentHead('Opening repertoire explorer - Lichess stats')}
+${renderDocumentHead(`Opening repertoire explorer - ${SITE_NAME}`)}
 <body>
   ${renderHeader(SERVER_NAV, 'repertoire')}
   <main>
@@ -73,7 +74,7 @@ ${renderDocumentHead('Opening repertoire explorer - Lichess stats')}
       <button type="submit">Explore</button>
     </form>
   </main>
-  ${renderFooter('Local dev server -- data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a>.')}
+  ${renderFooter('Local dev server &mdash; data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a>.')}
 </body>
 </html>`;
 }

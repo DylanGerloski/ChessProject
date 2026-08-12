@@ -24,13 +24,15 @@ function sitemapUrlFor(file) {
 /**
  * @param {string[]} files flat filenames as written to dist/ (any
  *   non-`.html` entries -- player-lookup.js, ads.txt, CNAME -- are filtered
- *   out; they aren't pages).
+ *   out; they aren't pages). 404.html is also filtered out here -- it is the
+ *   static-hosting error page (noindex, see src/renderCompliance.js), never
+ *   a real destination, so it must never appear in the sitemap.
  * @returns {Array<{file:string, loc:string, lastmod:string}>} sorted by
  *   filename, for deterministic output.
  */
 function buildSitemapEntries(files) {
   return files
-    .filter((f) => f.endsWith('.html'))
+    .filter((f) => f.endsWith('.html') && f !== '404.html')
     .slice()
     .sort()
     .map((f) => ({ file: f, loc: sitemapUrlFor(f), lastmod: BUILD_DATE }));

@@ -4,6 +4,7 @@ dist/
 *.log
 .lichess-token
 .lichess-token.txt
+visual-qa-output/
 
 # Internal planning/testing docs -- not for the public repo (see
 # .claude/rules/public-repo-hygiene.md in the Orchestra project). Kept
