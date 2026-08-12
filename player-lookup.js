@@ -1155,7 +1155,7 @@ function renderHeader(nav, active = null) {
 // The disclosure copy required alongside these links lives in
 // renderDisclosure() below; this constant is just the links/buttons
 // themselves.
-const KOFI_URL = 'https://ko-fi.com/dylangerloski';
+const KOFI_URL = 'https://ko-fi.com/flavaa';
 const BMC_URL = 'https://buymeacoffee.com/dylanger254';
 
 /**
