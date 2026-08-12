@@ -15,12 +15,11 @@
  * the GitHub Pages static build, which is what AdSense review (or a human
  * visitor) would actually see.
  *
- * The privacy policy currently describes GoatCounter analytics (the only
- * analytics live right now) and explicitly does NOT claim any
- * advertising currently runs, because none does. If/when a future AdSense
- * (or other ad-network) is approved, PRIVACY_ADS_SECTION
- * below needs a one-line update to name the actual provider -- flagged here
- * so it isn't missed.
+ * The privacy policy describes GoatCounter analytics and Google AdSense,
+ * the two data collectors actually live on this site. AdSense was approved
+ * 2026-08-12 (publisher ID ca-pub-9767914878112531) -- the ad script lives in
+ * renderDocumentHead (src/render.js) so it loads on every page, and the
+ * matching ads.txt line lives in adsTxtContent below.
  */
 
 const { escapeHtml, renderDocumentHead, renderHeader, renderFooter } = require('./render');
@@ -32,7 +31,7 @@ const { SITE_NAME, BUILD_DATE, absoluteUrl } = require('./site');
  */
 function renderPrivacyPage({ nav, legalLinks }) {
   const title = `Privacy Policy | ${SITE_NAME}`;
-  const description = `What ${SITE_NAME} collects, why, and what it does not: analytics, third-party links, and advertising (currently none).`;
+  const description = `What ${SITE_NAME} collects, why, and what it does not: analytics, third-party links, and advertising (Google AdSense).`;
   const canonical = absoluteUrl('privacy.html');
 
   return `<!DOCTYPE html>
@@ -62,12 +61,16 @@ ${renderDocumentHead({ title, description, canonical })}
       for exactly what it collects and retains.</p>
 
     <h2>Advertising</h2>
-    <p>This site does not currently run any advertising. If that changes in the future (for
-      example, by joining Google AdSense), this policy will be updated first to name the
-      specific ad provider, describe what data it collects (which for most ad networks
-      includes cookies or similar identifiers used for personalization), and link to that
-      provider's own privacy and opt-out information -- including, for Google specifically,
-      <a href="https://policies.google.com/technologies/partner-sites" target="_blank" rel="noopener noreferrer">how Google uses information from sites that use its services</a>.</p>
+    <p>This site runs <a href="https://www.google.com/adsense/" target="_blank" rel="noopener noreferrer">Google AdSense</a>.
+      Google and its advertising partners may use cookies or similar identifiers to show ads
+      based on your visits to this and other sites. You can see and control what Google knows
+      for ad personalization at
+      <a href="https://adssettings.google.com/" target="_blank" rel="noopener noreferrer">Google's Ad Settings</a>,
+      and read more about how this works at
+      <a href="https://policies.google.com/technologies/partner-sites" target="_blank" rel="noopener noreferrer">how Google uses information from sites that use its services</a>
+      and <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer">how Google uses data in advertising</a>.
+      This site's own code does not read, set, or have access to any AdSense cookie or
+      identifier -- that data goes directly between your browser and Google.</p>
 
     <h2>Third-party links</h2>
     <p>Pages on this site link out to <a href="https://lichess.org" target="_blank" rel="noopener noreferrer">lichess.org</a>
@@ -80,9 +83,9 @@ ${renderDocumentHead({ title, description, canonical })}
 
     <h2>Cookies</h2>
     <p>This site's own code does not set any cookies. GoatCounter's default configuration
-      (described above) is cookieless. If advertising is added in the future, that will
-      typically introduce cookies or similar identifiers from the ad provider, and this
-      policy will be updated to say so at that time.</p>
+      (described above) is cookieless. Google AdSense (described above under Advertising)
+      does use cookies or similar identifiers, set directly by Google, not by this site --
+      see the Advertising section above for how to control that.</p>
 
     <h2>Children's privacy</h2>
     <p>This site is not directed at children and does not knowingly collect information from
@@ -192,23 +195,15 @@ ${renderDocumentHead({ title, description, canonical })}
 }
 
 /**
- * ads.txt stub (IAB/Google spec: https://iabtechlab.com/ads-txt/). Not
- * required for AdSense approval, but cheap to add now as a comment-only
- * placeholder. Comment lines (`#`)
- * are valid ads.txt content and make no seller claims -- this file
- * authorizes no ad-tech sellers until a real AdSense (or other network)
- * publisher ID is added.
+ * ads.txt (IAB/Google spec: https://iabtechlab.com/ads-txt/), declaring
+ * Google AdSense as an authorized seller of this site's ad inventory, per
+ * the approved account (publisher ID ca-pub-9767914878112531).
  */
 function adsTxtContent() {
   return `# ads.txt for ${SITE_NAME}
-# No authorized digital sellers are configured yet -- this is a placeholder.
-# ads.txt is not required for Google AdSense approval, but is recommended
-# once an ad account exists, to declare authorized sellers of this site's
-# ad inventory. See https://iabtechlab.com/ads-txt/ for the spec.
-#
-# Once an AdSense account is approved, add a line here in the form:
-# google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0
-# (replace pub-XXXXXXXXXXXXXXXX with this site's real AdSense publisher ID)
+# Declares authorized sellers of this site's ad inventory.
+# See https://iabtechlab.com/ads-txt/ for the spec.
+google.com, pub-9767914878112531, DIRECT, f08c47fec0942fa0
 `;
 }
 

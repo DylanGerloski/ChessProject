@@ -14,12 +14,13 @@ const { renderFooter, renderDisclosure } = require('../src/render');
 const NAV = { player: 'player.html', repertoire: 'index.html', openings: 'openings.html' };
 const LEGAL_LINKS = { privacy: 'privacy.html', about: 'about.html', contact: 'contact.html' };
 
-test('renderPrivacyPage produces a full document mentioning GoatCounter, no current advertising, and links to the contact page', () => {
+test('renderPrivacyPage produces a full document mentioning GoatCounter, Google AdSense, and links to the contact page', () => {
   const html = renderPrivacyPage({ nav: NAV, legalLinks: LEGAL_LINKS });
   assert.match(html, /<!DOCTYPE html>/);
   assert.match(html, /<title>Privacy Policy \| Lichess Stats<\/title>/);
   assert.match(html, /GoatCounter/);
-  assert.match(html, /does not currently run any advertising/);
+  assert.match(html, /Google AdSense/);
+  assert.match(html, /adssettings\.google\.com/);
   assert.match(html, /href="contact\.html"/);
   assert.match(html, /<link rel="canonical" href="[^"]*privacy\.html">/);
 });
@@ -40,13 +41,10 @@ test('renderContactPage produces a full document with a real, working mailto con
   assert.match(html, /dylanger2525@gmail\.com/);
 });
 
-test('adsTxtContent is a comment-only stub that authorizes no real seller yet', () => {
+test('adsTxtContent declares the approved AdSense publisher as an authorized DIRECT seller', () => {
   const txt = adsTxtContent();
   assert.match(txt, /^# ads\.txt for/);
-  for (const line of txt.split('\n').filter((l) => l.trim().length > 0)) {
-    assert.ok(line.trim().startsWith('#'), `expected every non-blank ads.txt stub line to be a comment, got: ${line}`);
-  }
-  assert.doesNotMatch(txt, /^google\.com, pub-\d/m);
+  assert.match(txt, /^google\.com, pub-9767914878112531, DIRECT, f08c47fec0942fa0$/m);
 });
 
 test('renderFooter always includes the affiliate/support-link disclosure, with or without legalLinks', () => {
