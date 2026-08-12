@@ -230,6 +230,15 @@ function applyRoundResult(state, { clean }) {
   var STORAGE_KEY = 'lichess-stats.drill.italian-game.v1';
   var PIECE_NAMES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
 
+  // Baked drill percentages are stored as Number(x.toFixed(1)), which drops
+  // a trailing zero (4.0 becomes the number 4) -- see src/render.js's
+  // formatPct for the server-rendered-page counterpart of this same
+  // render-time fix. Re-applying toFixed(1) here keeps this client-side
+  // repaint at the same one-decimal precision as the rest of the site.
+  function formatPct(n) {
+    return typeof n === 'number' ? n.toFixed(1) : null;
+  }
+
   var dataEl = document.getElementById('drill-data');
   if (!dataEl) return; // no drill data present -- nothing to wire up
 
@@ -322,8 +331,8 @@ function applyRoundResult(state, { clean }) {
     if (!candidateTableEl) return;
     var rows = candidates
       .map(function (c) {
-        return '<tr><td>' + c.san + '</td><td>' + (c.playedPct != null ? c.playedPct + '%' : '-') + '</td><td>' +
-          (c.winPct != null ? c.winPct + '%' : '-') + '</td><td>' + c.games.toLocaleString() + '</td></tr>';
+        return '<tr><td>' + c.san + '</td><td>' + (c.playedPct != null ? formatPct(c.playedPct) + '%' : '-') + '</td><td>' +
+          (c.winPct != null ? formatPct(c.winPct) + '%' : '-') + '</td><td>' + c.games.toLocaleString() + '</td></tr>';
       })
       .join('');
     candidateTableEl.innerHTML = '<table><thead><tr><th scope="col">Move</th><th scope="col">Pick %</th><th scope="col">Score %</th><th scope="col">Games</th></tr></thead><tbody>' + rows + '</tbody></table>';
@@ -368,7 +377,7 @@ function applyRoundResult(state, { clean }) {
     round.userNode = reply.node;
     announce(
       'The opponent plays ' + reply.san +
-        (reply.playedPct != null ? ' -- ' + reply.playedPct + '% of players at ' + round.band + ' play this here.' : '.')
+        (reply.playedPct != null ? ' — ' + formatPct(reply.playedPct) + '% of players at ' + round.band + ' play this here.' : '.')
     );
     renderCandidateTable(round.userNode.candidates);
     updateProgress();
@@ -412,15 +421,15 @@ function applyRoundResult(state, { clean }) {
 
     if (usedShowAnswer) {
       round.clean = false;
-      setFeedback('unknown', 'The move is ' + answer.san + ' -- ' + answer.playedPct + '% of players at ' + round.band + ' play this here, scoring ' + answer.winPct + '% for White.');
+      setFeedback('unknown', 'The move is ' + answer.san + ' — ' + formatPct(answer.playedPct) + '% of players at ' + round.band + ' play this here, scoring ' + formatPct(answer.winPct) + '% for White.');
     } else if (result.verdict === 'correct') {
-      setFeedback('correct', answer.san + ' -- correct. ' + answer.playedPct + '% of ' + round.band + ' players play this here, and it scores ' + answer.winPct + '% for White (n = ' + answer.games.toLocaleString() + ').');
+      setFeedback('correct', answer.san + ' — correct. ' + formatPct(answer.playedPct) + '% of ' + round.band + ' players play this here, and it scores ' + formatPct(answer.winPct) + '% for White (n = ' + answer.games.toLocaleString() + ').');
     } else if (result.verdict === 'offmeta') {
       round.clean = false;
-      setFeedback('offmeta', result.played.san + ' -- a real move, but off-meta here. ' + result.played.playedPct + '% of ' + round.band + ' players choose it and it scores ' + result.played.winPct + '% for White. The band-typical move is ' + answer.san + ': ' + answer.playedPct + '% pick rate, ' + answer.winPct + '% score.');
+      setFeedback('offmeta', result.played.san + ' — a real move, but off-meta here. ' + formatPct(result.played.playedPct) + '% of ' + round.band + ' players choose it and it scores ' + formatPct(result.played.winPct) + '% for White. The band-typical move is ' + answer.san + ': ' + formatPct(answer.playedPct) + '% pick rate, ' + formatPct(answer.winPct) + '% score.');
     } else {
       round.clean = false;
-      setFeedback('unknown', 'That is not a move players make in this position at ' + round.band + '. The band-typical move is ' + answer.san + ' -- ' + answer.playedPct + '% pick rate, ' + answer.winPct + '% score.');
+      setFeedback('unknown', 'That is not a move players make in this position at ' + round.band + '. The band-typical move is ' + answer.san + ' — ' + formatPct(answer.playedPct) + '% pick rate, ' + formatPct(answer.winPct) + '% score.');
     }
 
     // Only the top candidate's line continues into the baked tree, so every

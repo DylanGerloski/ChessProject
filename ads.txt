@@ -1,4 +1,4 @@
-# ads.txt for Lichess Stats
+# ads.txt for Repertoire Builder
 # Declares authorized sellers of this site's ad inventory.
 # See https://iabtechlab.com/ads-txt/ for the spec.
 google.com, pub-9767914878112531, DIRECT, f08c47fec0942fa0
