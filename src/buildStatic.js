@@ -95,8 +95,7 @@ const COLORS = ['white', 'black'];
 const ASSETS_DIR = path.join(__dirname, '..', 'assets');
 const IDENTITY_ASSET_FILES = ['og-default.png', 'apple-touch-icon.png', 'favicon.svg'];
 
-// Self-hosted heading webfont (G6 -- see task-msqa2179-b40ef9's result
-// field). assets/fonts/fraunces-variable.woff2 was extracted once from the
+// Self-hosted heading webfont. assets/fonts/fraunces-variable.woff2 was extracted once from the
 // @fontsource-variable/fraunces devDependency (an OFL-licensed npm package
 // that bundles the actual Google Fonts binary, so the build never fetches
 // anything from Google at runtime or build time); copied verbatim into

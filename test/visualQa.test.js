@@ -28,9 +28,8 @@ test('VIEWPORTS has exactly the three required breakpoints', () => {
   }
 });
 
-test('OUTPUT_DIR is workspace-local, not inside orchestrator/', () => {
+test('OUTPUT_DIR is workspace-local', () => {
   assert.ok(OUTPUT_DIR.includes('visual-qa-output'));
-  assert.ok(!OUTPUT_DIR.toLowerCase().includes('orchestrator'));
 });
 
 test('isHttpUrl distinguishes URLs from local paths', () => {

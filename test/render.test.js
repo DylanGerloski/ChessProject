@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { SITE_CSS, DESIGN_TOKENS, renderDocumentHead } = require('../src/render');
 
-// Regression coverage for G6 (task-msqf4iwx-1f0bfe): the self-hosted Fraunces
+// Regression coverage: the self-hosted Fraunces
 // heading webfont must stay scoped to headings only, self-hosted (never a
 // Google Fonts link), and preloaded -- these are all easy to silently
 // regress in a large inline-CSS template literal with no other test

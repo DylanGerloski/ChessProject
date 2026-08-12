@@ -59,8 +59,7 @@ const DESIGN_TOKENS = {
   // browser that can't use the webfont at all. Only h1/h2/h3 and the site
   // wordmark (.brand) use this token; body copy, UI chips, table numerals,
   // and stat numbers are pinned to --font-sans directly (not through this
-  // token) so reading/data legibility can't regress -- see G6 in
-  // task-msqa2179-b40ef9's result field.
+  // token) so reading/data legibility can't regress.
   '--font-serif': '"Fraunces Variable", Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif',
 
   '--color-bg': '#f5f1e6',
