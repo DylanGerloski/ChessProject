@@ -828,18 +828,22 @@ const FAVICON_DATA_URI = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
 
 /**
  * @param {string|{title:string, description?:string, canonical?:string,
- *   ogType?:'website'|'article', jsonLd?:string, noindex?:boolean}} arg
+ *   ogType?:'website'|'article', jsonLd?:string, noindex?:boolean,
+ *   extraCss?:string}} arg
  *   Back-compat: a plain string is treated exactly as before (just a
  *   <title>). An object form additionally emits a meta description, a
  *   canonical link, and OpenGraph/Twitter tags -- used by content pages
  *   (src/renderContent.js). `jsonLd` (a pre-serialized <script type=
  *   "application/ld+json"> block or blocks) is phase-3 scope; content pages
- *   in this build pass no jsonLd, so nothing changes for them yet.
+ *   in this build pass no jsonLd, so nothing changes for them yet. `extraCss`
+ *   emits a second <style> block after the shared SITE_CSS one -- only the
+ *   drill page (src/renderDrill.js) passes it, so every other page's output
+ *   is byte-identical to before.
  * @returns {string} a full <head>...</head> block shared by every page.
  */
 function renderDocumentHead(arg) {
   const opts = typeof arg === 'string' ? { title: arg } : (arg || {});
-  const { title, description, canonical, ogType = 'website', jsonLd, noindex } = opts;
+  const { title, description, canonical, ogType = 'website', jsonLd, noindex, extraCss } = opts;
 
   const metaDescription = description
     ? `\n  <meta name="description" content="${escapeHtml(description)}">`
@@ -857,13 +861,14 @@ function renderDocumentHead(arg) {
       `\n  <meta name="twitter:card" content="summary">`
     : '';
   const jsonLdBlock = jsonLd ? `\n  ${jsonLd}` : '';
+  const extraStyleBlock = extraCss ? `\n  <style>${extraCss}</style>` : '';
 
   return `<head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>${metaDescription}${canonicalLink}${robotsMeta}${og}
   <link rel="icon" href="${FAVICON_DATA_URI}">
-  <style>${SITE_CSS}</style>${jsonLdBlock}
+  <style>${SITE_CSS}</style>${extraStyleBlock}${jsonLdBlock}
   <script data-goatcounter="https://dylangerrrr.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9767914878112531" crossorigin="anonymous"></script>
 </head>`;
@@ -874,11 +879,13 @@ function renderDocumentHead(arg) {
 // object it's given, in this order -- so server.js's existing 2-key nav
 // (player/repertoire) renders identically to before, while the static build
 // can pass additional keys as those pages come online (openings in this
-// phase; guides/faq in later phases) without editing server.js at all.
-const NAV_ORDER = ['repertoire', 'openings', 'guides', 'faq', 'player'];
+// phase; guides/faq in later phases; drill added for the opening-drill
+// pilot) without editing server.js at all.
+const NAV_ORDER = ['repertoire', 'openings', 'drill', 'guides', 'faq', 'player'];
 const NAV_LABELS = {
   repertoire: 'Repertoire explorer',
   openings: 'Openings',
+  drill: 'Opening drill (beta)',
   guides: 'Guides',
   faq: 'FAQ',
   player: 'Player lookup',
@@ -886,11 +893,11 @@ const NAV_LABELS = {
 
 /**
  * @param {{player?: string, repertoire?: string, openings?: string,
- *   guides?: string, faq?: string}} nav link targets for whichever pages
- *   currently exist -- either the dynamic dev-server routes (server.js's
- *   default, 2 keys) or flat static filenames (buildStatic.js, up to 5
- *   keys). Only keys present in this object are rendered.
- * @param {'player'|'repertoire'|'openings'|'guides'|'faq'|null} [active]
+ *   drill?: string, guides?: string, faq?: string}} nav link targets for
+ *   whichever pages currently exist -- either the dynamic dev-server routes
+ *   (server.js's default, 2 keys) or flat static filenames (buildStatic.js,
+ *   up to 6 keys). Only keys present in this object are rendered.
+ * @param {'player'|'repertoire'|'openings'|'drill'|'guides'|'faq'|null} [active]
  *   which nav link, if any, represents the current page.
  * @returns {string} the shared header/nav markup used on every page.
  */
@@ -909,22 +916,22 @@ function renderHeader(nav, active = null) {
 
 // Support-link URLs, added once here so every page picks them up from this
 // single shared footer instead of being pasted into each render*.js call
-// site. Real accounts created by the human 2026-08-11 -- do not modify
-// these strings. Disclosure copy for these links is a separate task
-// (task-msp18k2w-9f147e); this is just the links/buttons themselves.
+// site. Real accounts created by the human -- do not modify these strings.
+// The disclosure copy required alongside these links lives in
+// renderDisclosure() below; this constant is just the links/buttons
+// themselves.
 const KOFI_URL = 'https://ko-fi.com/dylangerloski';
 const BMC_URL = 'https://buymeacoffee.com/dylanger254';
 
 /**
- * Affiliate/support-link disclosure (task-msp18k2w-9f147e). Exported as its
- * own function -- not just inlined into renderFooter() below -- so it's a
- * genuine standalone snippet/component, reusable on any future page that
- * carries affiliate or support links even outside the shared footer (e.g. a
- * future dedicated review/comparison page). renderFooter() also calls this
- * unconditionally (see below) because every page's footer already renders
- * the Ko-fi/Buy Me a Coffee support links (KOFI_URL/BMC_URL above, wired in
- * task-msp4dp6c-170d4e) -- the disclosure that covers them has to appear
- * everywhere those do.
+ * Affiliate/support-link disclosure. Exported as its own function -- not
+ * just inlined into renderFooter() below -- so it's a genuine standalone
+ * snippet/component, reusable on any future page that carries affiliate or
+ * support links even outside the shared footer (e.g. a future dedicated
+ * review/comparison page). renderFooter() also calls this unconditionally
+ * (see below) because every page's footer already renders the Ko-fi/Buy Me
+ * a Coffee support links (KOFI_URL/BMC_URL above) -- the disclosure that
+ * covers them has to appear everywhere those do.
  */
 function renderDisclosure() {
   return `<p class="disclosure-note">Disclosure: this site includes voluntary support links (Ko-fi, Buy Me a Coffee) and may in the future include affiliate links that earn a small commission on qualifying purchases at no extra cost to you. Support and affiliate links never influence the win-rate data, rankings, or analysis shown on this site -- all of that comes directly from Lichess's public API and Opening Explorer, unaffected by any link on this page.</p>`;
@@ -935,9 +942,9 @@ function renderDisclosure() {
  *   etc). Callers should NOT claim the site is only local/unpublished --
  *   this app is deployed to GitHub Pages.
  * @param {{privacy?: string, about?: string, contact?: string}} [legalLinks]
- *   Optional footer link targets for the compliance pages added in
- *   task-msp18k2w-9f147e (src/renderCompliance.js). Only callers that know
- *   those pages actually exist at those paths should pass this -- the
+ *   Optional footer link targets for the compliance pages implemented in
+ *   src/renderCompliance.js. Only callers that know those pages actually
+ *   exist at those paths should pass this -- the
  *   local-only dev server (src/server.js) has no routes for them and
  *   deliberately omits it, so its footer renders with no legal-links row
  *   rather than a broken link. The disclosure paragraph above, by contrast,

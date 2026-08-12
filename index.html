@@ -3,7 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lichess stats (static build)</title>
+  <title>The Chess Opening Meta by Rating Band | Lichess Stats</title>
+  <meta name="description" content="Which chess openings players at your rating actually play, and which of those picks actually win. Real win rates from millions of Lichess games.">
+  <link rel="canonical" href="https://repertoire-builder.com/">
+  <meta property="og:title" content="The Chess Opening Meta by Rating Band | Lichess Stats">
+  <meta property="og:description" content="Which chess openings players at your rating actually play, and which of those picks actually win. Real win rates from millions of Lichess games.">
+  <meta property="og:url" content="https://repertoire-builder.com/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Lichess Stats">
+  <meta name="twitter:card" content="summary">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%232a4d3a'/%3E%3Ccircle cx='32' cy='23' r='9' fill='%23f8f5ea'/%3E%3Cpath d='M21 40c0-3 4-5 11-5s11 2 11 5l3 9H18z' fill='%23f8f5ea'/%3E%3Crect x='15' y='50' width='34' height='8' rx='3' fill='%23f8f5ea'/%3E%3C/svg%3E">
   <style>
   :root {
@@ -543,7 +551,7 @@
     .card-grid { grid-template-columns: 1fr; }
   }
 </style>
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Lichess Stats","url":"https://repertoire-builder.com/","description":"Chess opening stats by rating band, from real Lichess games."}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Lichess Stats","url":"https://repertoire-builder.com/","description":"Which chess openings players at your rating actually play, and which of those picks actually win. Real win rates from millions of Lichess games."}</script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"Lichess Stats","url":"https://repertoire-builder.com/"}</script>
   <script data-goatcounter="https://dylangerrrr.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9767914878112531" crossorigin="anonymous"></script>
@@ -554,23 +562,35 @@
     <nav class="site-nav" aria-label="Main">
       <a href="index.html" aria-current="page">Repertoire explorer</a>
       <a href="openings.html">Openings</a>
+      <a href="italian-game-drill.html">Opening drill (beta)</a>
       <a href="guides.html">Guides</a>
       <a href="chess-opening-faq.html">FAQ</a>
       <a href="player.html">Player lookup</a>
     </nav>
   </header>
   <main>
-    <h1 class="page-title">Lichess stats</h1>
-    <p class="subtitle">This is a fully static version of the app: every page here is a plain file, no
-       server required.</p>
+    <h1 class="page-title">The chess opening meta, by rating band</h1>
+    <p class="subtitle">Which openings players at your rating actually play, and how often those picks actually win.
+       Every number on this site comes from real Lichess games -- no theory, no opinions, no engine lines.</p>
 
-    <h2>Player lookup</h2>
-    <p><a href="player.html">Look up any Lichess username &rarr;</a> (fetches live data
-       directly in your browser when you open this page; nothing is pre-baked).</p>
+    <h2>Start with your rating band</h2>
+    <p class="repertoire-intro">Openings behave differently at every rating. Pick your band -- everything below is
+       filtered to real games at that level.</p>
+    <div class="card-grid">
+      <div class="card"><h3>1400-1600</h3><p><a href="repertoire-1400-1600-white.html">as White</a> &middot; <a href="repertoire-1400-1600-black.html">as Black</a></p></div>
+      <div class="card"><h3>1600-1800</h3><p><a href="repertoire-1600-1800-white.html">as White</a> &middot; <a href="repertoire-1600-1800-black.html">as Black</a></p></div>
+      <div class="card"><h3>1800-2000</h3><p><a href="repertoire-1800-2000-white.html">as White</a> &middot; <a href="repertoire-1800-2000-black.html">as Black</a></p></div>
+      <div class="card"><h3>2000+</h3><p><a href="repertoire-2000-white.html">as White</a> &middot; <a href="repertoire-2000-black.html">as Black</a></p></div>
+    </div>
+
+    <h2>Drill it: play the move your rating band plays</h2>
+    <div class="card-grid">
+      <div class="card"><h3><a href="italian-game-drill.html">Italian Game &mdash; beta</a></h3><p>Pick the move, see instantly whether it is the move players at your rating actually make, and what that move scores. One opening for now while we see if this is useful.</p></div>
+    </div>
 
     <h2>Openings by real win rate</h2>
-    <p class="repertoire-intro">10 opening pages, each backed by real Lichess data across four
-       rating bands -- see <a href="openings.html">all openings &rarr;</a></p>
+    <p class="repertoire-intro">10 openings, ranked by what they actually score in real games
+       at each rating band -- see <a href="openings.html">all openings &rarr;</a></p>
     <div class="card-grid">
       <div class="card"><h3><a href="italian-game.html">Italian Game</a></h3><p>C50, playing as white</p></div>
       <div class="card"><h3><a href="ruy-lopez.html">Ruy Lopez</a></h3><p>C60, playing as white</p></div>
@@ -580,18 +600,9 @@
       <div class="card"><h3><a href="caro-kann-defense.html">Caro-Kann Defense</a></h3><p>B10, playing as black</p></div>
     </div>
 
-    <h2>Rating-band opening-repertoire explorer</h2>
-    <p class="repertoire-intro">Pre-rendered at build time for these 8 rating-band / color combinations:</p>
-    <ul>
-        <li><a href="repertoire-1400-1600-white.html">1400-1600, white</a></li>
-        <li><a href="repertoire-1400-1600-black.html">1400-1600, black</a></li>
-        <li><a href="repertoire-1600-1800-white.html">1600-1800, white</a></li>
-        <li><a href="repertoire-1600-1800-black.html">1600-1800, black</a></li>
-        <li><a href="repertoire-1800-2000-white.html">1800-2000, white</a></li>
-        <li><a href="repertoire-1800-2000-black.html">1800-2000, black</a></li>
-        <li><a href="repertoire-2000-white.html">2000+, white</a></li>
-        <li><a href="repertoire-2000-black.html">2000+, black</a></li>
-    </ul>
+    <h2>Player lookup</h2>
+    <p><a href="player.html">Look up any Lichess username &rarr;</a> (fetches live data
+       directly in your browser when you open this page; nothing is pre-baked).</p>
   </main>
   <footer class="site-footer">Data source: <a href="https://lichess.org/api">lichess.org/api</a>. See TESTING.md in the project source for how this site is built.
   <div class="support-links">
