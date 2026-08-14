@@ -48,6 +48,22 @@ test('breadcrumbJsonLd omits the "item" URL for an entry with no href, without b
   assert.equal(ld.itemListElement[1].name, 'Current page');
 });
 
+test('breadcrumbJsonLd resolves a "/" home href (as used by nav.repertoire on every content page) to a single-slash root URL, not a double slash', () => {
+  // Regression test for the site-health-audit-reported bug: the Home
+  // breadcrumb item is built with `href: nav.repertoire`, and nav.repertoire
+  // is the literal string '/' (also used, unchanged, as the visible
+  // breadcrumb link's <a href>). That used to produce
+  // "https://repertoire-builder.com//" here.
+  const html = breadcrumbJsonLd([
+    { label: 'Home', href: '/' },
+    { label: 'Guides', href: 'guides.html' },
+    { label: 'Best Chess Openings for Beginners', href: 'best-chess-openings-for-beginners.html' },
+  ]);
+  const ld = parseJsonLdScript(html);
+  assert.equal(ld.itemListElement[0].item, 'https://repertoire-builder.com/');
+  assert.doesNotMatch(html, /repertoire-builder\.com\/\//);
+});
+
 test('articleJsonLd produces a valid Article block with an Organization author/publisher, never an invented person', () => {
   const html = articleJsonLd({
     headline: 'How to Beat the London System',

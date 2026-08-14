@@ -20,11 +20,15 @@ const BUILD_DATE = new Date().toISOString().slice(0, 10);
 
 /**
  * @param {string} file a flat filename as written to dist/, e.g. 'italian-game.html'.
- *   Pass '' (or omit) for the site root.
+ *   Pass '' (or omit) for the site root. A leading '/' is stripped first (some
+ *   callers, e.g. nav.repertoire, use '/' as the root's own href) so it never
+ *   doubles up with BASE_PATH's own trailing slash -- see the regression test
+ *   in test/site.test.js for the double-slash bug this guards against.
  * @returns {string} an absolute URL under SITE_ORIGIN + BASE_PATH.
  */
 function absoluteUrl(file = '') {
-  return `${SITE_ORIGIN}${BASE_PATH}${file}`;
+  const cleanFile = file.startsWith('/') ? file.slice(1) : file;
+  return `${SITE_ORIGIN}${BASE_PATH}${cleanFile}`;
 }
 
 /**
