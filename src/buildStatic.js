@@ -21,11 +21,11 @@
  *   test/buildStatic.test.js exercises the same check against a fake token.
  *
  * - Player lookup: a static HTML shell (player.html) plus a plain-JS bundle
- *   (player-lookup.js) assembled by concatenating the existing
- *   fetchLichess.js, process.js, and render.js source (their pure functions
- *   are reused as-is; only the trailing `module.exports` line is stripped
- *   since the browser has no CommonJS module object) with a small DOM
- *   controller (src/browser/playerLookup.client.js). That bundle calls
+ *   (player-lookup.js) built with esbuild (a real CommonJS bundle, entry
+ *   point src/browser/playerLookup.client.js, which require()s
+ *   fetchLichess.js/process.js/render.js directly like any other module in
+ *   this project) into a single self-contained IIFE with no runtime
+ *   require() -- see bundleBrowserEntry() below. That bundle calls
  *   Lichess's already-public, keyless general API directly from the
  *   visitor's browser -- no token is read, embedded, or needed for this
  *   page at all.
@@ -47,12 +47,18 @@
 
 const fs = require('fs');
 const path = require('path');
+const esbuild = require('esbuild');
 const { buildRepertoireTree } = require('./buildRepertoire');
 const { RATING_BANDS } = require('./processRepertoire');
 const { renderRepertoirePage, escapeHtml, renderDocumentHead, renderHeader, renderFooter, renderPageHead } = require('./render');
 const { renderOpeningStatCard } = require('./renderContent');
 const { getApiToken } = require('./fetchOpeningExplorer');
 const { buildContentPages } = require('./buildContent');
+const { buildEcoPages } = require('./buildEcoPages');
+const { buildEcoDataset } = require('./ecoData');
+const { buildFamilyIndex, t1Families } = require('./ecoFamilies');
+const { ECO_INDEX_FILE } = require('./renderEcoPages');
+const { buildEcoExplorerPage, ECO_EXPLORER_FILE, REVERSE_LOOKUP_FILE } = require('./buildEcoExplorer');
 const { withExplorerCache } = require('./explorerCache');
 const { renderPrivacyPage, renderAboutPage, renderContactPage, render404Page, adsTxtContent } = require('./renderCompliance');
 const { renderSitemapXml, robotsTxtContent } = require('./sitemap');
@@ -109,7 +115,7 @@ const FONT_ASSET_FILES = ['fraunces-variable.woff2'];
 // so every static page's header links are identical. 'guides'/'faq' added
 // added once guides.html/chess-opening-faq.html actually existed; 'drill'
 // added once italian-game-drill.html existed (single-opening drill pilot).
-const STATIC_NAV = { player: 'player.html', repertoire: '/', openings: 'openings.html', drill: 'italian-game-drill.html', guides: 'guides.html', faq: 'chess-opening-faq.html' };
+const STATIC_NAV = { player: 'player.html', repertoire: '/', openings: 'openings.html', eco: ECO_INDEX_FILE, drill: 'italian-game-drill.html', guides: 'guides.html', faq: 'chess-opening-faq.html' };
 
 // The one opening this drill pilot covers, and the rating band its
 // server-rendered starting position and candidate table default to. Kept
@@ -132,18 +138,9 @@ const DRILL_PAGES = { [DRILL_OPENING_SLUG]: 'italian-game-drill.html' };
 // module can't require() this one without a circular dependency).
 const LEGAL_LINKS = { privacy: 'privacy.html', about: 'about.html', contact: 'contact.html' };
 
-const BROWSER_BUNDLE_SOURCES = [
-  path.join(__dirname, 'fetchLichess.js'),
-  path.join(__dirname, 'process.js'),
-  path.join(__dirname, 'render.js'),
-];
-const BROWSER_CONTROLLER = path.join(__dirname, 'browser', 'playerLookup.client.js');
-
-const DRILL_BUNDLE_SOURCES = [
-  path.join(__dirname, 'chessPosition.js'),
-  path.join(__dirname, 'drillLogic.js'),
-];
-const DRILL_CONTROLLER = path.join(__dirname, 'browser', 'drill.client.js');
+const BROWSER_ENTRY = path.join(__dirname, 'browser', 'playerLookup.client.js');
+const DRILL_ENTRY = path.join(__dirname, 'browser', 'drill.client.js');
+const ECO_EXPLORER_ENTRY = path.join(__dirname, 'browser', 'ecoExplorer.client.js');
 
 function repertoireFileName(band, color) {
   const safeBand = band.replace(/[^\w-]/g, '');
@@ -151,62 +148,112 @@ function repertoireFileName(band, color) {
 }
 
 /**
- * Strips the trailing `module.exports = {...};` block from a CommonJS
- * source file so it can be concatenated into a plain <script> for the
- * browser (which has no `module` global). Throws if no such block is found,
- * so a future edit to one of these source files that changes the
- * module.exports shape fails the build loudly instead of silently shipping
- * a stale or broken bundle.
+ * Bundles a single CommonJS entry point (and everything it require()s,
+ * transitively) into one self-contained IIFE with esbuild, for direct use
+ * as a <script src="..."> in the static build. No runtime require(), no
+ * module resolution at load time -- esbuild resolves and inlines the whole
+ * graph at build time, which is what keeps the output working from a
+ * file:// URL (native ESM `import` is blocked by CORS over file://; a
+ * pre-bundled IIFE has no such restriction). `bundle: true` + `write:
+ * false` returns the built text directly with no temp files on disk.
+ * `esbuild.buildSync` throws (loudly, synchronously) on any resolution or
+ * syntax error in the entry point or anything it require()s, so a broken
+ * source edit fails the build instead of silently shipping a stale bundle
+ * -- the same failure-loudly guarantee the old string-splice approach had.
  */
-function bundleBrowserModule(srcPath) {
-  const src = fs.readFileSync(srcPath, 'utf8');
-  const stripped = src.replace(/\n*module\.exports\s*=\s*\{[\s\S]*?\};?\s*$/, '\n');
-  if (stripped === src) {
-    throw new Error(`bundleBrowserModule: no trailing module.exports block found in ${srcPath}`);
-  }
-  return stripped;
+function bundleBrowserEntry(entryPath, headerComment) {
+  const result = esbuild.buildSync({
+    entryPoints: [entryPath],
+    bundle: true,
+    write: false,
+    format: 'iife',
+    platform: 'browser',
+    target: ['es2019'],
+    banner: { js: headerComment },
+    logLevel: 'silent',
+    // Whitespace/dead-code minification only -- NOT minifyIdentifiers.
+    // test/buildStatic.test.js's own bundle tests (and any future ones)
+    // assert on real function names being present in the output (e.g.
+    // `/function fetchRatingHistory/`) as proof the right modules got
+    // bundled; renaming identifiers would make that check meaningless
+    // without a source map, for a source-size win this project doesn't
+    // need (nothing here is minimizing against a CDN egress cost). Added
+    // for Phase 7e (src/browser/ecoExplorer.client.js, the heaviest bundle
+    // on this site at ~230 KB raw / ~43 KB gzip unminified) but applies to
+    // every bundle equally -- real bytes shipped to every visitor, not a
+    // T3-specific hack.
+    minifyWhitespace: true,
+    minifySyntax: true,
+  });
+  return result.outputFiles[0].text;
 }
 
 function buildPlayerLookupBundle() {
   const header = [
-    '/* Auto-generated by src/buildStatic.js from src/fetchLichess.js, src/process.js,',
-    ' * src/render.js, and src/browser/playerLookup.client.js. Do not edit this file',
-    ' * directly -- edit the source files above and re-run `node src/buildStatic.js`.',
+    '/* Auto-generated by src/buildStatic.js (esbuild) from',
+    ' * src/browser/playerLookup.client.js and its module dependencies',
+    ' * (src/fetchLichess.js, src/process.js, src/render.js). Do not edit',
+    ' * this file directly -- edit the source files above and re-run `node',
+    ' * src/buildStatic.js`.',
     ' *',
     ' * This calls only Lichess\'s keyless public API (https://lichess.org/api)',
     ' * directly from your browser. No Lichess API token is used, read, or present',
     ' * anywhere in this file. */',
-    '',
   ].join('\n');
 
-  const modules = BROWSER_BUNDLE_SOURCES.map(bundleBrowserModule);
-  const controller = fs.readFileSync(BROWSER_CONTROLLER, 'utf8');
-  return [header, ...modules, controller].join('\n\n');
+  return bundleBrowserEntry(BROWSER_ENTRY, header);
 }
 
 /**
- * Same concatenation strategy as buildPlayerLookupBundle(), for the opening
- * drill's client bundle: src/chessPosition.js + src/drillLogic.js (both
- * pure, both keep the trailing module.exports block bundleBrowserModule
- * strips) plus the plain DOM controller. All drill data is baked into the
- * page at build time (see the #drill-data JSON block src/renderDrill.js
- * emits) -- this bundle never makes a network request itself.
+ * Same esbuild strategy as buildPlayerLookupBundle(), for the opening
+ * drill's client bundle: entry point src/browser/drill.client.js, which
+ * require()s src/chessPosition.js and src/drillLogic.js (both pure). All
+ * drill data is baked into the page at build time (see the #drill-data
+ * JSON block src/renderDrill.js emits) -- this bundle never makes a
+ * network request itself.
  */
 function buildDrillBundle() {
   const header = [
-    '/* Auto-generated by src/buildStatic.js from src/chessPosition.js,',
-    ' * src/drillLogic.js, and src/browser/drill.client.js. Do not edit this',
-    ' * file directly -- edit the source files above and re-run `node',
+    '/* Auto-generated by src/buildStatic.js (esbuild) from',
+    ' * src/browser/drill.client.js and its module dependencies',
+    ' * (src/chessPosition.js, src/drillLogic.js). Do not edit this file',
+    ' * directly -- edit the source files above and re-run `node',
     ' * src/buildStatic.js`.',
     ' *',
     ' * This makes no network requests -- every position/percentage it uses',
     ' * comes from the #drill-data JSON block already on the page. */',
-    '',
   ].join('\n');
 
-  const modules = DRILL_BUNDLE_SOURCES.map(bundleBrowserModule);
-  const controller = fs.readFileSync(DRILL_CONTROLLER, 'utf8');
-  return [header, ...modules, controller].join('\n\n');
+  return bundleBrowserEntry(DRILL_ENTRY, header);
+}
+
+/**
+ * Same esbuild strategy again, for T3's client bundle (Phase 7e): entry
+ * point src/browser/ecoExplorer.client.js, which require()s
+ * src/boardWidget.js, src/pgnWrapper.js, and chess.js -- the only bundle on
+ * this site that ships chess.js to the browser (see src/pgnWrapper.js's own
+ * header comment for why this page, and only this page, needs it: it is
+ * the sole place visitor-supplied PGN/FEN input reaches a chess engine).
+ * This bundle also issues the one runtime fetch() this static site makes
+ * for same-origin data -- see src/ecoExplorerData.js's header comment.
+ */
+function buildEcoExplorerBundle() {
+  const header = [
+    '/* Auto-generated by src/buildStatic.js (esbuild) from',
+    ' * src/browser/ecoExplorer.client.js and its module dependencies',
+    ' * (src/boardWidget.js, src/pgnWrapper.js, chess.js, cm-chessboard).',
+    ' * Do not edit this file directly -- edit the source files above and',
+    ' * re-run `node src/buildStatic.js`.',
+    ' *',
+    ' * This is the only page on this site that parses visitor-supplied PGN/',
+    ' * FEN text (always through src/pgnWrapper.js\'s size-capped, depth-',
+    ' * guarded wrapper -- never chess.js directly) and the only page that',
+    ' * issues a runtime fetch() for same-origin data (eco-reverse-lookup.json,',
+    ' * lazy-loaded on first use). No Lichess API token is used, read, or',
+    ' * present anywhere in this file. */',
+  ].join('\n');
+
+  return bundleBrowserEntry(ECO_EXPLORER_ENTRY, header);
 }
 
 // Drill CTA card for the home page. Kept as its own additive block (a new
@@ -403,11 +450,27 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   // rebuild would otherwise re-issue ~90 requests. `useCache: false` (wired
   // to --no-cache below) bypasses it for a forced refresh.
   const cachedFetchImpl = withExplorerCache(fetchImpl, { enabled: useCache });
+
+  // Cheap (~2s, no network -- see src/ecoData.js) dataset parse, just to
+  // size the "browse the full ECO index" link the openings hub links out
+  // to below. buildEcoPages() (called later, after content pages) parses
+  // the same vendored dataset again itself rather than taking this one as
+  // a parameter -- keeps it usable/testable standalone -- the double parse
+  // costs a couple of extra seconds, not a couple of extra Explorer requests.
+  const ecoDatasetForLink = buildEcoDataset();
+  const ecoFamilyIndexForLink = buildFamilyIndex(ecoDatasetForLink.lines);
+  const ecoIndexLink = {
+    href: ECO_INDEX_FILE,
+    familyCount: ecoFamilyIndexForLink.length,
+    lineCount: ecoDatasetForLink.stats.totalLines,
+  };
+
   const { written: contentWritten, entries: contentEntries } = await buildContentPages({
     fetchImpl: cachedFetchImpl,
     outDir: OUT_DIR,
     nav: STATIC_NAV,
     drillPages: DRILL_PAGES,
+    ecoIndexLink,
   });
 
   // Single-opening drill pilot (beta): baked at build time from the same
@@ -427,6 +490,31 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   });
   fs.writeFileSync(path.join(OUT_DIR, drillFile), drillHtml, 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'drill.js'), buildDrillBundle(), 'utf8');
+
+  // T1 family hub pages + T2 ECO volume/browse index pages (Phase 7d):
+  // same rate-limited, cached Explorer endpoint, one request at a time,
+  // ~256 requests total (see src/buildEcoPages.js's own header comment for
+  // the exact budget). No dependency on contentWritten/drillFile -- reads
+  // openings.js only to find a T0 cross-link by name, never their files.
+  const { written: ecoWritten } = await buildEcoPages({
+    fetchImpl: cachedFetchImpl,
+    outDir: OUT_DIR,
+    nav: STATIC_NAV,
+  });
+
+  // T3: the interactive ECO explorer (Phase 7e) -- zero Explorer API
+  // requests (see src/buildEcoExplorer.js's own header comment), reuses the
+  // dataset/family index already parsed above for the openings-hub link.
+  // Also writes dist/eco-reverse-lookup.json, the one asset this static
+  // build produces that a page fetch()es at runtime rather than inlining
+  // (see src/ecoExplorerData.js's header comment).
+  const ecoExplorerResult = buildEcoExplorerPage({
+    dataset: ecoDatasetForLink,
+    familyIndex: ecoFamilyIndexForLink,
+    outDir: OUT_DIR,
+    nav: STATIC_NAV,
+  });
+  fs.writeFileSync(path.join(OUT_DIR, 'eco-explorer.js'), buildEcoExplorerBundle(), 'utf8');
 
   fs.writeFileSync(path.join(OUT_DIR, 'index.html'), indexPage(repertoireLinks, contentEntries, drillFile), 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'player.html'), playerLookupPage(), 'utf8');
@@ -502,12 +590,16 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     drillFile,
     ...repertoireLinks.map((r) => r.file),
     ...contentWritten.map((c) => c.file),
+    ...ecoWritten.map((e) => e.file),
+    ecoExplorerResult.file,
   ];
 
   assertFilenamesUnique([
     ...pageFilenames,
     'player-lookup.js',
     'drill.js',
+    'eco-explorer.js',
+    REVERSE_LOOKUP_FILE,
     'CNAME',
     'ads.txt',
     'feed.xml',
@@ -532,13 +624,13 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   // sitemap, so it can't drift from what's really on disk either.
   fs.writeFileSync(path.join(OUT_DIR, 'feed.xml'), renderRssXml(contentWritten), 'utf8');
 
-  return { outDir: OUT_DIR, repertoireLinks, contentWritten, pageFilenames };
+  return { outDir: OUT_DIR, repertoireLinks, contentWritten, ecoWritten, ecoExplorerResult, pageFilenames };
 }
 
 async function main() {
   const useCache = !process.argv.includes('--no-cache');
   try {
-    const { outDir, repertoireLinks, contentWritten } = await buildStatic({ useCache });
+    const { outDir, repertoireLinks, contentWritten, ecoWritten, ecoExplorerResult } = await buildStatic({ useCache });
     console.log(`Wrote static site to ${outDir}`);
     console.log(`  - index.html (links to player lookup + ${repertoireLinks.length} repertoire pages + openings)`);
     console.log('  - player.html + player-lookup.js (client-side player lookup, no token used)');
@@ -549,6 +641,8 @@ async function main() {
     for (const { file } of contentWritten) {
       console.log(`  - ${file}`);
     }
+    console.log(`  - ${ecoWritten.length} ECO pages (T1 family hubs + T2 volume/browse indexes, Phase 7d)`);
+    console.log(`  - ${ecoExplorerResult.file} + eco-explorer.js + ${ecoExplorerResult.reverseLookupFile} (interactive ECO explorer, Phase 7e, ${ecoExplorerResult.reverseLookupCount.toLocaleString()} reverse-lookup positions)`);
     console.log('  - privacy.html, about.html, contact.html, ads.txt (compliance pages)');
     console.log('  - italian-game-drill.html + drill.js (single-opening drill pilot, beta)');
     console.log('  - sitemap.xml, robots.txt (generated from the pages actually written above)');
@@ -570,7 +664,7 @@ module.exports = {
   buildRepertoirePages,
   buildPlayerLookupBundle,
   buildDrillBundle,
-  bundleBrowserModule,
+  bundleBrowserEntry,
   indexPage,
   playerLookupPage,
   repertoireFileName,

@@ -6,15 +6,16 @@
  * literals. Kept separate from build.js/server.js so it can be reused by
  * both the static generator and the local dev server.
  *
- * This file is also concatenated verbatim (see buildStatic.js's
- * bundleBrowserModule) into the client-side bundle that runs directly in a
- * visitor's browser for the static player-lookup page. That means it MUST
- * NOT use CommonJS module loading anywhere at the top level -- there is no
- * such loader in that context. The shared design system below (SITE_CSS
- * / FAVICON_DATA_URI) is therefore defined as plain constants right here,
- * not pulled in from a separate module, so render.js stays the single
- * source of truth for markup AND styling that both server.js and
- * buildStatic.js import from, with nothing to drift.
+ * This file is also require()'d (transitively, via
+ * src/browser/playerLookup.client.js) into the client-side bundle that runs
+ * directly in a visitor's browser for the static player-lookup page --
+ * bundled with esbuild (see buildStatic.js's bundleBrowserEntry()) into one
+ * self-contained IIFE, so ordinary CommonJS module.exports here is exactly
+ * what that bundler expects. The shared design system below (SITE_CSS
+ * / FAVICON_DATA_URI) is defined as plain constants right here, not pulled
+ * in from a separate module, so render.js stays the single source of truth
+ * for markup AND styling that both server.js and buildStatic.js import
+ * from, with nothing to drift.
  */
 
 function escapeHtml(str) {
@@ -136,6 +137,16 @@ const DESIGN_TOKENS = {
 
   '--border-hairline': '1px',
   '--border-control': '2px',
+
+  // Motion tokens (design-standards.md: "all durations from motion tokens,
+  // none over 400ms"). Introduced by Phase 7c for the interactive board's
+  // piece-move animation (src/boardWidget.js), which is legitimate motion
+  // (preserves continuity across a position change) rather than decoration
+  // -- capped well under the 400ms ceiling and zeroed under
+  // prefers-reduced-motion by boardWidget.js itself.
+  '--motion-duration-fast': '150ms',
+  '--motion-duration-piece': '200ms',
+  '--motion-easing-standard': 'cubic-bezier(0.4, 0, 0.2, 1)',
 };
 
 /**
@@ -548,6 +559,52 @@ ${designTokensCss(DESIGN_TOKENS)}
   .rep-pct { color: var(--color-muted); }
   .rep-rating { color: var(--color-muted); font-size: var(--text-xs); }
 
+  /* ECO family/volume index pages (Phase 7d). An ECO code is metadata, not
+     a call to action -- bordered, not accent-filled (design-standards.md:
+     accent is reserved for the one primary action per view). */
+  .eco-chip {
+    display: inline-block;
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-accent-dark);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    padding: 2px var(--space-2);
+    margin-right: var(--space-2);
+    white-space: nowrap;
+  }
+  .variation-group-label {
+    font-weight: var(--weight-bold);
+    color: var(--color-text);
+    margin: var(--space-3) 0 var(--space-1);
+  }
+  .eco-index-table td.eco-names span + span::before { content: ", "; }
+
+  .pagination {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin: var(--space-6) 0;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+  }
+  .pagination a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: var(--space-2) var(--space-4);
+    border: 1.5px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    font-weight: var(--weight-bold);
+  }
+  .pagination a:hover { background: var(--color-hover); }
+  .pagination .pagination-status { color: var(--color-muted); font-size: var(--text-sm); align-self: center; }
+
   footer.site-footer {
     color: var(--color-muted);
     font-size: var(--text-xs);
@@ -821,8 +878,113 @@ ${designTokensCss(DESIGN_TOKENS)}
   .board-sq--dark { background: var(--color-board-dark); }
   .board-pc--w { color: var(--color-surface); text-shadow: 0 0 1px var(--color-text), 0 0 1px var(--color-text), 0 0 2px var(--color-text); }
   .board-pc--b { color: var(--color-text); }
+  /* Phase 7c: real Cburnett SVG piece artwork (src/boardSvg.js), replacing
+     the .board-pc--w/--b Unicode-glyph technique above for the static
+     content-page diagram. .board-pc--w/--b stay defined -- the Italian
+     Game drill's own board (src/renderDrill.js) still uses them. */
+  .board-piece { width: 84%; height: 84%; display: block; }
   figure.board-figure { margin: var(--space-4) 0 var(--space-6); }
   figcaption { font-size: var(--text-sm); color: var(--color-muted); margin-top: var(--space-2); }
+
+  /* Interactive board component (src/boardWidget.js, Phase 7c) -- a
+     tokenised theme for cm-chessboard, replacing its own shipped ".default"
+     palette entirely (design-standards.md: "do not ship its palette").
+     cm-chessboard has no CSS custom properties of its own (verified by
+     reading node_modules/cm-chessboard/assets/chessboard.css -- every rule
+     is a hardcoded hex scoped by a .default/.green/etc. theme class), so
+     this defines a same-shaped theme class of our own, .repertoire-theme,
+     wired to our tokens instead. boardWidget.js sets style.cssClass to
+     "repertoire-theme" and never loads cm-chessboard's own chessboard.css. */
+  .cm-chessboard.repertoire-theme .board .square.white { fill: var(--color-board-light); }
+  .cm-chessboard.repertoire-theme .board .square.black { fill: var(--color-board-dark); }
+  .cm-chessboard.repertoire-theme.border-type-thin .board .border { stroke: var(--color-accent-dark); stroke-width: 0.7%; fill: var(--color-accent-dark); }
+  .cm-chessboard.repertoire-theme .coordinates .coordinate { font-size: 7px; cursor: default; }
+  .cm-chessboard.repertoire-theme .coordinates .coordinate.black { fill: var(--color-board-light); }
+  .cm-chessboard.repertoire-theme .coordinates .coordinate.white { fill: var(--color-board-dark); }
+  .cm-chessboard .board.input-enabled .square { cursor: pointer; }
+  .cm-chessboard .coordinates, .cm-chessboard .markers-layer, .cm-chessboard .pieces-layer, .cm-chessboard .markers-top-layer { pointer-events: none; }
+  /* Shared focus-ring language (:focus-visible above), not cm-chessboard's
+     own hardcoded #0066cc default. These two rects (drawn by the
+     Accessibility extension's keyboardMoveInput -- see
+     node_modules/cm-chessboard/src/extensions/accessibility/Accessibility.js's
+     showFocusIndicator()) ship with NO fill/stroke of their own, so leaving
+     them unstyled renders as a solid black square (found during Phase 7c's
+     own visual QA, not a cosmetic nicety -- an unstyled .keyboard-focus
+     rect fully occludes the piece under it). */
+  .cm-chessboard-widget:focus-within { outline: var(--border-control) solid var(--color-focus); outline-offset: 2px; border-radius: var(--radius-sm); }
+  .cm-chessboard .keyboard-focus-indicator .keyboard-focus { fill: none; stroke: var(--color-focus); stroke-width: 3px; pointer-events: none; }
+  .cm-chessboard .keyboard-focus-indicator .keyboard-from-square { fill: var(--color-hover); stroke: var(--color-focus); stroke-width: 2px; pointer-events: none; }
+  .cm-chessboard-accessibility.visually-hidden {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  .cm-chessboard-accessibility button:disabled,
+  .cm-chessboard-accessibility button:disabled:hover { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+  .board-replay-controls { display: flex; gap: var(--space-2); margin: var(--space-3) 0 0; }
+  .board-replay-controls button {
+    min-height: 44px; min-width: 44px; font: inherit; font-weight: var(--weight-bold);
+    padding: var(--space-2) var(--space-3); border: 1.5px solid var(--color-border-strong);
+    border-radius: var(--radius-md); background: var(--color-surface); cursor: pointer;
+  }
+  .board-replay-controls button:hover:not(:disabled) { background: var(--color-hover); }
+  .board-replay-controls button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* T3: the interactive ECO explorer (Phase 7e). Board + paste tools in a
+     fixed-max-width left column, the search/results panel filling the
+     remainder -- same two-column pattern as the drill page's
+     .drill-layout, reused rather than inventing a second one
+     (design-standards.md: conform at the interaction layer). Single
+     column below 1024px. */
+  .explorer-layout { margin: var(--space-4) 0 var(--space-6); }
+  @media (min-width: 1024px) {
+    .explorer-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 420px) 1fr;
+      gap: var(--space-6);
+      align-items: start;
+    }
+  }
+  main .explorer-layout, main .explorer-top-families { max-width: none; }
+
+  .explorer-board-mount { min-height: 320px; }
+  .explorer-current-line { font-weight: var(--weight-bold); margin: var(--space-3) 0 0; min-height: 1.4em; }
+  .explorer-identify-status { color: var(--color-muted); font-size: var(--text-sm); margin: var(--space-1) 0 var(--space-3); min-height: 1.2em; }
+
+  .explorer-paste { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-top: var(--space-3); }
+  .explorer-paste summary { cursor: pointer; font-weight: var(--weight-bold); min-height: 24px; }
+  .explorer-paste-inputs { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); }
+  .explorer-paste-inputs label { font-size: var(--text-sm); font-weight: var(--weight-bold); }
+  .explorer-paste-row { display: flex; gap: var(--space-2); }
+  .explorer-paste-inputs input,
+  .explorer-paste-inputs textarea {
+    font: inherit; padding: var(--space-2) var(--space-3); border: 1.5px solid var(--color-border-strong);
+    border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); width: 100%;
+  }
+  .explorer-paste-inputs input:focus-visible,
+  .explorer-paste-inputs textarea:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+  .explorer-paste-inputs textarea { resize: vertical; font-size: var(--text-sm); }
+  .explorer-paste-row button,
+  .explorer-paste-inputs > button {
+    min-height: 44px; font: inherit; font-weight: var(--weight-bold); white-space: nowrap;
+    padding: var(--space-2) var(--space-4); border: 1.5px solid var(--color-border-strong);
+    border-radius: var(--radius-md); background: var(--color-surface); cursor: pointer;
+  }
+  .explorer-paste-row button:hover,
+  .explorer-paste-inputs > button:hover { background: var(--color-hover); }
+  .explorer-error { color: var(--color-loss-text); font-size: var(--text-sm); min-height: 1.2em; margin: var(--space-2) 0 0; }
+
+  .explorer-search-panel .lookup-form { margin-bottom: var(--space-2); }
+  .explorer-result-count { color: var(--color-muted); font-size: var(--text-sm); min-height: 1.2em; margin: 0 0 var(--space-2); }
+  .explorer-result-name {
+    font: inherit; font-weight: var(--weight-bold); color: var(--color-accent-dark); background: none;
+    border: none; padding: 0; min-height: 24px; cursor: pointer; text-decoration: underline;
+  }
+  .explorer-result-name:hover { color: var(--color-accent); }
+  .explorer-moves-cell { font-size: var(--text-sm); color: var(--color-muted); }
+  .explorer-top-families { list-style: none; padding: 0; display: grid; gap: var(--space-2); grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  .explorer-top-families li { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3); }
+  .explorer-family-meta { display: block; color: var(--color-muted); font-size: var(--text-xs); margin-top: var(--space-1); }
+  .explorer-noscript { border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); padding: var(--space-4); }
 
   @media (max-width: 640px) {
     body { padding: var(--space-4) var(--space-3) var(--space-6); }
@@ -935,10 +1097,11 @@ function renderDocumentHead(arg) {
 // can pass additional keys as those pages come online (openings in this
 // phase; guides/faq in later phases; drill added for the opening-drill
 // pilot) without editing server.js at all.
-const NAV_ORDER = ['repertoire', 'openings', 'drill', 'guides', 'faq', 'player'];
+const NAV_ORDER = ['repertoire', 'openings', 'eco', 'drill', 'guides', 'faq', 'player'];
 const NAV_LABELS = {
   repertoire: 'Repertoire explorer',
   openings: 'Openings',
+  eco: 'ECO index',
   drill: 'Opening drill',
   guides: 'Guides',
   faq: 'FAQ',
@@ -947,11 +1110,12 @@ const NAV_LABELS = {
 
 /**
  * @param {{player?: string, repertoire?: string, openings?: string,
- *   drill?: string, guides?: string, faq?: string}} nav link targets for
- *   whichever pages currently exist -- either the dynamic dev-server routes
- *   (server.js's default, 2 keys) or flat static filenames (buildStatic.js,
- *   up to 6 keys). Only keys present in this object are rendered.
- * @param {'player'|'repertoire'|'openings'|'drill'|'guides'|'faq'|null} [active]
+ *   eco?: string, drill?: string, guides?: string, faq?: string}} nav link
+ *   targets for whichever pages currently exist -- either the dynamic
+ *   dev-server routes (server.js's default, 2 keys) or flat static
+ *   filenames (buildStatic.js, up to 7 keys). Only keys present in this
+ *   object are rendered.
+ * @param {'player'|'repertoire'|'openings'|'eco'|'drill'|'guides'|'faq'|null} [active]
  *   which nav link, if any, represents the current page.
  * @returns {string} the shared header/nav markup used on every page.
  */
@@ -1290,6 +1454,7 @@ module.exports = {
   renderRepertoireTree,
   renderRepertoirePage,
   renderGamesTable,
+  renderRatingTable,
   escapeHtml,
   formatPct,
   SITE_CSS,

@@ -19,10 +19,19 @@
  */
 
 const { escapeHtml, formatPct, renderDocumentHead, renderHeader, renderFooter, wrapTable, renderPageHead } = require('./render');
-const { FILES, RANKS, START_BOARD, applyUciMoves } = require('./chessPosition');
+const { START_BOARD, applyUciMoves } = require('./chessPosition');
 const { SITE_NAME, SITE_AUTHOR, BUILD_DATE, absoluteUrl, pageTitle } = require('./site');
 const { breadcrumbJsonLd, articleJsonLd, faqPageJsonLd } = require('./structuredData');
+const { spriteDefsHtml, renderBoardDiagram, pieceAttributionHtml } = require('./boardSvg');
 
+// Still used by src/buildDrill.js -> src/renderDrill.js for the Italian
+// Game drill's own board (a separate, button-based, keyboard-operable
+// implementation -- see renderDrill.js's renderDrillBoard/pieceSpanHtml).
+// That board is untouched by Phase 7c: it already has its own click/
+// keyboard accessibility story, and swapping its glyphs for the SVG sprite
+// is a reasonable follow-on but a distinct piece of work, not this task's
+// stated scope (the interactive-board component + this file's static
+// diagram). PIECE_GLYPH stays exported for exactly that caller.
 const PIECE_GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
 
 // This module's pages are always part of the static build (never dynamic
@@ -33,34 +42,25 @@ const PIECE_GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟'
 // which points at the same three flat filenames.
 const CONTENT_LEGAL_LINKS = { privacy: 'privacy.html', about: 'about.html', contact: 'contact.html' };
 
-function pieceSpanHtml(piece) {
-  if (!piece) return '';
-  const isWhite = piece === piece.toUpperCase();
-  const glyph = PIECE_GLYPH[piece.toLowerCase()];
-  return `<span class="board-pc--${isWhite ? 'w' : 'b'}">${glyph}</span>`;
-}
-
 /**
  * @param {Record<string,string>} board square -> FEN piece letter (see chessPosition.js)
  * @param {{flip?: boolean, label: string}} opts `label` becomes both the
- *   aria-label and the visible figcaption text (spec 1.7: nothing is
- *   diagram-only, so a missing glyph degrades to "diagram missing", never
- *   "content missing").
+ *   aria-label and the visible figcaption text -- nothing on this page is
+ *   diagram-only, so a missing piece render degrades to "diagram missing",
+ *   never "content missing".
+ *
+ * Phase 7c: renders real Cburnett SVG piece artwork (src/boardSvg.js)
+ * instead of the old per-platform Unicode glyph + text-shadow hack this
+ * function used before -- same `.board`/`.board-sq` markup and
+ * `--color-board-light`/`--color-board-dark` tokens, so no other CSS
+ * changed. Includes the page-level sprite-definitions block (spriteDefsHtml())
+ * inline since exactly one board renders per content page today; a future
+ * page with more than one board must call spriteDefsHtml() itself, once,
+ * and pass a board-only render instead (see boardSvg.js's own header
+ * comment).
  */
-function renderBoard(board, { flip = false, label = '' } = {}) {
-  const fileOrder = flip ? [...FILES].reverse() : FILES;
-  const rankOrder = flip ? RANKS : [...RANKS].reverse();
-  const squares = [];
-  for (const rank of rankOrder) {
-    for (const file of fileOrder) {
-      const square = `${file}${rank}`;
-      const isDark = (FILES.indexOf(file) + RANKS.indexOf(rank)) % 2 === 0;
-      squares.push(
-        `<span class="board-sq board-sq--${isDark ? 'dark' : 'light'}">${pieceSpanHtml(board[square])}</span>`
-      );
-    }
-  }
-  return `<div class="board" role="img" aria-label="${escapeHtml(label)}">${squares.join('')}</div>`;
+function renderBoard(board, opts = {}) {
+  return `${spriteDefsHtml()}${renderBoardDiagram(board, opts)}`;
 }
 
 /**
@@ -353,7 +353,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd:
 
     ${renderRelated(related, 'Related openings')}
   </main>
-  ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a> (lichess database, blitz + rapid), retrieved ${BUILD_DATE}. Master games from the Lichess masters database.`, CONTENT_LEGAL_LINKS)}
+  ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a> (lichess database, blitz + rapid), retrieved ${BUILD_DATE}. Master games from the Lichess masters database. ${pieceAttributionHtml()}`, CONTENT_LEGAL_LINKS)}
 </body>
 </html>
 `;
@@ -361,8 +361,15 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd:
 
 /**
  * @param {Array<{openingConfig:object, model:object}>} entries
+ * @param {object} opts
+ * @param {object} opts.nav
+ * @param {{href:string, familyCount:number, lineCount:number}} [opts.ecoIndexLink]
+ *   Phase 7d: when given, adds a "Browse the full ECO index" card linking to
+ *   the T2 family/ECO-code browse index -- optional and defaulted to
+ *   nothing so a caller that hasn't built that index yet (or a test that
+ *   doesn't pass it) renders byte-identical output to before Phase 7d.
  */
-function renderOpeningsHub(entries, { nav }) {
+function renderOpeningsHub(entries, { nav, ecoIndexLink = null }) {
   const title = `Chess Openings by Real Win Rate | ${SITE_NAME}`;
   const description = `${entries.length} chess openings compared by real Lichess win rate, move-by-move, across four rating bands from 1400 to 2000+.`;
   const canonical = absoluteUrl('openings.html');
@@ -411,6 +418,11 @@ ${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(b
 
     <h2>Browse by opening</h2>
     <div class="card-grid">${cards}</div>
+
+    ${ecoIndexLink ? `<h2>Browse the full ECO index</h2>
+    <p class="repertoire-intro">Every one of the ${ecoIndexLink.lineCount.toLocaleString()} named lines in the standard Encyclopaedia of Chess Openings
+       classification, grouped into ${ecoIndexLink.familyCount} opening families &mdash;
+       <a href="${escapeHtml(ecoIndexLink.href)}">browse the ECO index &rarr;</a></p>` : ''}
   </main>
   ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}.`, CONTENT_LEGAL_LINKS)}
 </body>
@@ -558,4 +570,11 @@ module.exports = {
   lichessAnalysisUrl,
   lichessOpeningUrl,
   PIECE_GLYPH,
+  // Exported for src/renderEcoPages.js (Phase 7d family hub pages), which
+  // needs the exact same win/draw/loss-bar and 4-band table markup this
+  // module already builds for a T0 opening page -- previously private to
+  // this file, now shared so the two tiers can never render that number
+  // two different ways.
+  wdlBar,
+  renderBandsTable,
 };

@@ -1,0 +1,106 @@
+'use strict';
+
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { renderEcoExplorerPage, ECO_EXPLORER_FILE, jsonDataScript } = require('../src/renderEcoExplorerPage');
+
+const NAV = { repertoire: '/', openings: 'openings.html', eco: 'eco-openings.html', player: 'player.html' };
+
+function baseArgs(overrides = {}) {
+  return {
+    nav: NAV,
+    lineIndex: [
+      ['B90', 'Sicilian Defense: Najdorf Variation', 'Sicilian Defense', 'e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6', 'sicilian-defense-variations.html'],
+      ['C50', 'Italian Game', 'Italian Game', 'e4 e5 Nf3 Nc6 Bc4', 'italian-game.html'],
+    ],
+    t0CrossLinkMap: { 'Italian Game': 'italian-game.html' },
+    reverseLookupUrl: 'eco-reverse-lookup.json',
+    topFamilies: [{ family: 'Sicilian Defense', slug: 'sicilian-defense', lineCount: 391, ecoCodes: ['B20', 'B99'] }],
+    allEcoCodes: ['A00', 'B90', 'C50'],
+    stats: { totalLines: 3810, totalFamilies: 149 },
+    ...overrides,
+  };
+}
+
+test('jsonDataScript escapes "<" so a literal </script sequence cannot break out of the tag', () => {
+  const html = jsonDataScript('x', { evil: '</script><script>alert(1)</script>' });
+  assert.ok(!html.includes('</script><script>'), 'the raw closing/opening tag sequence must not survive escaping');
+  assert.match(html, /\\u003c\/script/);
+});
+
+test('renderEcoExplorerPage renders a well-formed document with the expected title/canonical/nav-active state', () => {
+  const html = renderEcoExplorerPage(baseArgs());
+  assert.match(html, /<title>Interactive ECO Opening Explorer \| Repertoire Builder<\/title>/);
+  assert.match(html, /<link rel="canonical" href="https:\/\/repertoire-builder\.com\/eco-explorer\.html">/);
+  assert.match(html, /aria-current="page"/);
+  assert.equal(ECO_EXPLORER_FILE, 'eco-explorer.html');
+});
+
+test('renderEcoExplorerPage meta description stays within the 160-char SEO cap', () => {
+  const html = renderEcoExplorerPage(baseArgs());
+  const match = html.match(/<meta name="description" content="([^"]*)">/);
+  assert.ok(match);
+  assert.ok(match[1].length <= 160, `description is ${match[1].length} chars`);
+});
+
+test('renderEcoExplorerPage bakes the line index, T0 map, and config as separate escaped JSON script blocks', () => {
+  const html = renderEcoExplorerPage(baseArgs());
+  const lineIndexMatch = html.match(/<script type="application\/json" id="explorer-line-index">([\s\S]*?)<\/script>/);
+  assert.ok(lineIndexMatch);
+  const parsed = JSON.parse(lineIndexMatch[1]);
+  assert.equal(parsed.length, 2);
+  assert.equal(parsed[0][0], 'B90');
+
+  const t0Match = html.match(/<script type="application\/json" id="explorer-t0-map">([\s\S]*?)<\/script>/);
+  assert.deepEqual(JSON.parse(t0Match[1]), { 'Italian Game': 'italian-game.html' });
+
+  const configMatch = html.match(/<script type="application\/json" id="explorer-config">([\s\S]*?)<\/script>/);
+  assert.deepEqual(JSON.parse(configMatch[1]), { reverseLookupUrl: 'eco-reverse-lookup.json' });
+});
+
+test('renderEcoExplorerPage references the eco-explorer.js bundle exactly once, deferred', () => {
+  const html = renderEcoExplorerPage(baseArgs());
+  const matches = [...html.matchAll(/<script src="eco-explorer\.js" defer><\/script>/g)];
+  assert.equal(matches.length, 1);
+});
+
+test('renderEcoExplorerPage embeds the sprite-defs block exactly once (one board on this page)', () => {
+  const html = renderEcoExplorerPage(baseArgs());
+  const matches = [...html.matchAll(/id="cm-chessboard-sprite"/g)];
+  assert.equal(matches.length, 1);
+});
+
+test('renderEcoExplorerPage emits a noscript fallback linking to the crawlable ECO index', () => {
+  const html = renderEcoExplorerPage(baseArgs());
+  assert.match(html, /<noscript>[\s\S]*eco-openings\.html[\s\S]*<\/noscript>/);
+});
+
+test('renderEcoExplorerPage renders every topFamilies entry as a real, crawlable <a> link (no-JS visible content)', () => {
+  const html = renderEcoExplorerPage(baseArgs());
+  assert.match(html, /<a href="sicilian-defense-variations\.html">Sicilian Defense<\/a>/);
+});
+
+test('renderEcoExplorerPage escapes a family name containing HTML-significant characters in the topFamilies list', () => {
+  const html = renderEcoExplorerPage(baseArgs({
+    topFamilies: [{ family: '<script>alert(1)</script>', slug: 'evil', lineCount: 1, ecoCodes: ['A00'] }],
+  }));
+  assert.ok(!html.includes('<script>alert(1)</script>'));
+  assert.match(html, /&lt;script&gt;/);
+});
+
+test('renderEcoExplorerPage emits a DefinedTermSet JSON-LD block with one term per ECO code, each pointing at its volume page', () => {
+  const html = renderEcoExplorerPage(baseArgs());
+  const ldMatches = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
+  const definedTermSet = ldMatches.find((d) => d['@type'] === 'DefinedTermSet');
+  assert.ok(definedTermSet);
+  assert.equal(definedTermSet.hasDefinedTerm.length, 3);
+  const b90 = definedTermSet.hasDefinedTerm.find((t) => t.termCode === 'B90');
+  assert.equal(b90.url, 'https://repertoire-builder.com/eco-volume-b.html');
+  const breadcrumb = ldMatches.find((d) => d['@type'] === 'BreadcrumbList');
+  assert.ok(breadcrumb);
+});
+
+test('renderEcoExplorerPage opts into the wide layout (data-dense page type, same as player.html/repertoire pages)', () => {
+  const html = renderEcoExplorerPage(baseArgs());
+  assert.match(html, /<body class="layout--wide">/);
+});

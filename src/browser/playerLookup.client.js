@@ -3,22 +3,33 @@
 /**
  * Page controller for the static player-lookup page (dist/player.html).
  *
- * This file is NOT loaded via CommonJS module loading -- it's appended as plain text
- * after fetchLichess.js, process.js, and render.js by
- * buildStatic.js's buildPlayerLookupBundle(), so it runs in the same
- * top-level scope and can call fetchRatingHistory / fetchRecentGames /
- * summarizeRatingHistory / summarizeGames / renderRatingTable /
- * renderGamesTable / escapeHtml / LichessNotFoundError / LichessRateLimitError
- * / LichessApiError directly, without any import statement.
+ * This is the esbuild entry point for player-lookup.js (see
+ * buildStatic.js's buildPlayerLookupBundle()): a real CommonJS module that
+ * require()s fetchLichess.js/process.js/render.js directly, same as any
+ * other module in this project. esbuild bundles this file plus everything
+ * it require()s into one self-contained IIFE with no runtime require() and
+ * no bare module resolution, so the output still works from a file:// URL
+ * with a single <script src="player-lookup.js"> tag -- same invariant the
+ * old hand-rolled concatenation preserved, now enforced by a real bundler
+ * instead of a regex that stripped a trailing module.exports block.
  *
  * It calls Lichess's already-public, keyless general API
  * (https://lichess.org/api) directly from the visitor's browser. No Lichess
  * API token is used, read, or referenced anywhere in this file.
  *
  * Wrapped in an IIFE only to keep its own helper names (lookupPlayer, $,
- * etc.) out of the shared top-level scope the bundled modules above it use;
- * it still reads their declarations via normal closure/script-scope lookup.
+ * etc.) out of the bundle's top-level scope.
  */
+const {
+  fetchRatingHistory,
+  fetchRecentGames,
+  LichessNotFoundError,
+  LichessRateLimitError,
+  LichessApiError,
+} = require('../fetchLichess');
+const { summarizeRatingHistory, summarizeGames } = require('../process');
+const { renderRatingTable, renderGamesTable, escapeHtml } = require('../render');
+
 (function () {
   function $(selector) {
     return document.querySelector(selector);

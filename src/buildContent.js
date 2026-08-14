@@ -177,6 +177,10 @@ function extractDescription(html) {
   return match ? match[1] : null;
 }
 
+// Re-exported (see module.exports below) for src/buildEcoPages.js (Phase
+// 7d), which needs the exact same title/description extraction --
+// duplicating a regex two call sites disagree on is worse than sharing it.
+
 /**
  * The 70/160-char caps below are an SEO guideline about how many visible
  * characters a search result shows -- they must be measured against the
@@ -239,6 +243,10 @@ function assertPageMetadata(written) {
  * @param {Object<string,string>} [opts.drillPages] maps an opening slug to
  *   its drill page filename (single-opening drill pilot). An opening whose
  *   slug isn't a key here renders with no drill CTA -- unchanged output.
+ * @param {{href:string, familyCount:number, lineCount:number}} [opts.ecoIndexLink]
+ *   Phase 7d: threaded straight through to renderOpeningsHub's own param of
+ *   the same name (see that function's doc) -- optional, defaults to
+ *   nothing so a caller that predates Phase 7d is unaffected.
  * @returns {Promise<{written: Array<{file, html, slug, title, description}>}>}
  */
 async function buildContentPages({
@@ -246,6 +254,7 @@ async function buildContentPages({
   outDir = OUT_DIR,
   nav = { repertoire: '/', openings: 'openings.html', guides: 'guides.html', faq: 'chess-opening-faq.html', player: 'player.html' },
   drillPages = {},
+  ecoIndexLink = null,
 } = {}) {
   assertOpeningsWellFormed();
   fs.mkdirSync(outDir, { recursive: true });
@@ -274,7 +283,7 @@ async function buildContentPages({
     written.push({ file, html, slug: entry.openingConfig.slug, title: extractTitle(html), description: extractDescription(html) });
   }
 
-  const hubHtml = renderOpeningsHub(entries, { nav });
+  const hubHtml = renderOpeningsHub(entries, { nav, ecoIndexLink });
   fs.writeFileSync(path.join(outDir, 'openings.html'), hubHtml, 'utf8');
   written.push({ file: 'openings.html', html: hubHtml, slug: 'openings-hub', title: extractTitle(hubHtml), description: extractDescription(hubHtml) });
 
@@ -430,4 +439,6 @@ module.exports = {
   buildFaqEntries,
   buildFaqPageFile,
   GUIDES,
+  extractTitle,
+  extractDescription,
 };

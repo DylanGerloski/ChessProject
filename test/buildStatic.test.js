@@ -6,11 +6,12 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
+const vm = require('vm');
 const {
   buildStatic,
   buildPlayerLookupBundle,
   buildDrillBundle,
-  bundleBrowserModule,
+  bundleBrowserEntry,
   indexPage,
   playerLookupPage,
   repertoireFileName,
@@ -25,6 +26,43 @@ const FIXTURES = path.join(__dirname, 'fixtures');
 const rootFixture = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'explorer-response.json'), 'utf8'));
 
 const ITALIAN_PREFIX_PLAY = getOpening('italian-game').line.map((p) => p.uci).join(',');
+
+/**
+ * Executes an esbuild-bundled browser script in a fresh vm context whose
+ * global scope deliberately has NO `require`, `module`, or `exports`
+ * binding (unlike Node's own global scope) -- a real file:// page has none
+ * of those either. If the bundle referenced any of them outside a properly
+ * scoped closure, this throws a ReferenceError. This is the functional
+ * replacement for the old regex-based "no leftover require()/module.exports"
+ * checks: esbuild's own CommonJS-emulation wrapper (__commonJS) legitimately
+ * contains the literal text "module.exports" and "require" inside closures
+ * that never leak to global scope, so a textual ban on those substrings no
+ * longer indicates anything broken -- actually executing the bundle with no
+ * such globals available does.
+ */
+function runBundleInSandbox(bundleText) {
+  const sandbox = {
+    console,
+    document: {
+      readyState: 'complete',
+      addEventListener: () => {},
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      getElementById: () => null,
+    },
+    window: {
+      history: { replaceState: () => {} },
+    },
+    localStorage: { getItem: () => null, setItem: () => {} },
+    URL,
+    URLSearchParams,
+  };
+  sandbox.window.location = { href: 'file:///dist/test.html', search: '' };
+  sandbox.window.localStorage = sandbox.localStorage;
+  vm.createContext(sandbox);
+  new vm.Script(bundleText, { filename: 'bundle-under-test.js' }).runInContext(sandbox);
+  return sandbox;
+}
 
 // buildStatic() now also drives buildContentPages() (the 10 opening pages +
 // hub), which needs move-order validation to succeed for every configured
@@ -292,34 +330,44 @@ test('assertNoTokenLeak is a no-op when no token was available to leak', () => {
   }
 });
 
-test('buildPlayerLookupBundle concatenates fetchLichess.js, process.js, render.js, and the browser controller with no leftover require()/module.exports', () => {
+test('buildPlayerLookupBundle esbuild-bundles fetchLichess.js, process.js, render.js, and the browser controller into one self-contained IIFE that runs with no global require/module/exports (file:// invariant)', () => {
   const bundle = buildPlayerLookupBundle();
   assert.match(bundle, /function fetchRatingHistory/);
   assert.match(bundle, /function summarizeRatingHistory/);
   assert.match(bundle, /function renderRatingTable/);
-  assert.match(bundle, /class LichessNotFoundError/);
-  assert.doesNotMatch(bundle, /\brequire\(/);
-  assert.doesNotMatch(bundle, /module\.exports/);
+  // \s* rather than a literal space: bundleBrowserEntry() now runs esbuild
+  // with minifyWhitespace (Phase 7e, added when eco-explorer.js became this
+  // site's heaviest bundle), which legitimately collapses "= class" to
+  // "=class" -- still the exact same class expression, not a renamed or
+  // dropped one, so the check stays meaningful without depending on
+  // insignificant whitespace esbuild is now allowed to strip.
+  assert.match(bundle, /LichessNotFoundError\s*=\s*class/);
+  // Real proof, not a text ban: run it in a vm context with no require/
+  // module/exports globals (same as an actual file:// page) and confirm it
+  // doesn't throw. esbuild's own __commonJS wrapper legitimately contains
+  // the literal text "module.exports" inside a properly scoped closure, so
+  // banning that substring textually no longer indicates anything broken.
+  assert.doesNotThrow(() => runBundleInSandbox(bundle));
 });
 
-test('buildDrillBundle concatenates chessPosition.js, drillLogic.js, and the drill browser controller with no leftover require()/module.exports assignment', () => {
+test('buildDrillBundle esbuild-bundles chessPosition.js, drillLogic.js, and the drill browser controller into one self-contained IIFE that runs with no global require/module/exports (file:// invariant)', () => {
   const bundle = buildDrillBundle();
   assert.match(bundle, /function applyUciMove/);
   assert.match(bundle, /function gradeMove/);
   assert.match(bundle, /function pickReply/);
   assert.match(bundle, /function applyRoundResult/);
-  assert.doesNotMatch(bundle, /\brequire\(/);
-  // Not a bare /module\.exports/ check: drillLogic.js's own doc comment
-  // mentions the phrase in prose ("keep the trailing module.exports block
-  // below intact"), which is expected to survive stripping since only the
-  // trailing *assignment* is removed, not every mention of the words.
-  assert.doesNotMatch(bundle, /module\.exports\s*=/);
+  assert.doesNotThrow(() => runBundleInSandbox(bundle));
 });
 
-test('bundleBrowserModule throws loudly if a source file has no module.exports to strip', () => {
-  const tmpFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lichess-bundle-test-')), 'noexports.js');
-  fs.writeFileSync(tmpFile, 'function foo() { return 1; }\n', 'utf8');
-  assert.throws(() => bundleBrowserModule(tmpFile), /no trailing module\.exports block/);
+test('bundleBrowserEntry throws loudly on a syntax error in the entry point, same failure-loudly guarantee the old string-splice bundler had', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lichess-bundle-test-'));
+  try {
+    const tmpFile = path.join(tmpDir, 'broken.js');
+    fs.writeFileSync(tmpFile, 'function broken( { return 1; }\n', 'utf8');
+    assert.throws(() => bundleBrowserEntry(tmpFile, '/* header */'));
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
 test('indexPage links to player.html and every repertoire file, with no server-only routes', () => {
@@ -427,18 +475,25 @@ test('indexPage embeds WebSite + Organization JSON-LD', () => {
 test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pages) and robots.txt pointing at it', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();
-    const { outDir, repertoireLinks, contentWritten, pageFilenames } = await buildStatic({ fetchImpl, useCache: false });
+    const { outDir, repertoireLinks, contentWritten, ecoWritten, ecoExplorerResult, pageFilenames } = await buildStatic({ fetchImpl, useCache: false });
 
     assert.ok(fs.existsSync(path.join(outDir, 'sitemap.xml')));
     assert.ok(fs.existsSync(path.join(outDir, 'robots.txt')));
+    assert.ok(fs.existsSync(path.join(outDir, 'eco-explorer.html')), 'Phase 7e: eco-explorer.html must be written');
+    assert.ok(fs.existsSync(path.join(outDir, 'eco-explorer.js')), 'Phase 7e: eco-explorer.js bundle must be written');
+    assert.ok(fs.existsSync(path.join(outDir, 'eco-reverse-lookup.json')), 'Phase 7e: the FEN reverse-lookup asset must be written');
+    assert.ok(ecoExplorerResult.reverseLookupCount > 0);
 
-    // index + player + drill + 404 + 8 repertoire + 10 openings + hub + 6 guides + hub + FAQ + privacy/about/contact.
+    // index + player + drill + 404 + 8 repertoire + 10 openings + hub + 6 guides + hub + FAQ + privacy/about/contact
+    // + (Phase 7d) 64 T1 family hubs + 5 T2 volume pages + 2 T2 browse-index pages
+    // + (Phase 7e) 1 ECO explorer page.
     // pageFilenames includes 404.html (for the filename-uniqueness check),
     // but the sitemap itself must exclude it -- see the separate assertion
     // below, and src/sitemap.js's buildSitemapEntries.
-    const expectedPageCount = 4 + repertoireLinks.length + contentWritten.length + 3;
+    const expectedPageCount = 4 + repertoireLinks.length + contentWritten.length + ecoWritten.length + 3 + 1;
     assert.equal(pageFilenames.length, expectedPageCount);
     assert.ok(pageFilenames.includes('404.html'));
+    assert.ok(pageFilenames.includes('eco-explorer.html'));
 
     const sitemapXml = fs.readFileSync(path.join(outDir, 'sitemap.xml'), 'utf8');
     assert.match(sitemapXml, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
@@ -449,9 +504,16 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     assert.ok(locMatches.includes('https://repertoire-builder.com/chess-opening-faq.html'));
     assert.ok(locMatches.includes('https://repertoire-builder.com/privacy.html'));
     assert.ok(locMatches.includes('https://repertoire-builder.com/italian-game-drill.html'));
-    // player-lookup.js/drill.js/ads.txt/CNAME are not pages and must not appear.
+    assert.equal(ecoWritten.length, 64 + 5 + 2, 'Phase 7d: 64 T1 hubs + 5 T2 volume pages + 2 T2 browse-index pages');
+    assert.ok(locMatches.includes('https://repertoire-builder.com/sicilian-defense-variations.html'));
+    assert.ok(locMatches.includes('https://repertoire-builder.com/eco-volume-b.html'));
+    assert.ok(locMatches.includes('https://repertoire-builder.com/eco-openings.html'));
+    assert.ok(locMatches.includes('https://repertoire-builder.com/eco-explorer.html'));
+    // player-lookup.js/drill.js/eco-explorer.js/eco-reverse-lookup.json/ads.txt/CNAME are not pages and must not appear.
     assert.ok(!sitemapXml.includes('player-lookup.js'));
     assert.ok(!sitemapXml.includes('drill.js'));
+    assert.ok(!sitemapXml.includes('eco-explorer.js'));
+    assert.ok(!sitemapXml.includes('eco-reverse-lookup.json'));
     assert.ok(!sitemapXml.includes('ads.txt'));
     assert.ok(!sitemapXml.includes('404.html'), '404.html must never appear in sitemap.xml');
 
@@ -497,7 +559,7 @@ test('buildStatic never emits an internal href="index.html" link -- the repertoi
   })
 );
 
-test('buildStatic writes italian-game-drill.html and drill.js, with the drill data baked in and no leftover require()/module.exports in the bundle', () =>
+test('buildStatic writes italian-game-drill.html and drill.js, with the drill data baked in and drill.js a self-contained esbuild bundle (file:// invariant)', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();
     const { outDir, pageFilenames } = await buildStatic({ fetchImpl, useCache: false });
@@ -515,11 +577,10 @@ test('buildStatic writes italian-game-drill.html and drill.js, with the drill da
     const boardSquareCount = (drillHtml.match(/class="board-sq /g) || []).length;
     assert.equal(boardSquareCount, 64);
 
+    // See buildDrillBundle's own test above for why this is a sandboxed
+    // execution check rather than a textual require()/module.exports ban.
     const drillJs = fs.readFileSync(path.join(outDir, 'drill.js'), 'utf8');
-    assert.doesNotMatch(drillJs, /\brequire\(/);
-    // Not a bare /module\.exports/ check -- see buildDrillBundle's own test
-    // above for why (drillLogic.js's doc comment mentions the phrase in prose).
-    assert.doesNotMatch(drillJs, /module\.exports\s*=/);
+    assert.doesNotThrow(() => runBundleInSandbox(drillJs));
   })
 );
 

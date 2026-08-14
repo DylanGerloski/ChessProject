@@ -3,9 +3,10 @@
 /**
  * Page markup for the single-opening progressive recall drill (beta pilot).
  * Same division of labor as src/renderContent.js: this module is never
- * concatenated into a browser bundle (see src/buildStatic.js's
- * bundleBrowserModule / buildDrillBundle), so it may freely require()
- * render.js, chessPosition.js, renderContent.js, site.js, and
+ * itself bundled into a browser bundle (see src/buildStatic.js's
+ * bundleBrowserEntry() / buildDrillBundle() -- the drill's browser entry
+ * point is src/browser/drill.client.js, not this file), so it may freely
+ * require() render.js, chessPosition.js, renderContent.js, site.js, and
  * structuredData.js.
  *
  * The page is built to work with JavaScript disabled: the board is rendered

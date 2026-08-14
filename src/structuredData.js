@@ -169,6 +169,65 @@ function homeJsonLd({ url, name = SITE_NAME, description }) {
   return `${website}\n  ${organization}`;
 }
 
+/**
+ * DefinedTermSet/DefinedTerm JSON-LD for the ECO-code tiers (T2 volume
+ * indexes) -- the semantically correct schema.org type for a classification
+ * code, emitted for correctness rather than a rich-result bet -- DefinedTerm
+ * is not in Google's rich-results gallery as of this build, and nothing
+ * here promises a SERP feature.
+ *
+ * @param {object} opts
+ * @param {string} opts.name this DefinedTermSet's own name (e.g. "ECO
+ *   Volume B: Semi-Open Games")
+ * @param {string} opts.url this DefinedTermSet's own canonical URL
+ * @param {Array<{termCode:string, name:string, url?:string}>} opts.terms
+ *   one DefinedTerm per ECO code this set covers. `url`, when given, points
+ *   at that code's own family hub page (T1) -- omitted for a code with no
+ *   T1 page, never a dangling link to a page that doesn't exist.
+ */
+function definedTermSetJsonLd({ name, url, terms }) {
+  return jsonLdScript({
+    '@context': 'https://schema.org',
+    '@type': 'DefinedTermSet',
+    name,
+    url,
+    hasDefinedTerm: terms.map((t) => ({
+      '@type': 'DefinedTerm',
+      termCode: t.termCode,
+      name: t.name,
+      inDefinedTermSet: url,
+      ...(t.url ? { url: t.url } : {}),
+    })),
+  });
+}
+
+/**
+ * ItemList JSON-LD for a family hub's variation list (T1) or a paginated
+ * browse index (T2) -- mirrors exactly what the same page already renders
+ * visibly as a list/table, same "structured data mirrors the visible page"
+ * rule every other function in this file follows.
+ *
+ * @param {object} opts
+ * @param {string} [opts.name]
+ * @param {Array<{name:string, url?:string}>} opts.items in display order.
+ *   `url` omitted for an item with no page of its own (rendered as plain
+ *   text on the page, never a dangling link) -- schema.org's ListItem does
+ *   not require `item` to be present.
+ */
+function itemListJsonLd({ name, items }) {
+  return jsonLdScript({
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    ...(name ? { name } : {}),
+    itemListElement: items.map((it, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: it.name,
+      ...(it.url ? { item: it.url } : {}),
+    })),
+  });
+}
+
 module.exports = {
   jsonLdScript,
   stripHtmlToText,
@@ -176,4 +235,6 @@ module.exports = {
   articleJsonLd,
   faqPageJsonLd,
   homeJsonLd,
+  definedTermSetJsonLd,
+  itemListJsonLd,
 };

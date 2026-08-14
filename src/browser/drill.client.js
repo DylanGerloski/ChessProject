@@ -3,22 +3,28 @@
 /**
  * Page controller for the static opening-drill page (dist/italian-game-drill.html).
  *
- * This file is NOT loaded via CommonJS module loading -- it's appended as
- * plain text after src/chessPosition.js and src/drillLogic.js by
- * src/buildStatic.js's buildDrillBundle(), so it runs in the same top-level
- * scope and can call applyUciMove / applyUciMoves / START_BOARD / FILES /
- * RANKS (chessPosition.js) and normalizeMoveInput / gradeMove / pickReply /
- * applyRoundResult (drillLogic.js) directly, without any import statement.
- * All non-DOM logic lives in those two bundled modules; this file only
- * paints the board, wires up events, and reads/writes localStorage.
+ * This is the esbuild entry point for drill.js (see buildStatic.js's
+ * buildDrillBundle()): a real CommonJS module that require()s
+ * src/chessPosition.js and src/drillLogic.js directly, same as any other
+ * module in this project. esbuild bundles this file plus everything it
+ * require()s into one self-contained IIFE with no runtime require() and no
+ * bare module resolution, so the output still works from a file:// URL
+ * with a single <script src="drill.js" defer> tag -- same invariant the
+ * old hand-rolled concatenation preserved, now enforced by a real bundler
+ * instead of a regex that stripped a trailing module.exports block. All
+ * non-DOM logic lives in those two bundled modules; this file only paints
+ * the board, wires up events, and reads/writes localStorage.
  *
  * Every move in the baked drill tree comes from the Lichess Opening
  * Explorer and is legal by construction (see chessPosition.js's own header
  * comment) -- this controller never validates a move's legality itself.
  *
- * Wrapped in an IIFE only to keep its own helper names out of the shared
- * top-level scope the bundled modules above it use.
+ * Wrapped in an IIFE only to keep its own helper names out of the bundle's
+ * top-level scope.
  */
+const { START_BOARD, applyUciMove, applyUciMoves } = require('../chessPosition');
+const { gradeMove, pickReply, applyRoundResult } = require('../drillLogic');
+
 (function () {
   var STORAGE_KEY = 'lichess-stats.drill.italian-game.v1';
   var PIECE_NAMES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
