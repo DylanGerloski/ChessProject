@@ -56,6 +56,7 @@ const { buildContentPages } = require('./buildContent');
 const { withExplorerCache } = require('./explorerCache');
 const { renderPrivacyPage, renderAboutPage, renderContactPage, render404Page, adsTxtContent } = require('./renderCompliance');
 const { renderSitemapXml, robotsTxtContent } = require('./sitemap');
+const { renderRssXml } = require('./rss');
 const { homeJsonLd } = require('./structuredData');
 const { SITE_NAME, SITE_TAGLINE, absoluteUrl, pageTitle } = require('./site');
 const { buildDrillData } = require('./buildDrill');
@@ -269,6 +270,7 @@ ${renderDocumentHead({
     description: homeDescription,
     canonical: absoluteUrl(''),
     jsonLd: homeJsonLdBlock,
+    feedUrl: absoluteUrl('feed.xml'),
   })}
 <body>
   ${renderHeader(STATIC_NAV, 'repertoire')}
@@ -508,6 +510,7 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     'drill.js',
     'CNAME',
     'ads.txt',
+    'feed.xml',
     ...IDENTITY_ASSET_FILES,
   ]);
   assertNoTokenLeak(OUT_DIR, getApiToken());
@@ -519,6 +522,15 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   // didn't actually get (re)written this run.
   fs.writeFileSync(path.join(OUT_DIR, 'sitemap.xml'), renderSitemapXml(pageFilenames), 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'robots.txt'), robotsTxtContent(), 'utf8');
+
+  // feed.xml: RSS for the content pages that actually get added/updated
+  // over time (opening guides +
+  // editorial articles from buildContentPages() above) -- NOT the
+  // repertoire explorer pages (a fixed band/color grid, not "content" in
+  // the publishing sense) and NOT the drill pilot (a single static page).
+  // Built from the same `contentWritten` entries already used for the
+  // sitemap, so it can't drift from what's really on disk either.
+  fs.writeFileSync(path.join(OUT_DIR, 'feed.xml'), renderRssXml(contentWritten), 'utf8');
 
   return { outDir: OUT_DIR, repertoireLinks, contentWritten, pageFilenames };
 }

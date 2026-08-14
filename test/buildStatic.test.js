@@ -163,6 +163,25 @@ test('buildStatic also writes the 10 opening pages plus the openings hub, and th
   })
 );
 
+test('buildStatic also writes feed.xml (one <item> per content page) and links it from the home page head', () =>
+  withTempDist(async () => {
+    const { fetchImpl } = fakeExplorerFetch();
+    const { outDir, contentWritten } = await buildStatic({ fetchImpl, useCache: false });
+
+    const feedPath = path.join(outDir, 'feed.xml');
+    assert.ok(fs.existsSync(feedPath), 'expected feed.xml to exist on disk');
+    const feedXml = fs.readFileSync(feedPath, 'utf8');
+    assert.match(feedXml, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
+    assert.match(feedXml, /<rss version="2\.0">/);
+    const itemMatches = feedXml.match(/<item>/g) || [];
+    assert.equal(itemMatches.length, contentWritten.length);
+    assert.match(feedXml, /<link>https:\/\/repertoire-builder\.com\/openings\.html<\/link>/);
+
+    const homeHtml = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
+    assert.match(homeHtml, /<link rel="alternate" type="application\/rss\+xml"[^>]*href="https:\/\/repertoire-builder\.com\/feed\.xml">/);
+  })
+);
+
 test('buildStatic also writes the guides hub, all 6 guide articles, and the FAQ page, all reachable from nav', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();

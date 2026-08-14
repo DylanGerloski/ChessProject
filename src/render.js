@@ -555,6 +555,62 @@ ${designTokensCss(DESIGN_TOKENS)}
     border-top: 1px solid var(--color-border);
   }
 
+  .newsletter-signup {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-top: var(--space-4);
+    max-width: 60ch;
+  }
+  .newsletter-heading {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 var(--space-2);
+  }
+  .newsletter-description {
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+    margin: 0 0 var(--space-3);
+  }
+  .newsletter-signup--pending .newsletter-description { margin-bottom: 0; }
+  .newsletter-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .newsletter-fields input[type="email"] {
+    flex: 1 1 220px;
+    min-height: 44px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+  .newsletter-fields input[type="email"]:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+  .newsletter-fields button {
+    min-height: 44px;
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    background: var(--color-accent);
+    color: var(--color-accent-contrast);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .newsletter-fields button:hover { background: var(--color-accent-dark); }
+  .newsletter-fields button:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
   .support-links {
     display: flex;
     flex-wrap: wrap;
@@ -829,7 +885,7 @@ const OG_DEFAULT_IMAGE = 'https://repertoire-builder.com/og-default.png';
  */
 function renderDocumentHead(arg) {
   const opts = typeof arg === 'string' ? { title: arg } : (arg || {});
-  const { title, description, canonical, ogType = 'website', jsonLd, noindex, extraCss } = opts;
+  const { title, description, canonical, ogType = 'website', jsonLd, noindex, extraCss, feedUrl } = opts;
 
   const metaDescription = description
     ? `\n  <meta name="description" content="${escapeHtml(description)}">`
@@ -849,11 +905,18 @@ function renderDocumentHead(arg) {
     `\n  <meta name="twitter:card" content="summary_large_image">`;
   const jsonLdBlock = jsonLd ? `\n  ${jsonLd}` : '';
   const extraStyleBlock = extraCss ? `\n  <style>${extraCss}</style>` : '';
+  // RSS discovery link: only emitted on pages that pass feedUrl explicitly
+  // (the home page -- see buildStatic.js) rather than every single page,
+  // since every page already links "RSS feed" visibly in the shared footer
+  // below.
+  const feedLink = feedUrl
+    ? `\n  <link rel="alternate" type="application/rss+xml" title="Repertoire Builder — new opening guides and articles" href="${escapeHtml(feedUrl)}">`
+    : '';
 
   return `<head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(title)}</title>${metaDescription}${canonicalLink}${robotsMeta}${og}
+  <title>${escapeHtml(title)}</title>${metaDescription}${canonicalLink}${robotsMeta}${og}${feedLink}
   <link rel="icon" href="${FAVICON_DATA_URI}">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -913,6 +976,43 @@ function renderHeader(nav, active = null) {
 const KOFI_URL = 'https://ko-fi.com/flavaa';
 const BMC_URL = 'https://buymeacoffee.com/dylanger254';
 
+// Newsletter signup: no email provider is connected yet. This constant is
+// the ONE place to enable real capture later: once a provider is chosen,
+// set NEWSLETTER_FORM_ACTION to that provider's real hosted-form action URL
+// (e.g. a Buttondown/ConvertKit "plain HTML form" embed action) -- that one
+// edit is the entire wiring change, no rebuild of renderNewsletterSignup()
+// itself. Left null (the current state) renders an honest "not live yet"
+// placeholder instead of a form with nowhere real to submit to. Defined as
+// a literal constant here (not pulled in from site.js) for the same reason
+// KOFI_URL/BMC_URL above are: this file is concatenated verbatim into the
+// browser bundle (see this file's header comment) and cannot use CommonJS
+// module loading at module scope.
+const NEWSLETTER_FORM_ACTION = null;
+const NEWSLETTER_FORM_METHOD = 'POST';
+
+/**
+ * Sitewide newsletter signup, rendered inside the shared footer so it
+ * appears on every page. See NEWSLETTER_FORM_ACTION's comment above for how
+ * this switches from the placeholder state to a real capture form.
+ */
+function renderNewsletterSignup() {
+  if (!NEWSLETTER_FORM_ACTION) {
+    return `<div class="newsletter-signup newsletter-signup--pending">
+    <h2 class="newsletter-heading">Get new openings and guides by email</h2>
+    <p class="newsletter-description">Email sign-up isn&rsquo;t live yet &mdash; check back soon, or follow the <a href="feed.xml">RSS feed</a> in the meantime.</p>
+  </div>`;
+  }
+  return `<form class="newsletter-signup" action="${escapeHtml(NEWSLETTER_FORM_ACTION)}" method="${escapeHtml(NEWSLETTER_FORM_METHOD)}">
+    <h2 class="newsletter-heading">Get new openings and guides by email</h2>
+    <p class="newsletter-description">One email when a new opening page or guide ships. No spam, unsubscribe anytime.</p>
+    <div class="newsletter-fields">
+      <label for="newsletter-email" class="sr-only">Email address</label>
+      <input id="newsletter-email" name="email" type="email" required placeholder="you@example.com" autocomplete="email">
+      <button type="submit">Subscribe</button>
+    </div>
+  </form>`;
+}
+
 /**
  * Affiliate/support-link disclosure. Exported as its own function -- not
  * just inlined into renderFooter() below -- so it's a genuine standalone
@@ -950,6 +1050,7 @@ function renderFooter(innerHtml, legalLinks) {
   </nav>`
     : '';
   return `<footer class="site-footer">${innerHtml}
+  ${renderNewsletterSignup()}
   <div class="support-links">
     <a href="${KOFI_URL}" target="_blank" rel="noopener noreferrer">&#9749; Support on Ko-fi</a>
     <a href="${BMC_URL}" target="_blank" rel="noopener noreferrer">&#9749; Buy Me a Coffee</a>
@@ -1196,6 +1297,7 @@ module.exports = {
   renderHeader,
   renderFooter,
   renderDisclosure,
+  renderNewsletterSignup,
   renderPageHead,
   wrapTable,
   NAV_ORDER,
