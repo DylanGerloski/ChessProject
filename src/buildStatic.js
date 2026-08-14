@@ -579,6 +579,13 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   // silently wiped the next time this script runs. No trailing slash, no
   // scheme, no www -- GitHub Pages requires the bare domain string.
   fs.writeFileSync(path.join(OUT_DIR, 'CNAME'), 'Repertoire-Builder.com', 'utf8');
+  // Same "written on every build or it gets silently wiped" reasoning as CNAME above.
+  // Tells GitHub Pages not to run Jekyll over this output -- not load-bearing for the
+  // Actions-based upload-pages-artifact/deploy-pages pipeline (which never invokes Jekyll),
+  // but the legacy "deploy from a branch" path this project also uses does need it, and an
+  // absent .nojekyll was found missing from a manually-pushed gh-pages branch update
+  // (2026-08-14) precisely because it isn't part of this script's own output.
+  fs.writeFileSync(path.join(OUT_DIR, '.nojekyll'), '', 'utf8');
 
   const pageFilenames = [
     'index.html',
