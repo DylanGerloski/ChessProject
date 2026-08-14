@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chess Opening Families, Page 2 of 2 | Repertoire Builder</title>
+  <meta name="description" content="Chess opening families Latvian Gambit–Zukertort Opening, page 2 of 2.">
+  <link rel="canonical" href="https://repertoire-builder.com/eco-openings-2.html">
+  <meta property="og:title" content="Chess Opening Families, Page 2 of 2 | Repertoire Builder">
+  <meta property="og:description" content="Chess opening families Latvian Gambit–Zukertort Opening, page 2 of 2.">
+  <meta property="og:url" content="https://repertoire-builder.com/eco-openings-2.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Repertoire Builder">
+  <meta property="og:image" content="https://repertoire-builder.com/og-default.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%232a4d3a'/%3E%3Ccircle cx='32' cy='19' r='7' fill='%23f8f5ea'/%3E%3Crect x='26' y='24' width='12' height='10' fill='%23f8f5ea'/%3E%3Crect x='19' y='33' width='26' height='4' rx='2' fill='%23f8f5ea'/%3E%3Cpath d='M20 37L44 37L48 50L16 50Z' fill='%23f8f5ea'/%3E%3Crect x='15' y='50' width='34' height='8' rx='3' fill='%23f8f5ea'/%3E%3C/svg%3E">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="preload" href="/fonts/fraunces-variable.woff2" as="font" type="font/woff2" crossorigin>
+  <style>
+  :root {
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-serif: "Fraunces Variable", Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+    --color-bg: #f5f1e6;
+    --color-surface: #ffffff;
+    --color-surface-alt: #ece3cd;
+    --color-text: #23271f;
+    --color-muted: #5e5c4b;
+    --color-accent: #3c6e52;
+    --color-accent-dark: #2a4d3a;
+    --color-accent-contrast: #f8f5ea;
+    --color-hover: rgba(60, 110, 82, 0.08);
+    --color-focus: #a35110;
+    --color-border: #ddd0ac;
+    --color-border-strong: #8a7b54;
+    --color-win: #2f7d43;
+    --color-win-text: #256034;
+    --color-win-bg: #e3f2e6;
+    --color-draw: #93731c;
+    --color-draw-text: #6f5714;
+    --color-draw-bg: #f4ecd2;
+    --color-loss: #b23b30;
+    --color-loss-text: #96302a;
+    --color-loss-bg: #fbe4e0;
+    --color-board-light: #ece3cd;
+    --color-board-dark: #c2ad82;
+    --color-row-tint: rgba(35, 39, 31, 0.035);
+    --text-xs: 0.75rem;
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-md: 1.125rem;
+    --text-lg: 1.375rem;
+    --text-xl: 1.75rem;
+    --text-2xl: clamp(2rem, 1.55rem + 1.9vw, 2.75rem);
+    --leading-tight: 1.15;
+    --leading-snug: 1.3;
+    --leading-normal: 1.6;
+    --leading-relaxed: 1.75;
+    --weight-regular: 400;
+    --weight-medium: 600;
+    --weight-bold: 700;
+    --measure: 68ch;
+    --width-page: 880px;
+    --width-wide: 1120px;
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.5rem;
+    --space-6: 2rem;
+    --space-7: 3rem;
+    --space-8: 4rem;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-pill: 999px;
+    --shadow-sm: 0 1px 2px rgba(35, 39, 31, 0.08);
+    --shadow-md: 0 8px 24px rgba(35, 39, 31, 0.10);
+    --shadow-focus: 0 0 0 3px rgba(60, 110, 82, 0.25);
+    --border-hairline: 1px;
+    --border-control: 2px;
+    --motion-duration-fast: 150ms;
+    --motion-duration-piece: 200ms;
+    --motion-easing-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Self-hosted display face for headings only (--font-serif above). One
+     variable woff2, wght+opsz axes, latin subset, ~66KB -- served from this
+     same origin (never Google Fonts directly, so there's no third-party
+     render-blocking stylesheet and no visitor IP sent off-site), preloaded
+     in renderDocumentHead() with crossorigin. font-display: swap means
+     headings render in the Georgia fallback immediately and swap in once
+     the woff2 arrives, so there's no invisible-text flash. License: SIL OFL
+     1.1, assets/fonts/FRAUNCES-OFL-LICENSE.txt. */
+  @font-face {
+    font-family: 'Fraunces Variable';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 100 900;
+    src: url('/fonts/fraunces-variable.woff2') format('woff2-variations');
+  }
+
+  * { box-sizing: border-box; }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  html { background: var(--color-bg); }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-bg);
+    color: var(--color-text);
+    max-width: var(--width-page);
+    margin: 0 auto;
+    padding: var(--space-5) var(--space-4) var(--space-7);
+    line-height: var(--leading-normal);
+    font-size: var(--text-base);
+  }
+
+  /* Opt-in wide container for the three data-dense page types (repertoire
+     band pages, the drill, player lookup) — added at those specific call
+     sites only, never as the default. See design-standards.md 4.5. */
+  body.layout--wide { max-width: var(--width-wide); }
+
+  main { display: block; }
+
+  /* Prose measure (design-standards.md 4.5 / P3): caps reading-line length
+     to var(--measure) for running text inside main. Tables, boards, and
+     .table-scroll are exempt by not matching this selector at all. The
+     repertoire tree's <li> rows are data rows (move chips, WDL bars), not
+     prose sentences, so they're excluded explicitly below — constraining
+     them would fight the wide layout those pages just opted into. */
+  main p, main li, main .subtitle, main blockquote {
+    max-width: var(--measure);
+  }
+  main .repertoire-tree li { max-width: none; }
+
+  a { color: var(--color-accent-dark); }
+  a:hover { color: var(--color-accent); }
+
+  :focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  .site-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-bottom: var(--space-4);
+    margin-bottom: var(--space-5);
+    border-bottom: 2px solid var(--color-border);
+  }
+
+  .brand {
+    font-family: var(--font-serif);
+    font-weight: var(--weight-bold);
+    font-size: var(--text-md);
+    color: var(--color-accent-dark);
+    letter-spacing: 0.01em;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6em;
+    height: 1.6em;
+    border-radius: var(--radius-pill);
+    background: var(--color-accent-dark);
+    color: var(--color-accent-contrast);
+    font-size: 0.95em;
+  }
+
+  .site-nav { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+  .site-nav a {
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    padding: var(--space-3) var(--space-3);
+    border-radius: var(--radius-sm);
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+
+  .site-nav a:hover { background: var(--color-hover); color: var(--color-accent-dark); }
+  .site-nav a[aria-current="page"] { background: var(--color-accent-dark); color: var(--color-accent-contrast); }
+
+  h1, h2, h3 { font-family: var(--font-serif); color: var(--color-accent-dark); line-height: var(--leading-snug); text-wrap: balance; }
+  h1.page-title { font-size: var(--text-2xl); line-height: var(--leading-tight); margin: 0; }
+  h2 { font-size: var(--text-lg); margin: var(--space-6) 0 var(--space-3); }
+  h3 { font-size: var(--text-md); margin: var(--space-5) 0 var(--space-2); }
+
+  /* Vertical rhythm (design-standards.md 4.5): section spacing opens up at
+     tablet width and above; stays tighter on mobile (the --space-6 default
+     set on h2 just above). */
+  @media (min-width: 768px) {
+    h2 { margin-top: var(--space-8); }
+  }
+
+  /* Progressive enhancement, zero cost where unsupported: avoids
+     single-word orphan lines in body copy. */
+  p { text-wrap: pretty; }
+
+  .subtitle { color: var(--color-muted); margin: var(--space-2) 0 0; font-size: var(--text-base); }
+
+  .empty-note {
+    color: var(--color-muted);
+    background: var(--color-surface-alt);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+  }
+
+  .table-hint {
+    display: none;
+    font-size: var(--text-xs);
+    color: var(--color-muted);
+    margin: 0 0 var(--space-2);
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    margin: var(--space-3) 0 var(--space-6);
+    background: var(--color-surface);
+  }
+
+  table {
+    width: 100%;
+    min-width: 480px;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+
+  /* Table header style: a transparent thead with a tracked label over a
+     2px accent bottom rule, replacing the old inverted solid
+     --color-accent-dark bar, which read as a dated admin-template look. */
+  thead th {
+    text-align: left;
+    padding: var(--space-3) var(--space-4);
+    background: transparent;
+    color: var(--color-muted);
+    font-weight: var(--weight-bold);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+    border-bottom: 2px solid var(--color-accent);
+  }
+
+  tbody td {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: var(--border-hairline) solid var(--color-border);
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  /* Zebra striping replaced with the hairline row rule above; a very light
+     tint (var(--color-row-tint), not full removal) keeps wide tables
+     trackable at 200% zoom, verified manually against a repertoire table. */
+  tbody tr:nth-child(even) td { background: var(--color-row-tint); }
+  tbody tr:hover td { background: var(--color-hover); }
+
+  /* Right-aligned numeric columns: tabular-nums keeps digits stacked
+     instead of jittering column width row to row. Opt-in via class (not
+     nth-child) since column layouts differ per table. */
+  th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  tr.result-win td:first-child { box-shadow: inset 3px 0 0 var(--color-win); }
+  tr.result-loss td:first-child { box-shadow: inset 3px 0 0 var(--color-loss); }
+  tr.result-draw td:first-child { box-shadow: inset 3px 0 0 var(--color-draw); }
+
+  .delta { font-weight: var(--weight-bold); }
+  .delta--pos { color: var(--color-win-text); }
+  .delta--neg { color: var(--color-loss-text); }
+  .delta--zero { color: var(--color-muted); }
+
+  .badge {
+    display: inline-block;
+    padding: 0.15em 0.6em;
+    border-radius: var(--radius-pill);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.02em;
+  }
+  .badge--win { background: var(--color-win-bg); color: var(--color-win-text); }
+  .badge--loss { background: var(--color-loss-bg); color: var(--color-loss-text); }
+  .badge--draw { background: var(--color-draw-bg); color: var(--color-draw-text); }
+
+  .summary-line {
+    color: var(--color-muted);
+    margin: var(--space-2) 0 var(--space-4);
+  }
+
+  .lookup-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin: var(--space-4) 0 var(--space-6);
+  }
+
+  .lookup-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--color-muted);
+  }
+
+  .lookup-form input,
+  .lookup-form select {
+    flex: 1 1 240px;
+    min-height: 44px;
+    font: inherit;
+    font-size: var(--text-base);
+    padding: var(--space-3) var(--space-4);
+    border: var(--border-control) solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+
+  .lookup-form input:hover,
+  .lookup-form select:hover { border-color: var(--color-accent); }
+  .lookup-form input:focus-visible,
+  .lookup-form select:focus-visible {
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-focus);
+    outline: none;
+  }
+
+  .lookup-form button {
+    min-height: 44px;
+    font: inherit;
+    font-size: var(--text-base);
+    font-weight: var(--weight-bold);
+    padding: var(--space-3) var(--space-5);
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--color-accent-dark);
+    color: var(--color-accent-contrast);
+    cursor: pointer;
+    transition: background-color 120ms ease, transform 120ms ease;
+  }
+
+  .lookup-form button:hover { background: var(--color-accent); }
+  .lookup-form button:active { transform: translateY(1px); }
+
+  .status-message {
+    border-radius: var(--radius-md);
+    padding: var(--space-4) var(--space-5);
+    margin: var(--space-3) 0 var(--space-6);
+    font-size: var(--text-base);
+  }
+
+  .status-message--loading {
+    background: var(--color-surface-alt);
+    color: var(--color-muted);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .status-message--loading::before {
+    content: "";
+    width: 1.1em;
+    height: 1.1em;
+    border-radius: var(--radius-pill);
+    border: var(--border-control) solid var(--color-border);
+    border-top-color: var(--color-accent);
+    animation: spin 800ms linear infinite;
+  }
+
+  .status-message--error {
+    background: var(--color-loss-bg);
+    color: var(--color-loss);
+    border: 1px solid var(--color-loss);
+    font-weight: 600;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .move-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.1em 0.6em;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-sans);
+    font-weight: var(--weight-bold);
+    font-size: var(--text-sm);
+  }
+
+  .move-chip--white {
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-accent-dark);
+    color: var(--color-accent-dark);
+  }
+
+  .move-chip--black {
+    background: var(--color-accent-dark);
+    border: 1.5px solid var(--color-accent-dark);
+    color: var(--color-accent-contrast);
+  }
+
+  .wdl-bar {
+    display: inline-flex;
+    width: 110px;
+    height: 8px;
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+    background: var(--color-border);
+    vertical-align: middle;
+  }
+
+  .wdl-seg--win { background: var(--color-win); height: 100%; }
+  .wdl-seg--draw { background: var(--color-draw); height: 100%; border-left: var(--border-hairline) solid var(--color-surface); }
+  .wdl-seg--loss { background: var(--color-loss); height: 100%; border-left: var(--border-hairline) solid var(--color-surface); }
+
+  /* Widened WDL bar for the one hero table per opening page
+     (renderBandsTable's "How it scores at your rating"). Percentages stay
+     visible alongside it (.wdl-label below), so color is never the sole
+     encoding. */
+  .wdl-bar--lg { width: 100%; min-width: 160px; height: 12px; }
+
+  .wdl-label { font-size: var(--text-xs); color: var(--color-muted); }
+
+  .repertoire-intro { color: var(--color-muted); margin: 0 0 var(--space-5); }
+
+  ul.repertoire-tree, ul.repertoire-tree ul {
+    list-style: none;
+    margin: 0;
+    padding-left: var(--space-5);
+    border-left: 2px solid var(--color-border);
+  }
+  ul.repertoire-tree { padding-left: 0; border-left: none; }
+
+  .repertoire-tree li { margin: var(--space-3) 0; }
+
+  .rep-node-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-4);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .rep-games { font-size: var(--text-sm); color: var(--color-text); }
+  .rep-pct { color: var(--color-muted); }
+  .rep-rating { color: var(--color-muted); font-size: var(--text-xs); }
+
+  /* ECO family/volume index pages (Phase 7d). An ECO code is metadata, not
+     a call to action -- bordered, not accent-filled (design-standards.md:
+     accent is reserved for the one primary action per view). */
+  .eco-chip {
+    display: inline-block;
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-accent-dark);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    padding: 2px var(--space-2);
+    margin-right: var(--space-2);
+    white-space: nowrap;
+  }
+  .variation-group-label {
+    font-weight: var(--weight-bold);
+    color: var(--color-text);
+    margin: var(--space-3) 0 var(--space-1);
+  }
+  .eco-index-table td.eco-names span + span::before { content: ", "; }
+
+  .pagination {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin: var(--space-6) 0;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+  }
+  .pagination a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: var(--space-2) var(--space-4);
+    border: 1.5px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    font-weight: var(--weight-bold);
+  }
+  .pagination a:hover { background: var(--color-hover); }
+  .pagination .pagination-status { color: var(--color-muted); font-size: var(--text-sm); align-self: center; }
+
+  footer.site-footer {
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+    margin-top: var(--space-7);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .newsletter-signup {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-top: var(--space-4);
+    max-width: 60ch;
+  }
+  .newsletter-heading {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 var(--space-2);
+  }
+  .newsletter-description {
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+    margin: 0 0 var(--space-3);
+  }
+  .newsletter-signup--pending .newsletter-description { margin-bottom: 0; }
+  .newsletter-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .newsletter-fields input[type="email"] {
+    flex: 1 1 220px;
+    min-height: 44px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+  .newsletter-fields input[type="email"]:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+  .newsletter-fields button {
+    min-height: 44px;
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    background: var(--color-accent);
+    color: var(--color-accent-contrast);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .newsletter-fields button:hover { background: var(--color-accent-dark); }
+  .newsletter-fields button:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  .support-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+  }
+  .support-links a {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-accent-dark);
+    text-decoration: none;
+    background: var(--color-surface);
+  }
+  .support-links a:hover {
+    background: var(--color-hover);
+    border-color: var(--color-accent);
+  }
+
+  .disclosure-note {
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+    margin: var(--space-3) 0 0;
+    max-width: 60ch;
+  }
+
+  .legal-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+    font-size: var(--text-xs);
+  }
+  .legal-links a { color: var(--color-muted); }
+  .legal-links a:hover { color: var(--color-accent-dark); }
+
+  .prose { max-width: var(--measure); }
+  .prose p { margin: 0 0 var(--space-4); line-height: var(--leading-relaxed); }
+  .prose h2 { margin-top: var(--space-6); }
+  .prose ul, .prose ol { padding-left: var(--space-5); line-height: var(--leading-relaxed); }
+  .prose blockquote {
+    border-left: 3px solid var(--color-accent);
+    padding-left: var(--space-4);
+    color: var(--color-muted);
+    font-family: var(--font-sans);
+    margin: var(--space-5) 0;
+  }
+
+  .breadcrumb { font-size: var(--text-xs); color: var(--color-muted); margin-bottom: var(--space-3); }
+  .breadcrumb a { color: var(--color-muted); }
+  .breadcrumb ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .breadcrumb li { display: inline; }
+  .breadcrumb .breadcrumb-sep { color: var(--color-border); }
+
+  .article-meta {
+    font-size: var(--text-xs);
+    color: var(--color-muted);
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-3);
+    margin: var(--space-3) 0 var(--space-5);
+  }
+
+  .toc {
+    background: var(--color-surface-alt);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4) var(--space-5);
+    margin: 0 0 var(--space-6);
+    font-size: var(--text-sm);
+  }
+
+  .card-grid {
+    display: grid;
+    gap: var(--space-4);
+    margin: var(--space-4) 0 var(--space-6);
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+
+  .card {
+    position: relative;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 120ms ease, transform 120ms ease;
+  }
+  .card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .card h3 { margin: 0 0 var(--space-2); font-size: var(--text-base); }
+  .card p { margin: 0; font-size: var(--text-sm); color: var(--color-muted); }
+  .card a { text-decoration: none; }
+  .card a::after { content: ""; position: absolute; inset: 0; }
+
+  /* One primary action per view (design-standards.md hierarchy rule): the
+     repertoire-band selector is the homepage's single
+     accent-filled primary action. Every other homepage CTA (the drill card,
+     the openings cards) is demoted to an outline card — same link targets,
+     lower visual weight. Modifier classes only; markup/link targets
+     unchanged. */
+  .card--primary {
+    background: var(--color-accent-dark);
+    border-color: var(--color-accent-dark);
+  }
+  .card--primary h3, .card--primary h3 a { color: var(--color-accent-contrast); }
+  .card--primary p, .card--primary p a { color: var(--color-accent-contrast); }
+  .card--primary p a:hover { color: var(--color-accent-contrast); text-decoration: underline; }
+
+  .card--outline {
+    background: transparent;
+    box-shadow: none;
+  }
+  .card--outline:hover { box-shadow: none; transform: none; border-color: var(--color-accent); }
+
+  /* The single overloaded .card rule split by content shape (orthogonal to
+     the primary/outline visual-weight axis above). card--nav is a pure
+     navigational link (drill CTA, related openings, guides hub; no data
+     carried); card--stat additionally carries inline WDL data on opening
+     entry-page cards, so a visitor never has to click through to see
+     whether an opening is worth their time. */
+  .card--nav p { margin: 0; }
+
+  .card--stat .card-wdl-row { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-2) 0; }
+  .card--stat .card-score { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-bold); color: var(--color-accent-dark); }
+  .card--stat.card--primary .card-score,
+  .card--stat.card--outline .card-score { color: inherit; }
+
+  /* The four rating-band pickers as one role=group control with 44px
+     pill links, replacing four floating cards that carried the same visual
+     weight as unrelated nav cards elsewhere on the page. */
+  .band-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin: var(--space-4) 0 var(--space-6);
+  }
+  .band-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: 44px;
+    padding: var(--space-2) var(--space-5);
+    border-radius: var(--radius-pill);
+    background: var(--color-accent-dark);
+    color: var(--color-accent-contrast);
+    text-decoration: none;
+    font-weight: var(--weight-bold);
+    font-size: var(--text-sm);
+    transition: background-color 120ms ease, transform 120ms ease;
+  }
+  .band-pill:hover { background: var(--color-accent); color: var(--color-accent-contrast); transform: translateY(-1px); }
+  .band-pill-color { font-weight: var(--weight-regular); opacity: 0.85; }
+
+  /* Eyebrow label above an h1, shared by renderPageHead(). */
+  .page-eyebrow {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-accent);
+    margin: 0 0 var(--space-2);
+  }
+
+  .callout {
+    background: var(--color-surface-alt);
+    border-left: 4px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    padding: var(--space-4) var(--space-5);
+    margin: var(--space-5) 0;
+    font-size: var(--text-sm);
+  }
+
+  .stat-row { display: flex; flex-wrap: wrap; gap: var(--space-4); margin: var(--space-4) 0 var(--space-6); }
+  .stat {
+    flex: 1 1 140px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+  }
+  .stat-value { font-family: var(--font-sans); font-size: var(--text-xl); color: var(--color-accent-dark); line-height: 1.1; }
+  .stat-label { font-size: var(--text-xs); color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .source-list { font-size: var(--text-sm); color: var(--color-muted); }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    width: min(100%, 352px);
+    aspect-ratio: 1 / 1;
+    border: 2px solid var(--color-accent-dark);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin: 0;
+  }
+  .board-sq {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(18px, 5.2vw, 30px);
+    line-height: 1;
+    font-family: "Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols 2", "DejaVu Sans", sans-serif;
+  }
+  .board-sq--light { background: var(--color-board-light); }
+  .board-sq--dark { background: var(--color-board-dark); }
+  .board-pc--w { color: var(--color-surface); text-shadow: 0 0 1px var(--color-text), 0 0 1px var(--color-text), 0 0 2px var(--color-text); }
+  .board-pc--b { color: var(--color-text); }
+  /* Phase 7c: real Cburnett SVG piece artwork (src/boardSvg.js), replacing
+     the .board-pc--w/--b Unicode-glyph technique above for the static
+     content-page diagram. .board-pc--w/--b stay defined -- the Italian
+     Game drill's own board (src/renderDrill.js) still uses them. */
+  .board-piece { width: 84%; height: 84%; display: block; }
+  figure.board-figure { margin: var(--space-4) 0 var(--space-6); }
+  figcaption { font-size: var(--text-sm); color: var(--color-muted); margin-top: var(--space-2); }
+
+  /* Interactive board component (src/boardWidget.js, Phase 7c) -- a
+     tokenised theme for cm-chessboard, replacing its own shipped ".default"
+     palette entirely (design-standards.md: "do not ship its palette").
+     cm-chessboard has no CSS custom properties of its own (verified by
+     reading node_modules/cm-chessboard/assets/chessboard.css -- every rule
+     is a hardcoded hex scoped by a .default/.green/etc. theme class), so
+     this defines a same-shaped theme class of our own, .repertoire-theme,
+     wired to our tokens instead. boardWidget.js sets style.cssClass to
+     "repertoire-theme" and never loads cm-chessboard's own chessboard.css. */
+  .cm-chessboard.repertoire-theme .board .square.white { fill: var(--color-board-light); }
+  .cm-chessboard.repertoire-theme .board .square.black { fill: var(--color-board-dark); }
+  .cm-chessboard.repertoire-theme.border-type-thin .board .border { stroke: var(--color-accent-dark); stroke-width: 0.7%; fill: var(--color-accent-dark); }
+  .cm-chessboard.repertoire-theme .coordinates .coordinate { font-size: 7px; cursor: default; }
+  .cm-chessboard.repertoire-theme .coordinates .coordinate.black { fill: var(--color-board-light); }
+  .cm-chessboard.repertoire-theme .coordinates .coordinate.white { fill: var(--color-board-dark); }
+  .cm-chessboard .board.input-enabled .square { cursor: pointer; }
+  .cm-chessboard .coordinates, .cm-chessboard .markers-layer, .cm-chessboard .pieces-layer, .cm-chessboard .markers-top-layer { pointer-events: none; }
+  /* Shared focus-ring language (:focus-visible above), not cm-chessboard's
+     own hardcoded #0066cc default. These two rects (drawn by the
+     Accessibility extension's keyboardMoveInput -- see
+     node_modules/cm-chessboard/src/extensions/accessibility/Accessibility.js's
+     showFocusIndicator()) ship with NO fill/stroke of their own, so leaving
+     them unstyled renders as a solid black square (found during Phase 7c's
+     own visual QA, not a cosmetic nicety -- an unstyled .keyboard-focus
+     rect fully occludes the piece under it). */
+  .cm-chessboard-widget:focus-within { outline: var(--border-control) solid var(--color-focus); outline-offset: 2px; border-radius: var(--radius-sm); }
+  .cm-chessboard .keyboard-focus-indicator .keyboard-focus { fill: none; stroke: var(--color-focus); stroke-width: 3px; pointer-events: none; }
+  .cm-chessboard .keyboard-focus-indicator .keyboard-from-square { fill: var(--color-hover); stroke: var(--color-focus); stroke-width: 2px; pointer-events: none; }
+  .cm-chessboard-accessibility.visually-hidden {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  .cm-chessboard-accessibility button:disabled,
+  .cm-chessboard-accessibility button:disabled:hover { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+  .board-replay-controls { display: flex; gap: var(--space-2); margin: var(--space-3) 0 0; }
+  .board-replay-controls button {
+    min-height: 44px; min-width: 44px; font: inherit; font-weight: var(--weight-bold);
+    padding: var(--space-2) var(--space-3); border: 1.5px solid var(--color-border-strong);
+    border-radius: var(--radius-md); background: var(--color-surface); cursor: pointer;
+  }
+  .board-replay-controls button:hover:not(:disabled) { background: var(--color-hover); }
+  .board-replay-controls button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* T3: the interactive ECO explorer (Phase 7e). Board + paste tools in a
+     fixed-max-width left column, the search/results panel filling the
+     remainder -- same two-column pattern as the drill page's
+     .drill-layout, reused rather than inventing a second one
+     (design-standards.md: conform at the interaction layer). Single
+     column below 1024px. */
+  .explorer-layout { margin: var(--space-4) 0 var(--space-6); }
+  @media (min-width: 1024px) {
+    .explorer-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 420px) 1fr;
+      gap: var(--space-6);
+      align-items: start;
+    }
+  }
+  main .explorer-layout, main .explorer-top-families { max-width: none; }
+
+  .explorer-board-mount { min-height: 320px; }
+  .explorer-current-line { font-weight: var(--weight-bold); margin: var(--space-3) 0 0; min-height: 1.4em; }
+  .explorer-identify-status { color: var(--color-muted); font-size: var(--text-sm); margin: var(--space-1) 0 var(--space-3); min-height: 1.2em; }
+
+  .explorer-paste { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-top: var(--space-3); }
+  .explorer-paste summary { cursor: pointer; font-weight: var(--weight-bold); min-height: 24px; }
+  .explorer-paste-inputs { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); }
+  .explorer-paste-inputs label { font-size: var(--text-sm); font-weight: var(--weight-bold); }
+  .explorer-paste-row { display: flex; gap: var(--space-2); }
+  .explorer-paste-inputs input,
+  .explorer-paste-inputs textarea {
+    font: inherit; padding: var(--space-2) var(--space-3); border: 1.5px solid var(--color-border-strong);
+    border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); width: 100%;
+  }
+  .explorer-paste-inputs input:focus-visible,
+  .explorer-paste-inputs textarea:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+  .explorer-paste-inputs textarea { resize: vertical; font-size: var(--text-sm); }
+  .explorer-paste-row button,
+  .explorer-paste-inputs > button {
+    min-height: 44px; font: inherit; font-weight: var(--weight-bold); white-space: nowrap;
+    padding: var(--space-2) var(--space-4); border: 1.5px solid var(--color-border-strong);
+    border-radius: var(--radius-md); background: var(--color-surface); cursor: pointer;
+  }
+  .explorer-paste-row button:hover,
+  .explorer-paste-inputs > button:hover { background: var(--color-hover); }
+  .explorer-error { color: var(--color-loss-text); font-size: var(--text-sm); min-height: 1.2em; margin: var(--space-2) 0 0; }
+
+  .explorer-search-panel .lookup-form { margin-bottom: var(--space-2); }
+  .explorer-result-count { color: var(--color-muted); font-size: var(--text-sm); min-height: 1.2em; margin: 0 0 var(--space-2); }
+  .explorer-result-name {
+    font: inherit; font-weight: var(--weight-bold); color: var(--color-accent-dark); background: none;
+    border: none; padding: 0; min-height: 24px; cursor: pointer; text-decoration: underline;
+  }
+  .explorer-result-name:hover { color: var(--color-accent); }
+  .explorer-moves-cell { font-size: var(--text-sm); color: var(--color-muted); }
+  .explorer-top-families { list-style: none; padding: 0; display: grid; gap: var(--space-2); grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  .explorer-top-families li { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3); }
+  .explorer-family-meta { display: block; color: var(--color-muted); font-size: var(--text-xs); margin-top: var(--space-1); }
+  .explorer-noscript { border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); padding: var(--space-4); }
+
+  @media (max-width: 640px) {
+    body { padding: var(--space-4) var(--space-3) var(--space-6); }
+    h1.page-title { font-size: var(--text-xl); }
+    .table-hint { display: block; }
+    .wdl-bar { width: 72px; }
+    /* Keep the hero table's widened bar filling its cell even on mobile,
+       rather than shrinking to the compact 72px default above; same
+       specificity, so declaration order (this rule after .wdl-bar) decides. */
+    .wdl-bar--lg { width: 100%; min-width: 0; }
+    .rep-node-row { padding: var(--space-2) var(--space-3); }
+    .lookup-form { flex-direction: column; align-items: stretch; }
+    .lookup-form input, .lookup-form select { flex: 1 1 auto; width: 100%; }
+    .lookup-form label { width: 100%; }
+    .card-grid { grid-template-columns: 1fr; }
+  }
+</style>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://repertoire-builder.com/"},{"@type":"ListItem","position":2,"name":"ECO index","item":"https://repertoire-builder.com/eco-openings.html"},{"@type":"ListItem","position":3,"name":"Page 2","item":"https://repertoire-builder.com/eco-openings-2.html"}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"ItemList","name":"Chess opening families","itemListElement":[{"@type":"ListItem","position":1,"name":"Latvian Gambit","item":"https://repertoire-builder.com/latvian-gambit-variations.html"},{"@type":"ListItem","position":2,"name":"Latvian Gambit Accepted","item":"https://repertoire-builder.com/latvian-gambit-accepted-variations.html"},{"@type":"ListItem","position":3,"name":"Lemming Defense"},{"@type":"ListItem","position":4,"name":"Lion Defense"},{"@type":"ListItem","position":5,"name":"London System"},{"@type":"ListItem","position":6,"name":"London System, with Bd3"},{"@type":"ListItem","position":7,"name":"London System, with Be2"},{"@type":"ListItem","position":8,"name":"Marienbad System"},{"@type":"ListItem","position":9,"name":"Mexican Defense"},{"@type":"ListItem","position":10,"name":"Mieses Opening"},{"@type":"ListItem","position":11,"name":"Mikenas Defense"},{"@type":"ListItem","position":12,"name":"Modern Defense","item":"https://repertoire-builder.com/modern-defense-variations.html"},{"@type":"ListItem","position":13,"name":"Montevideo Defense"},{"@type":"ListItem","position":14,"name":"Neo-Grünfeld Defense","item":"https://repertoire-builder.com/neo-grunfeld-defense-variations.html"},{"@type":"ListItem","position":15,"name":"Nimzo-Indian Defense","item":"https://repertoire-builder.com/nimzo-indian-defense-variations.html"},{"@type":"ListItem","position":16,"name":"Nimzo-Larsen Attack","item":"https://repertoire-builder.com/nimzo-larsen-attack-variations.html"},{"@type":"ListItem","position":17,"name":"Nimzowitsch Defense","item":"https://repertoire-builder.com/nimzowitsch-defense-variations.html"},{"@type":"ListItem","position":18,"name":"Old Indian Defense","item":"https://repertoire-builder.com/old-indian-defense-variations.html"},{"@type":"ListItem","position":19,"name":"Owen Defense","item":"https://repertoire-builder.com/owen-defense-variations.html"},{"@type":"ListItem","position":20,"name":"Paleface Attack"},{"@type":"ListItem","position":21,"name":"Petrov's Defense","item":"https://repertoire-builder.com/petrovs-defense-variations.html"},{"@type":"ListItem","position":22,"name":"Philidor Defense","item":"https://repertoire-builder.com/philidor-defense-variations.html"},{"@type":"ListItem","position":23,"name":"Pirc Defense","item":"https://repertoire-builder.com/pirc-defense-variations.html"},{"@type":"ListItem","position":24,"name":"Polish Defense"},{"@type":"ListItem","position":25,"name":"Polish Opening","item":"https://repertoire-builder.com/polish-opening-variations.html"},{"@type":"ListItem","position":26,"name":"Polish Opening, with d5"},{"@type":"ListItem","position":27,"name":"Ponziani Opening","item":"https://repertoire-builder.com/ponziani-opening-variations.html"},{"@type":"ListItem","position":28,"name":"Portuguese Opening"},{"@type":"ListItem","position":29,"name":"Pseudo Queen's Indian Defense"},{"@type":"ListItem","position":30,"name":"Pterodactyl Defense","item":"https://repertoire-builder.com/pterodactyl-defense-variations.html"},{"@type":"ListItem","position":31,"name":"Queen's Gambit"},{"@type":"ListItem","position":32,"name":"Queen's Gambit Accepted","item":"https://repertoire-builder.com/queens-gambit-accepted-variations.html"},{"@type":"ListItem","position":33,"name":"Queen's Gambit Declined","item":"https://repertoire-builder.com/queens-gambit-declined-variations.html"},{"@type":"ListItem","position":34,"name":"Queen's Indian Accelerated"},{"@type":"ListItem","position":35,"name":"Queen's Indian Defense","item":"https://repertoire-builder.com/queens-indian-defense-variations.html"},{"@type":"ListItem","position":36,"name":"Queen's Indian Defense, with e3","item":"https://repertoire-builder.com/queens-indian-defense-with-e3-variations.html"},{"@type":"ListItem","position":37,"name":"Queen's Indian Defense, with e3, Bb4+ Line"},{"@type":"ListItem","position":38,"name":"Queen's Pawn Game","item":"https://repertoire-builder.com/queens-pawn-game-variations.html"},{"@type":"ListItem","position":39,"name":"Queen's Pawn, Mengarini Attack"},{"@type":"ListItem","position":40,"name":"Rapport-Jobava System"},{"@type":"ListItem","position":41,"name":"Rapport-Jobava System, with e6"},{"@type":"ListItem","position":42,"name":"Rat Defense","item":"https://repertoire-builder.com/rat-defense-variations.html"},{"@type":"ListItem","position":43,"name":"Réti Opening","item":"https://repertoire-builder.com/reti-opening-variations.html"},{"@type":"ListItem","position":44,"name":"Richter-Veresov Attack","item":"https://repertoire-builder.com/richter-veresov-attack-variations.html"},{"@type":"ListItem","position":45,"name":"Robatsch Defense"},{"@type":"ListItem","position":46,"name":"Rubinstein Opening"},{"@type":"ListItem","position":47,"name":"Ruy Lopez","item":"https://repertoire-builder.com/ruy-lopez-variations.html"},{"@type":"ListItem","position":48,"name":"Saragossa Opening"},{"@type":"ListItem","position":49,"name":"Scandinavian Defense","item":"https://repertoire-builder.com/scandinavian-defense-variations.html"},{"@type":"ListItem","position":50,"name":"Scotch Game","item":"https://repertoire-builder.com/scotch-game-variations.html"},{"@type":"ListItem","position":51,"name":"Semi-Slav Defense","item":"https://repertoire-builder.com/semi-slav-defense-variations.html"},{"@type":"ListItem","position":52,"name":"Semi-Slav Defense Accepted"},{"@type":"ListItem","position":53,"name":"Sicilian Defense","item":"https://repertoire-builder.com/sicilian-defense-variations.html"},{"@type":"ListItem","position":54,"name":"Slav Defense","item":"https://repertoire-builder.com/slav-defense-variations.html"},{"@type":"ListItem","position":55,"name":"Slav Indian"},{"@type":"ListItem","position":56,"name":"Sodium Attack"},{"@type":"ListItem","position":57,"name":"St. George Defense"},{"@type":"ListItem","position":58,"name":"Tarrasch Defense","item":"https://repertoire-builder.com/tarrasch-defense-variations.html"},{"@type":"ListItem","position":59,"name":"Three Knights Opening"},{"@type":"ListItem","position":60,"name":"Torre Attack"},{"@type":"ListItem","position":61,"name":"Trompowsky Attack","item":"https://repertoire-builder.com/trompowsky-attack-variations.html"},{"@type":"ListItem","position":62,"name":"Valencia Opening"},{"@type":"ListItem","position":63,"name":"Van Geet Opening","item":"https://repertoire-builder.com/van-geet-opening-variations.html"},{"@type":"ListItem","position":64,"name":"Van't Kruijs Opening"},{"@type":"ListItem","position":65,"name":"Vienna Gambit, with Max Lange Defense","item":"https://repertoire-builder.com/vienna-gambit-with-max-lange-defense-variations.html"},{"@type":"ListItem","position":66,"name":"Vienna Game","item":"https://repertoire-builder.com/vienna-game-variations.html"},{"@type":"ListItem","position":67,"name":"Vulture Defense"},{"@type":"ListItem","position":68,"name":"Wade Defense"},{"@type":"ListItem","position":69,"name":"Ware Defense"},{"@type":"ListItem","position":70,"name":"Ware Opening"},{"@type":"ListItem","position":71,"name":"Yusupov-Rubinstein System"},{"@type":"ListItem","position":72,"name":"Zaire Defense"},{"@type":"ListItem","position":73,"name":"Zukertort Defense"},{"@type":"ListItem","position":74,"name":"Zukertort Opening","item":"https://repertoire-builder.com/zukertort-opening-variations.html"}]}</script>
+  <script data-goatcounter="https://dylangerrrr.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9767914878112531" crossorigin="anonymous"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">&#9822;</span>Repertoire Builder</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="/">Repertoire explorer</a>
+      <a href="openings.html">Openings</a>
+      <a href="eco-openings.html" aria-current="page">ECO index</a>
+      <a href="italian-game-drill.html">Opening drill</a>
+      <a href="guides.html">Guides</a>
+      <a href="chess-opening-faq.html">FAQ</a>
+      <a href="player.html">Player lookup</a>
+    </nav>
+  </header>
+  <main>
+    <nav class="breadcrumb" aria-label="Breadcrumb"><ol><li><a href="/">Home</a></li><li class="breadcrumb-sep" aria-hidden="true">/</li><li><a href="eco-openings.html">ECO index</a></li><li class="breadcrumb-sep" aria-hidden="true">/</li><li aria-current="page">Page 2</li></ol></nav>
+    <h1 class="page-title">Chess opening families, page 2 of 2</h1>
+    
+
+    <h2>Families Latvian Gambit&ndash;Zukertort Opening</h2>
+    
+    <p class="table-hint">Scroll to see more &rarr;</p>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable data table">
+      <table>
+        <caption class="sr-only">Chess opening families, page 2</caption>
+        <thead><tr><th scope="col">Family</th><th scope="col">ECO codes</th><th scope="col" class="num">Lines</th></tr></thead>
+        <tbody><tr><td><a href="latvian-gambit-variations.html">Latvian Gambit</a></td><td><span class="eco-chip">C40–C44</span></td><td class="num">17</td></tr><tr><td><a href="latvian-gambit-accepted-variations.html">Latvian Gambit Accepted</a></td><td><span class="eco-chip">C40</span></td><td class="num">9</td></tr><tr><td>Lemming Defense</td><td><span class="eco-chip">B00</span></td><td class="num">1</td></tr><tr><td>Lion Defense</td><td><span class="eco-chip">B00–B07</span></td><td class="num">6</td></tr><tr><td>London System</td><td><span class="eco-chip">A48–D02</span></td><td class="num">4</td></tr><tr><td>London System, with Bd3</td><td><span class="eco-chip">A48</span></td><td class="num">1</td></tr><tr><td>London System, with Be2</td><td><span class="eco-chip">A48</span></td><td class="num">3</td></tr><tr><td>Marienbad System</td><td><span class="eco-chip">A47</span></td><td class="num">2</td></tr><tr><td>Mexican Defense</td><td><span class="eco-chip">A50</span></td><td class="num">2</td></tr><tr><td>Mieses Opening</td><td><span class="eco-chip">A00</span></td><td class="num">4</td></tr><tr><td>Mikenas Defense</td><td><span class="eco-chip">A40</span></td><td class="num">4</td></tr><tr><td><a href="modern-defense-variations.html">Modern Defense</a></td><td><span class="eco-chip">A04–B27</span></td><td class="num">39</td></tr><tr><td>Montevideo Defense</td><td><span class="eco-chip">A40</span></td><td class="num">1</td></tr><tr><td><a href="neo-grunfeld-defense-variations.html">Neo-Grünfeld Defense</a></td><td><span class="eco-chip">D70–D79</span></td><td class="num">16</td></tr><tr><td><a href="nimzo-indian-defense-variations.html">Nimzo-Indian Defense</a></td><td><span class="eco-chip">E20–E59</span></td><td class="num">99</td></tr><tr><td><a href="nimzo-larsen-attack-variations.html">Nimzo-Larsen Attack</a></td><td><span class="eco-chip">A01–A06</span></td><td class="num">18</td></tr><tr><td><a href="nimzowitsch-defense-variations.html">Nimzowitsch Defense</a></td><td><span class="eco-chip">B00</span></td><td class="num">43</td></tr><tr><td><a href="old-indian-defense-variations.html">Old Indian Defense</a></td><td><span class="eco-chip">A41–A55</span></td><td class="num">14</td></tr><tr><td><a href="owen-defense-variations.html">Owen Defense</a></td><td><span class="eco-chip">B00</span></td><td class="num">8</td></tr><tr><td>Paleface Attack</td><td><span class="eco-chip">A45</span></td><td class="num">1</td></tr><tr><td><a href="petrovs-defense-variations.html">Petrov&#39;s Defense</a></td><td><span class="eco-chip">C42–C43</span></td><td class="num">50</td></tr><tr><td><a href="philidor-defense-variations.html">Philidor Defense</a></td><td><span class="eco-chip">C41</span></td><td class="num">44</td></tr><tr><td><a href="pirc-defense-variations.html">Pirc Defense</a></td><td><span class="eco-chip">B00–B09</span></td><td class="num">28</td></tr><tr><td>Polish Defense</td><td><span class="eco-chip">A40</span></td><td class="num">2</td></tr><tr><td><a href="polish-opening-variations.html">Polish Opening</a></td><td><span class="eco-chip">A00–A05</span></td><td class="num">25</td></tr><tr><td>Polish Opening, with d5</td><td><span class="eco-chip">A00</span></td><td class="num">2</td></tr><tr><td><a href="ponziani-opening-variations.html">Ponziani Opening</a></td><td><span class="eco-chip">C44</span></td><td class="num">16</td></tr><tr><td>Portuguese Opening</td><td><span class="eco-chip">C20</span></td><td class="num">3</td></tr><tr><td>Pseudo Queen&#39;s Indian Defense</td><td><span class="eco-chip">A47</span></td><td class="num">2</td></tr><tr><td><a href="pterodactyl-defense-variations.html">Pterodactyl Defense</a></td><td><span class="eco-chip">A40–B27</span></td><td class="num">33</td></tr><tr><td>Queen&#39;s Gambit</td><td><span class="eco-chip">D06</span></td><td class="num">1</td></tr><tr><td><a href="queens-gambit-accepted-variations.html">Queen&#39;s Gambit Accepted</a></td><td><span class="eco-chip">D20–D29</span></td><td class="num">58</td></tr><tr><td><a href="queens-gambit-declined-variations.html">Queen&#39;s Gambit Declined</a></td><td><span class="eco-chip">D02–D69</span></td><td class="num">198</td></tr><tr><td>Queen&#39;s Indian Accelerated</td><td><span class="eco-chip">A50</span></td><td class="num">1</td></tr><tr><td><a href="queens-indian-defense-variations.html">Queen&#39;s Indian Defense</a></td><td><span class="eco-chip">E12–E19</span></td><td class="num">53</td></tr><tr><td><a href="queens-indian-defense-with-e3-variations.html">Queen&#39;s Indian Defense, with e3</a></td><td><span class="eco-chip">E14</span></td><td class="num">14</td></tr><tr><td>Queen&#39;s Indian Defense, with e3, Bb4+ Line</td><td><span class="eco-chip">E14</span></td><td class="num">1</td></tr><tr><td><a href="queens-pawn-game-variations.html">Queen&#39;s Pawn Game</a></td><td><span class="eco-chip">A40–D05</span></td><td class="num">82</td></tr><tr><td>Queen&#39;s Pawn, Mengarini Attack</td><td><span class="eco-chip">E60</span></td><td class="num">1</td></tr><tr><td>Rapport-Jobava System</td><td><span class="eco-chip">D01</span></td><td class="num">3</td></tr><tr><td>Rapport-Jobava System, with e6</td><td><span class="eco-chip">D01</span></td><td class="num">1</td></tr><tr><td><a href="rat-defense-variations.html">Rat Defense</a></td><td><span class="eco-chip">A41–C00</span></td><td class="num">11</td></tr><tr><td><a href="reti-opening-variations.html">Réti Opening</a></td><td><span class="eco-chip">A09–A14</span></td><td class="num">43</td></tr><tr><td><a href="richter-veresov-attack-variations.html">Richter-Veresov Attack</a></td><td><span class="eco-chip">D01</span></td><td class="num">8</td></tr><tr><td>Robatsch Defense</td><td><span class="eco-chip">A41</span></td><td class="num">1</td></tr><tr><td>Rubinstein Opening</td><td><span class="eco-chip">D05</span></td><td class="num">6</td></tr><tr><td><a href="ruy-lopez-variations.html">Ruy Lopez</a></td><td><span class="eco-chip">C60–C99</span></td><td class="num">235</td></tr><tr><td>Saragossa Opening</td><td><span class="eco-chip">A00</span></td><td class="num">1</td></tr><tr><td><a href="scandinavian-defense-variations.html">Scandinavian Defense</a></td><td><span class="eco-chip">B01</span></td><td class="num">45</td></tr><tr><td><a href="scotch-game-variations.html">Scotch Game</a></td><td><span class="eco-chip">C44–C45</span></td><td class="num">53</td></tr><tr><td><a href="semi-slav-defense-variations.html">Semi-Slav Defense</a></td><td><span class="eco-chip">D30–D49</span></td><td class="num">69</td></tr><tr><td>Semi-Slav Defense Accepted</td><td><span class="eco-chip">D44</span></td><td class="num">1</td></tr><tr><td><a href="sicilian-defense-variations.html">Sicilian Defense</a></td><td><span class="eco-chip">B20–B99</span></td><td class="num">391</td></tr><tr><td><a href="slav-defense-variations.html">Slav Defense</a></td><td><span class="eco-chip">D10–D19</span></td><td class="num">52</td></tr><tr><td>Slav Indian</td><td><span class="eco-chip">A40–A50</span></td><td class="num">2</td></tr><tr><td>Sodium Attack</td><td><span class="eco-chip">A00</span></td><td class="num">4</td></tr><tr><td>St. George Defense</td><td><span class="eco-chip">B00</span></td><td class="num">4</td></tr><tr><td><a href="tarrasch-defense-variations.html">Tarrasch Defense</a></td><td><span class="eco-chip">D32–D34</span></td><td class="num">27</td></tr><tr><td>Three Knights Opening</td><td><span class="eco-chip">C46</span></td><td class="num">6</td></tr><tr><td>Torre Attack</td><td><span class="eco-chip">A46–A48</span></td><td class="num">6</td></tr><tr><td><a href="trompowsky-attack-variations.html">Trompowsky Attack</a></td><td><span class="eco-chip">A45</span></td><td class="num">10</td></tr><tr><td>Valencia Opening</td><td><span class="eco-chip">A00</span></td><td class="num">1</td></tr><tr><td><a href="van-geet-opening-variations.html">Van Geet Opening</a></td><td><span class="eco-chip">A00–C31</span></td><td class="num">33</td></tr><tr><td>Van&#39;t Kruijs Opening</td><td><span class="eco-chip">A00</span></td><td class="num">5</td></tr><tr><td><a href="vienna-gambit-with-max-lange-defense-variations.html">Vienna Gambit, with Max Lange Defense</a></td><td><span class="eco-chip">C25</span></td><td class="num">15</td></tr><tr><td><a href="vienna-game-variations.html">Vienna Game</a></td><td><span class="eco-chip">C25–C29</span></td><td class="num">41</td></tr><tr><td>Vulture Defense</td><td><span class="eco-chip">A56</span></td><td class="num">1</td></tr><tr><td>Wade Defense</td><td><span class="eco-chip">A41</span></td><td class="num">1</td></tr><tr><td>Ware Defense</td><td><span class="eco-chip">B00</span></td><td class="num">2</td></tr><tr><td>Ware Opening</td><td><span class="eco-chip">A00</span></td><td class="num">7</td></tr><tr><td>Yusupov-Rubinstein System</td><td><span class="eco-chip">A46</span></td><td class="num">1</td></tr><tr><td>Zaire Defense</td><td><span class="eco-chip">A40</span></td><td class="num">1</td></tr><tr><td>Zukertort Defense</td><td><span class="eco-chip">A04</span></td><td class="num">2</td></tr><tr><td><a href="zukertort-opening-variations.html">Zukertort Opening</a></td><td><span class="eco-chip">A04–A41</span></td><td class="num">47</td></tr></tbody>
+      </table></div>
+    <nav class="pagination" aria-label="ECO index pages">
+      <a href="eco-openings.html" rel="prev">&larr; Previous page</a>
+      <span class="pagination-status">Page 2 of 2</span>
+      <span></span>
+    </nav>
+  </main>
+  <footer class="site-footer">ECO classification data from the CC0-licensed <a href="https://github.com/lichess-org/chess-openings">lichess.org opening database</a>.
+  <div class="newsletter-signup newsletter-signup--pending">
+    <h2 class="newsletter-heading">Get new openings and guides by email</h2>
+    <p class="newsletter-description">Email sign-up isn&rsquo;t live yet &mdash; check back soon, or follow the <a href="feed.xml">RSS feed</a> in the meantime.</p>
+  </div>
+  <div class="support-links">
+    <a href="https://ko-fi.com/flavaa" target="_blank" rel="noopener noreferrer">&#9749; Support on Ko-fi</a>
+    <a href="https://buymeacoffee.com/dylanger254" target="_blank" rel="noopener noreferrer">&#9749; Buy Me a Coffee</a>
+  </div>
+  <p class="disclosure-note">Disclosure: this site includes voluntary support links (Ko-fi, Buy Me a Coffee) and may in the future include affiliate links that earn a small commission on qualifying purchases at no extra cost to you. Support and affiliate links never influence the win-rate data, rankings, or analysis shown on this site &mdash; all of that comes directly from Lichess&rsquo;s public API and Opening Explorer, unaffected by any link on this page.</p>
+  <nav class="legal-links" aria-label="Legal">
+    <a href="privacy.html">Privacy policy</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+  </nav></footer>
+</body>
+</html>
