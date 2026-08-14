@@ -88,10 +88,10 @@ test('renderFooter always includes the affiliate/support-link disclosure, with o
   assert.match(withLegal, /href="contact\.html">Contact<\/a>/);
 });
 
-test('renderDisclosure is a standalone snippet that mentions both current support links and possible future affiliate links', () => {
+test('renderDisclosure mentions the current Ko-fi support link, no longer Buy Me a Coffee, and possible future affiliate links', () => {
   const html = renderDisclosure();
   assert.match(html, /Ko-fi/);
-  assert.match(html, /Buy Me a Coffee/);
+  assert.doesNotMatch(html, /Buy Me a Coffee/);
   assert.match(html, /affiliate links/);
   assert.match(html, /class="disclosure-note"/);
 });

@@ -150,15 +150,24 @@ function lichessOpeningUrl(name) {
  *   cell (`.wdl-bar--lg`, render.js), used only for the one hero table per
  *   opening page (renderBandsTable below). The adjacent percentages
  *   (.wdl-label) always render too, so color is never the sole encoding.
+ *
+ * Rendered as an inline <svg> with three <rect> segments on a 0-100 viewBox
+ * (x/width map directly to the percentages), not <span style="width:X%">.
+ * Each segment's width is a real per-row data value, and there is no way to
+ * express that as a static CSS class -- but html-validate's no-inline-style
+ * rule flags any `style` attribute outright, on any element. SVG rect x/
+ * width are geometry attributes, not the flagged `style` attribute, so this
+ * keeps the exact same stacked-percentage-bar visual with zero inline
+ * styles. The <svg><title> child (not the HTML `title` attribute, which
+ * `aria-label-misuse` would flag on a non-widget/landmark element) is both
+ * the accessible name and the native hover tooltip.
  */
 function wdlBar(winPct, drawPct, lossPct, title, opts = {}) {
   if (winPct == null) return '<span class="wdl-label">not enough games</span>';
   const barClass = opts.large ? 'wdl-bar wdl-bar--lg' : 'wdl-bar';
-  return `<span class="${barClass}" title="${escapeHtml(title)}">
-      <span class="wdl-seg--win" style="width:${winPct}%"></span>
-      <span class="wdl-seg--draw" style="width:${drawPct}%"></span>
-      <span class="wdl-seg--loss" style="width:${lossPct}%"></span>
-    </span>
+  const drawX = winPct;
+  const lossX = winPct + drawPct;
+  return `<svg class="${barClass}" viewBox="0 0 100 12" preserveAspectRatio="none" role="img"><title>${escapeHtml(title)}</title><rect class="wdl-seg--win" x="0" y="0" width="${winPct}" height="12"></rect><rect class="wdl-seg--draw" x="${drawX}" y="0" width="${drawPct}" height="12"></rect><rect class="wdl-seg--loss" x="${lossX}" y="0" width="${lossPct}" height="12"></rect></svg>
     <span class="wdl-label">${formatPct(winPct)}% / ${formatPct(drawPct)}% / ${formatPct(lossPct)}%</span>`;
 }
 
@@ -183,7 +192,7 @@ function renderBandsTable(model) {
         <tr><th scope="col">Rating band</th><th scope="col" class="num">Games</th><th scope="col">White / draw / Black</th><th scope="col" class="num">Score for ${escapeHtml(model.side)}</th></tr>
       </thead>
       <tbody>${rows}</tbody>
-    </table>`);
+    </table>`, 'Win/draw/loss rate by rating band');
 }
 
 function renderTopRepliesTable(model) {
@@ -206,7 +215,7 @@ function renderTopRepliesTable(model) {
       <caption class="sr-only">Most common replies at ${escapeHtml(model.defaultBand)}</caption>
       <thead><tr><th scope="col">Move</th><th scope="col" class="num">Games</th><th scope="col" class="num">Played</th><th scope="col">Win / draw / loss</th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>`);
+    </table>`, `Most common replies at ${model.defaultBand}`);
 }
 
 function renderMistakesSection(model) {
@@ -222,7 +231,7 @@ function renderMistakesSection(model) {
       return `<li class="callout">${base}${follow}</li>`;
     })
     .join('');
-  return `<ul style="list-style:none; padding:0; margin:0;">${items}</ul>`;
+  return `<ul class="callout-list">${items}</ul>`;
 }
 
 function renderGameRows(games, { asMaster = false } = {}) {
@@ -253,7 +262,7 @@ function renderGamesTable(games, caption) {
       <caption class="sr-only">${escapeHtml(caption)}</caption>
       <thead><tr><th scope="col">White</th><th scope="col">Black</th><th scope="col">Result</th><th scope="col">Year</th><th scope="col">Game</th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>`);
+    </table>`, caption);
 }
 
 /**
@@ -277,9 +286,14 @@ function renderOpeningPage({ model, openingConfig, nav, related = [], repertoire
   const flip = openingConfig.side === 'black';
   const sanLine = formatSanLine(line);
   const mainBand = model.bands.find((b) => b.band === model.defaultBand) || model.bands[0];
+  // Literal &amp; (not a raw &) -- this string is interpolated directly into
+  // the page subtitle below with no further escaping pass (unlike sanLine/
+  // model.side right next to it, which go through escapeHtml() at the call
+  // site), matching how every other static entity in this codebase's
+  // templates (&mdash;, &rarr;, etc.) is written pre-escaped inline.
   const totalGamesNote = mainBand && mainBand.games
-    ? `data from ${mainBand.games.toLocaleString()} Lichess blitz & rapid games at ${escapeHtml(model.defaultBand)}`
-    : 'data from Lichess blitz & rapid games';
+    ? `data from ${mainBand.games.toLocaleString()} Lichess blitz &amp; rapid games at ${escapeHtml(model.defaultBand)}`
+    : 'data from Lichess blitz &amp; rapid games';
 
   const title = pageTitle(`${model.name} (${model.eco}): Win Rates by Rating`);
   let description = mainBand && mainBand.scoreForSide != null
@@ -298,6 +312,33 @@ function renderOpeningPage({ model, openingConfig, nav, related = [], repertoire
   const breadcrumbItems = [{ label: 'Home', href: nav.repertoire }, { label: 'Openings', href: nav.openings }, { label: model.name, href: openingFile }];
 
   const repFile = repertoireLinks[openingConfig.side];
+
+  // Computed as a variable (not an inline `${drillFile ? ... : ''}` in the
+  // template below) specifically so the "no drill on this page" case
+  // contributes NOTHING -- an inline empty ternary at an indented call
+  // site, immediately followed by a blank template line for readability,
+  // leaves a text node that is only whitespace before the next real line;
+  // html-validate's no-trailing-whitespace flags exactly that. See
+  // src/render.js's renderPageHead doc comment for the general form of
+  // this same bug.
+  const drillCtaHtml = drillFile
+    ? `<section class="drill-cta">
+      <h2>Drill this opening</h2>
+      <p>Play the position out move by move and find out instantly whether you picked what players at your rating
+        actually pick &mdash; and what that move scores.</p>
+      <p><a href="${escapeHtml(drillFile)}">Open the Italian Game drill &rarr;</a></p>
+    </section>
+
+    `
+    : '';
+
+  // Same reasoning as drillCtaHtml just above: renderRelated() legitimately
+  // returns '' when there's nothing related to show, and interpolating
+  // that at an indented "    ${...}" template line -- immediately followed
+  // by more literal content on the next line -- would leave a whitespace-
+  // only line when it's empty.
+  const relatedSection = renderRelated(related, 'Related openings');
+  const relatedHtml = relatedSection ? `\n\n    ${relatedSection}` : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -321,14 +362,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd:
       </figcaption>
     </figure>
 
-    ${drillFile ? `<section class="drill-cta">
-      <h2>Drill this opening</h2>
-      <p>Play the position out move by move and find out instantly whether you picked what players at your rating
-        actually pick &mdash; and what that move scores.</p>
-      <p><a href="${escapeHtml(drillFile)}">Open the Italian Game drill &rarr;</a></p>
-    </section>` : ''}
-
-    <h2>How it scores at your rating</h2>
+    ${drillCtaHtml}<h2>How it scores at your rating</h2>
     ${renderBandsTable(model)}
 
     <h2>What ${escapeHtml(model.opponentColor)} actually plays next</h2>
@@ -349,9 +383,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd:
     <h2>Build a repertoire from here</h2>
     <p>See the full move tree for players in your rating band:
       ${repFile ? `<a href="${escapeHtml(repFile)}">${escapeHtml(model.defaultBand)} repertoire explorer (${escapeHtml(openingConfig.side)}) &rarr;</a>` : 'no repertoire explorer is published for this opening.'}
-    </p>
-
-    ${renderRelated(related, 'Related openings')}
+    </p>${relatedHtml}
   </main>
   ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a> (lichess database, blitz + rapid), retrieved ${BUILD_DATE}. Master games from the Lichess masters database. ${pieceAttributionHtml()}`, CONTENT_LEGAL_LINKS)}
 </body>
@@ -414,7 +446,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(b
           <tr><th scope="col">Opening</th><th scope="col">ECO</th><th scope="col">First moves</th><th scope="col" class="num">Games (1600-1800)</th><th scope="col" class="num">Score for its side</th></tr>
         </thead>
         <tbody>${rows}</tbody>
-      </table>`)}
+      </table>`, 'Opening comparison at 1600-1800')}
 
     <h2>Browse by opening</h2>
     <div class="card-grid">${cards}</div>
@@ -465,6 +497,14 @@ function renderArticlePage({ meta, bodyHtml, nav, related = [] }) {
     }),
   ].join('\n  ');
 
+  // See renderOpeningPage's relatedHtml (above) for why this is precomputed
+  // rather than interpolated inline: renderRelated() can legitimately
+  // return '', and this function's own leading indentation carries the
+  // "\n    " prefix instead of the template site, so an empty result
+  // contributes nothing (not a whitespace-only line).
+  const relatedSection = renderRelated(related, 'Related');
+  const relatedHtml = relatedSection ? `\n    ${relatedSection}` : '';
+
   return `<!DOCTYPE html>
 <html lang="en">
 ${renderDocumentHead({ title, description: meta.description, canonical, ogType: 'article', jsonLd })}
@@ -475,9 +515,8 @@ ${renderDocumentHead({ title, description: meta.description, canonical, ogType: 
     <article class="prose">
       <h1 class="page-title">${escapeHtml(meta.title)}</h1>
       <p class="article-meta">Published ${escapeHtml(meta.datePublished)} &middot; data refreshed ${BUILD_DATE}.</p>
-      ${bodyHtml}
-    </article>
-    ${renderRelated(related, 'Related')}
+      ${bodyHtml.trim()}
+    </article>${relatedHtml}
   </main>
   ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}. This article is written to reflect that data &mdash; not a substitute for a coach&rsquo;s judgment about your own games.`, CONTENT_LEGAL_LINKS)}
 </body>

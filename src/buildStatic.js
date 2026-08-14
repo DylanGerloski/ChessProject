@@ -361,7 +361,7 @@ ${renderDocumentHead({ title, description, canonical })}
        entirely in your browser, calling Lichess&rsquo;s public API directly &mdash; no token
        needed and none is used.</p>
     <form id="lookup-form" class="lookup-form">
-      <input id="username" name="username" placeholder="e.g. DrNykterstein" required>
+      <input type="text" id="username" name="username" placeholder="e.g. DrNykterstein" required>
       <button type="submit">View</button>
     </form>
     <div id="result"></div>

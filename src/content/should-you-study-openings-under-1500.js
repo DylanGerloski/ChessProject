@@ -33,7 +33,7 @@ function render(ctx) {
 
     <h2>Score range, by opening</h2>
     <p>For each opening this site tracks, this compares its lowest-scoring rating band to its highest-scoring one (among bands with enough games to trust a percentage):</p>
-    ${rows ? wrapTable(`<table><caption class="sr-only">Score range across rating bands, by opening</caption><thead><tr><th scope="col">Opening</th><th scope="col">Lowest band</th><th scope="col">Highest band</th><th scope="col">Range</th></tr></thead><tbody>${rows}</tbody></table>`) : '<p class="empty-note">Not enough band data was available in this build to compute a range.</p>'}
+    ${rows ? wrapTable(`<table><caption class="sr-only">Score range across rating bands, by opening</caption><thead><tr><th scope="col">Opening</th><th scope="col">Lowest band</th><th scope="col">Highest band</th><th scope="col">Range</th></tr></thead><tbody>${rows}</tbody></table>`, 'Score range across rating bands, by opening') : '<p class="empty-note">Not enough band data was available in this build to compute a range.</p>'}
 
     ${avgRange != null ? `<p>Averaged across all ${sorted.length} openings with enough data to compare, the typical score range between the lowest- and highest-scoring rating band is <strong>${formatPct(avgRange)} percentage points</strong>. That&rsquo;s a real difference, but it&rsquo;s a modest one next to how much game results are actually decided by tactics and endgame technique at these ratings &mdash; which this site doesn&rsquo;t measure, but which every serious chess-improvement resource agrees dominates below 1500.</p>` : ''}
 

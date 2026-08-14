@@ -143,6 +143,14 @@ const { gradeMove, pickReply, applyRoundResult } = require('../drillLogic');
     feedbackEl.textContent = text;
   }
 
+  // This table used to repaint with the current position's real candidates
+  // the moment a new position loaded (see the old playOpponentPly(), before
+  // this change), spoiling the band-typical move and its score before the
+  // user had made a guess. It's now gated behind the exact same trigger the
+  // answer feedback panel (#drill-feedback) already used: renderCandidateTable()
+  // is only called from gradeAndAdvance(), after an attempt or a "Show me
+  // the answer" click, alongside setFeedback() -- see resetCandidateTable()
+  // below for what the slot shows before that point.
   function renderCandidateTable(candidates) {
     if (!candidateTableEl) return;
     var rows = candidates
@@ -152,6 +160,16 @@ const { gradeMove, pickReply, applyRoundResult } = require('../drillLogic');
       })
       .join('');
     candidateTableEl.innerHTML = '<table><thead><tr><th scope="col">Move</th><th scope="col">Pick %</th><th scope="col">Score %</th><th scope="col">Games</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  // Un-reveals the candidate table for a new position -- called every time
+  // playOpponentPly() lands on a position the user hasn't attempted yet.
+  // Matches the server-rendered placeholder (src/renderDrill.js's
+  // CANDIDATE_TABLE_PLACEHOLDER) so there's no flash of spoiler content
+  // between page load and this script running.
+  function resetCandidateTable() {
+    if (!candidateTableEl) return;
+    candidateTableEl.innerHTML = '<p class="empty-note">Play a move, or click &ldquo;Show me the answer,&rdquo; to reveal the candidates for this position.</p>';
   }
 
   function applyMoveToBoard(uci) {
@@ -195,7 +213,7 @@ const { gradeMove, pickReply, applyRoundResult } = require('../drillLogic');
       'The opponent plays ' + reply.san +
         (reply.playedPct != null ? ' — ' + formatPct(reply.playedPct) + '% of players at ' + round.band + ' play this here.' : '.')
     );
-    renderCandidateTable(round.userNode.candidates);
+    resetCandidateTable();
     updateProgress();
   }
 
@@ -234,6 +252,12 @@ const { gradeMove, pickReply, applyRoundResult } = require('../drillLogic');
     if (!round || !round.userNode) return;
     var result = gradeMove({ node: round.userNode, input: rawInput });
     var answer = result.answer;
+
+    // Reveal the candidate table now -- the same trigger point (an attempt,
+    // real or via "Show me the answer") that populates the feedback panel
+    // just below. Must happen before round.userNode is reassigned further
+    // down, since it's this position's candidate list being revealed.
+    renderCandidateTable(round.userNode.candidates);
 
     if (usedShowAnswer) {
       round.clean = false;

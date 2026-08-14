@@ -61,7 +61,7 @@ function render(ctx) {
 
     <h2>What the data shows</h2>
     <p>Looking at the most common replies to 2.Bf4 in this position, the highest-scoring options for Black &mdash; ranked by actual result, not by popularity &mdash; are:</p>
-    ${bestRows ? wrapTable(`<table><caption class="sr-only">Best-scoring replies for Black against the London System</caption><thead><tr><th scope="col">Move</th><th scope="col">Games</th><th scope="col">Played</th><th scope="col">Score for Black</th></tr></thead><tbody>${bestRows}</tbody></table>`) : '<p class="empty-note">Not enough reply data was available for this build.</p>'}
+    ${bestRows ? wrapTable(`<table><caption class="sr-only">Best-scoring replies for Black against the London System</caption><thead><tr><th scope="col">Move</th><th scope="col">Games</th><th scope="col">Played</th><th scope="col">Score for Black</th></tr></thead><tbody>${bestRows}</tbody></table>`, 'Best-scoring replies for Black against the London System') : '<p class="empty-note">Not enough reply data was available for this build.</p>'}
     ${mostCommon ? `<p>For comparison, the single most commonly played reply here is <strong>${escapeHtml(mostCommon.san)}</strong> (${mostCommon.games.toLocaleString()} games) &mdash; popular is not automatically the same as best-scoring, which is exactly why this table is sorted by score rather than by frequency.</p>` : ''}
 
     <h2>A mistake the data flags</h2>

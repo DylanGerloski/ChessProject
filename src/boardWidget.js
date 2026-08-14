@@ -74,7 +74,12 @@ function createBoard(container, { position = FEN.start, orientation = COLOR.whit
     style: {
       cssClass: 'repertoire-theme',
       showCoordinates: true,
-      borderType: BORDER_TYPE.none,
+      // 'frame' (not 'none'): reserves a dedicated border band outside the
+      // 8x8 grid for the a-h/1-8 coordinate labels, instead of drawing them
+      // inside the outer-rank/file squares where they visibly overprinted
+      // the pieces standing there -- see the matching CSS comment in
+      // src/render.js's SITE_CSS for the full explanation.
+      borderType: BORDER_TYPE.frame,
       pieces: { file: 'pieces/cburnett-standard.svg', tileSize: 40 },
       animationDuration,
     },

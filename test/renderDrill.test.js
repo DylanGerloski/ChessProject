@@ -153,6 +153,21 @@ test('renderDrillPage (B3): opts into the wide layout container and wraps contro
   }
 });
 
+test('renderDrillPage: the candidate table renders only the un-revealed placeholder server-side, never real move/pick%/score% data', async () => {
+  const drillData = await getDrillData();
+  const html = renderDrillPage({ drillData, nav: NAV });
+  const tableSlotMatch = html.match(/<section id="drill-candidate-table"[^>]*>([\s\S]*?)<\/section>/);
+  assert.ok(tableSlotMatch, 'expected a #drill-candidate-table slot');
+  assert.match(tableSlotMatch[1], /empty-note/, 'expected the placeholder note, not a populated table');
+  assert.doesNotMatch(tableSlotMatch[1], /<table/, 'no <table> should be server-rendered into the candidate slot before an attempt');
+  // The real first-position candidates (Bc5/Nf6, from the fixture's legal
+  // reply set) must not appear anywhere in that slot -- they're still
+  // legitimately present elsewhere on the page (the #drill-data JSON blob
+  // and the collapsed "See every line" <details>), which is unchanged,
+  // pre-existing, click-to-reveal-gated behavior this fix doesn't touch.
+  assert.doesNotMatch(tableSlotMatch[1], /Bc5|Nf6/, 'the band-typical reply must not be named in the un-revealed candidate slot');
+});
+
 test('renderDrillPage: the #drill-data JSON block parses and deep-equals the input drillData', async () => {
   const drillData = await getDrillData();
   const html = renderDrillPage({ drillData, nav: NAV });
@@ -211,7 +226,9 @@ test('renderDrillPage: the server-rendered board matches the position after the 
 
 test('NAV_ORDER/NAV_LABELS include drill, and a 2-key server.js-style nav still renders without it', () => {
   assert.ok(NAV_ORDER.includes('drill'));
-  assert.equal(NAV_LABELS.drill, 'Opening drill');
+  // The nav label must not imply a general drill hub that doesn't exist
+  // yet -- only the Italian Game has a drill so far.
+  assert.equal(NAV_LABELS.drill, 'Italian Game Drill');
   const html = renderHeader({ player: '/', repertoire: '/repertoire' });
-  assert.doesNotMatch(html, /Opening drill/);
+  assert.doesNotMatch(html, /Italian Game Drill/);
 });

@@ -34,9 +34,14 @@ function noop() {}
 /**
  * Loads and runs the real drill.client.js against a minimal DOM/global
  * stub, with `candidates` injected as the opponent-reply node's candidate
- * list -- the same shape playOpponentPly() reads to call
- * renderCandidateTable(). Returns the stub candidate-table element so the
- * test can inspect the innerHTML the real code produced.
+ * list -- the same shape playOpponentPly()/gradeAndAdvance() read to call
+ * renderCandidateTable(). Since the candidate table is now gated behind an
+ * attempt (see src/renderDrill.js's CANDIDATE_TABLE_PLACEHOLDER and this
+ * file's own resetCandidateTable()), this harness also captures the table's state
+ * immediately after startRound() (before any attempt) and then simulates a
+ * "Show me the answer" click (the same reveal trigger a real user
+ * interaction uses) to drive the post-reveal renderCandidateTable() call
+ * under test. Returns `{ el, preRevealHtml }` so tests can check both.
  */
 function runDrillClientWithCandidates(candidates) {
   const candidateTableEl = { innerHTML: '' };
@@ -57,6 +62,7 @@ function runDrillClientWithCandidates(candidates) {
     },
   };
 
+  let showAnswerHandler = null;
   const elementsById = {
     'drill-data': { textContent: JSON.stringify(drillData) },
     'drill-move-form': { addEventListener: noop },
@@ -64,6 +70,11 @@ function runDrillClientWithCandidates(candidates) {
     'drill-band': { value: '', addEventListener: noop },
     'drill-level': { options: [], value: '', addEventListener: noop },
     'drill-candidate-table': candidateTableEl,
+    'drill-show-answer': {
+      addEventListener: function (evt, handler) {
+        if (evt === 'click') showAnswerHandler = handler;
+      },
+    },
   };
   const boardRootStub = {
     addEventListener: noop,
@@ -102,8 +113,14 @@ function runDrillClientWithCandidates(candidates) {
   global.applyRoundResult = applyRoundResult;
 
   delete require.cache[require.resolve(DRILL_CLIENT_PATH)];
+  let preRevealHtml;
   try {
     require(DRILL_CLIENT_PATH);
+    // startRound() has now run once at load (same as a real page load) --
+    // capture the table's state before any attempt, then simulate clicking
+    // "Show me the answer" to trigger the real post-reveal code path.
+    preRevealHtml = candidateTableEl.innerHTML;
+    if (showAnswerHandler) showAnswerHandler();
   } finally {
     delete global.document;
     delete global.window;
@@ -116,33 +133,42 @@ function runDrillClientWithCandidates(candidates) {
     delete global.applyRoundResult;
   }
 
-  return candidateTableEl;
+  return { el: candidateTableEl, preRevealHtml };
 }
 
+test('drill.client.js keeps the candidate table gated -- no candidate data in the DOM until an attempt or "Show me the answer"', () => {
+  const { preRevealHtml } = runDrillClientWithCandidates([
+    { san: 'Nf3', uci: 'e7e5', playedPct: 42.0, winPct: 55.5, games: 1234 },
+  ]);
+  assert.doesNotMatch(preRevealHtml, /Nf3/, 'the band-typical move must not appear before an attempt');
+  assert.doesNotMatch(preRevealHtml, /<table/, 'no candidate table markup should exist before the reveal trigger');
+  assert.match(preRevealHtml, /empty-note/, 'expected the same placeholder src/renderDrill.js server-renders');
+});
+
 test('drill.client.js renderCandidateTable escapes a malicious c.san value instead of injecting it raw via innerHTML', () => {
-  const candidateTableEl = runDrillClientWithCandidates([
+  const { el } = runDrillClientWithCandidates([
     { san: '<img src=x onerror=alert(1)>', uci: 'e7e5', playedPct: 42.0, winPct: 55.5, games: 1234 },
   ]);
-  assert.doesNotMatch(candidateTableEl.innerHTML, /<img src=x onerror=alert\(1\)>/);
-  assert.match(candidateTableEl.innerHTML, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.doesNotMatch(el.innerHTML, /<img src=x onerror=alert\(1\)>/);
+  assert.match(el.innerHTML, /&lt;img src=x onerror=alert\(1\)&gt;/);
 });
 
 test('drill.client.js renderCandidateTable escapes an apostrophe in c.san without breaking the row markup', () => {
-  const candidateTableEl = runDrillClientWithCandidates([{ san: "N'x", uci: 'e7e5', playedPct: 10, winPct: 50, games: 5 }]);
-  assert.match(candidateTableEl.innerHTML, /N&#39;x/);
+  const { el } = runDrillClientWithCandidates([{ san: "N'x", uci: 'e7e5', playedPct: 10, winPct: 50, games: 5 }]);
+  assert.match(el.innerHTML, /N&#39;x/);
 });
 
-test('drill.client.js renderCandidateTable renders an ordinary candidate row unchanged in substance', () => {
-  const candidateTableEl = runDrillClientWithCandidates([
+test('drill.client.js renderCandidateTable renders an ordinary candidate row unchanged in substance, after the reveal trigger', () => {
+  const { el } = runDrillClientWithCandidates([
     { san: 'Nf3', uci: 'e7e5', playedPct: 42.0, winPct: 55.5, games: 1234 },
   ]);
-  assert.match(candidateTableEl.innerHTML, /<td>Nf3<\/td>/);
-  assert.match(candidateTableEl.innerHTML, /42\.0%/);
-  assert.match(candidateTableEl.innerHTML, /55\.5%/);
-  assert.match(candidateTableEl.innerHTML, /1,234/);
+  assert.match(el.innerHTML, /<td>Nf3<\/td>/);
+  assert.match(el.innerHTML, /42\.0%/);
+  assert.match(el.innerHTML, /55\.5%/);
+  assert.match(el.innerHTML, /1,234/);
 });
 
 test('drill.client.js renderCandidateTable falls back to "-" for null playedPct/winPct without throwing', () => {
-  const candidateTableEl = runDrillClientWithCandidates([{ san: 'e4', uci: 'e7e5', playedPct: null, winPct: null, games: 0 }]);
-  assert.match(candidateTableEl.innerHTML, /<td>-<\/td>/);
+  const { el } = runDrillClientWithCandidates([{ san: 'e4', uci: 'e7e5', playedPct: null, winPct: null, games: 0 }]);
+  assert.match(el.innerHTML, /<td>-<\/td>/);
 });

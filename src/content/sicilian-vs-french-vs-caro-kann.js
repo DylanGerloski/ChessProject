@@ -44,7 +44,7 @@ function render(ctx) {
     <p>1.e4 c5 (Sicilian), 1.e4 e6 (French), and 1.e4 c6 (Caro-Kann) are the three most-argued-about replies to 1.e4 for players who don&rsquo;t want to meet it symmetrically with 1...e5. Beginner forums debate which &ldquo;scores best&rdquo; constantly, usually without looking at any actual data. Here&rsquo;s what this site&rsquo;s own tracked games show.</p>
 
     <h2>Score for Black, by rating band</h2>
-    ${wrapTable(`<table><caption class="sr-only">Sicilian vs French vs Caro-Kann score by rating band</caption><thead><tr><th scope="col">Rating band</th>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`)}
+    ${wrapTable(`<table><caption class="sr-only">Sicilian vs French vs Caro-Kann score by rating band</caption><thead><tr><th scope="col">Rating band</th>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`, 'Sicilian vs French vs Caro-Kann score by rating band')}
 
     ${mainScores.length ? `<h2>At ${escapeHtml(mainBand)}</h2><p>${mainScores.map((s, i) => `${i === 0 ? '' : i === mainScores.length - 1 ? ' and ' : ', '}<strong>${escapeHtml(s.name)}</strong> scores ${formatPct(s.score)}%`).join('')} for Black, from real games in this rating band. The gap between the highest and lowest here is ${formatPct(mainScores[0].score - mainScores[mainScores.length - 1].score)} percentage points &mdash; worth knowing, but small enough that it shouldn&rsquo;t be the only reason to pick one over another.</p>` : ''}
 

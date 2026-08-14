@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { SITE_CSS, DESIGN_TOKENS, renderDocumentHead } = require('../src/render');
+const { SITE_CSS, DESIGN_TOKENS, renderDocumentHead, renderNewsletterSignup, renderFooter } = require('../src/render');
 
 // Regression coverage: the self-hosted Fraunces
 // heading webfont must stay scoped to headings only, self-hosted (never a
@@ -68,4 +68,45 @@ test('renderDocumentHead loads the GoatCounter script over an explicit https sch
   const head = renderDocumentHead('Test Page');
   assert.match(head, /src="https:\/\/gc\.zgo\.at\/count\.js"/);
   assert.doesNotMatch(head, /src="\/\/gc\.zgo\.at\/count\.js"/);
+});
+
+// Newsletter signup: wired to the real builtittheycome.substack.com
+// publication (same publication as filetools and lol-practice-system).
+// Regression coverage for the real-embed wiring -- easy to silently regress
+// back to a broken <form action> pointed at Substack's /embed URL (which
+// does not actually subscribe anyone) or to lose the lazy-load/escaping
+// behavior in a large template-literal rewrite.
+
+test('renderNewsletterSignup points the real embed slot at the exact builtittheycome.substack.com publication', () => {
+  const html = renderNewsletterSignup();
+  assert.match(html, /data-newsletter-src="https:\/\/builtittheycome\.substack\.com\/embed"/);
+  assert.doesNotMatch(html, /<form[^>]*action="https:\/\/builtittheycome\.substack\.com/, 'must not POST to the Substack embed URL as a form action -- Substack has no such endpoint');
+});
+
+test('renderNewsletterSignup does not eagerly emit a live <iframe> -- the embed is created client-side only near the viewport', () => {
+  const html = renderNewsletterSignup();
+  assert.doesNotMatch(html, /<iframe/, 'an eagerly-rendered iframe on a sitewide footer would cost the Lighthouse Performance budget');
+  assert.match(html, /data-newsletter-slot/);
+});
+
+test('renderNewsletterSignup provides a noscript fallback link to the real publication', () => {
+  const html = renderNewsletterSignup();
+  assert.match(html, /<noscript><p class="newsletter-description"><a href="https:\/\/builtittheycome\.substack\.com" target="_blank" rel="noopener noreferrer">Subscribe on Substack<\/a><\/p><\/noscript>/);
+});
+
+test('renderNewsletterSignup only assigns the iframe src client-side when it starts with https:// (no javascript:/data: scheme)', () => {
+  const html = renderNewsletterSignup();
+  assert.match(html, /if\(!src\|\|!\/\^https:\\\/\\\/\/\.test\(src\)\)return;/, 'the client-side loader must scheme-check data-newsletter-src before assigning it to iframe.src');
+});
+
+// Donation identity consolidation: the footer used to link two donation
+// platforms under two different handles (Ko-fi "flavaa", Buy Me a Coffee
+// "dylanger254") -- a trust seam. Ko-fi is now the only linked donation
+// platform on the live site.
+
+test('renderFooter links only Ko-fi in the support-links block, never Buy Me a Coffee', () => {
+  const html = renderFooter('footer copy');
+  assert.match(html, /href="https:\/\/ko-fi\.com\/flavaa"[^>]*>&#9749; Support on Ko-fi<\/a>/);
+  assert.doesNotMatch(html, /buymeacoffee\.com/);
+  assert.doesNotMatch(html, /Buy Me a Coffee/);
 });

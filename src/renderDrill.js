@@ -119,14 +119,20 @@ function renderDrillBoard(board, { glyphs, flip = false } = {}) {
   return `<div class="board" data-drill-board role="group" aria-label="Drill board">${squares.join('')}</div>`;
 }
 
-function renderCandidateTableHtml(candidates) {
-  const rows = candidates
-    .map(
-      (c) => `<tr><td>${escapeHtml(c.san)}</td><td class="num">${c.playedPct != null ? `${formatPct(c.playedPct)}%` : '-'}</td><td class="num">${c.winPct != null ? `${formatPct(c.winPct)}%` : '-'}</td><td class="num">${c.games.toLocaleString()}</td></tr>`
-    )
-    .join('');
-  return `<table><thead><tr><th scope="col">Move</th><th scope="col" class="num">Pick %</th><th scope="col" class="num">Score %</th><th scope="col" class="num">Games</th></tr></thead><tbody>${rows}</tbody></table>`;
-}
+/**
+ * Placeholder shown in the candidate-table slot before the user has
+ * attempted this position (or clicked "Show me the answer"). This table
+ * used to print the band-typical move, its score, and every other
+ * candidate's score right next to the input, spoiling the drill before a
+ * first guess. It's now gated behind the exact same trigger the answer feedback panel
+ * (#drill-feedback) already used -- an attempt or "Show me the answer" --
+ * so neither reveals more than the other. Real candidate data is filled in
+ * client-side only (see src/browser/drill.client.js's renderCandidateTable(),
+ * called from gradeAndAdvance() alongside setFeedback()); nothing here ever
+ * renders the real table server-side, so it isn't visible via "View Page
+ * Source" pre-attempt either -- not just hidden by CSS.
+ */
+const CANDIDATE_TABLE_PLACEHOLDER = '<p class="empty-note">Play a move, or click &ldquo;Show me the answer,&rdquo; to reveal the candidates for this position.</p>';
 
 /**
  * Walks a band's tree (rooted at an oppNode) and returns every full line
@@ -179,7 +185,6 @@ function renderDrillPage({ drillData, nav, legalLinks, openingLink = 'italian-ga
   const defaultBand = bandKeys.includes(DEFAULT_BAND) ? DEFAULT_BAND : bandKeys[0];
   const rootOpp = drillData.bands[defaultBand];
   const firstReply = rootOpp.replies[0];
-  const rootUserNode = firstReply.node;
 
   // Progressive enhancement: the visible board is at the position the user
   // actually starts interacting with -- the opening line, plus the opponent's
@@ -273,7 +278,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'website', jsonLd,
         <section aria-labelledby="drill-candidates-heading">
           <h2 id="drill-candidates-heading">Candidates at this position</h2>
           <p class="table-hint">Scroll to see more &rarr;</p>
-          <div id="drill-candidate-table" class="table-scroll" tabindex="0" role="region" aria-label="Candidate moves at this position">${renderCandidateTableHtml(rootUserNode.candidates)}</div>
+          <section id="drill-candidate-table" class="table-scroll" tabindex="0" aria-label="Candidate moves at this position">${CANDIDATE_TABLE_PLACEHOLDER}</section>
         </section>
       </div>
     </div>

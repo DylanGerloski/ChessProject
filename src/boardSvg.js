@@ -80,7 +80,11 @@ function readSpriteInner() {
  * this combination does not.
  */
 function spriteDefsHtml() {
-  return `<div id="${SPRITE_WRAPPER_ID}" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden;"><svg xmlns="http://www.w3.org/2000/svg">${readSpriteInner()}</svg></div>`;
+  // `.sprite-defs-hidden` (src/render.js's SITE_CSS) carries the exact same
+  // position:absolute;width:0;height:0;overflow:hidden rule this used to
+  // set inline -- moved to a class so no page ships a style="..." attribute
+  // (html-validate's no-inline-style rule), with byte-identical CSS applied.
+  return `<div id="${SPRITE_WRAPPER_ID}" class="sprite-defs-hidden" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg">${readSpriteInner()}</svg></div>`;
 }
 
 function escapeAttr(str) {

@@ -167,8 +167,15 @@ function renderFamilyHubPage({ familyEntry, bandStats, nav, t0CrossLink = null, 
   // Defense") -- long enough that the first, most descriptive form doesn't
   // always fit. The bare-family fallback is guaranteed to fit (37 + the " |
   // Repertoire Builder" suffix's own ~22 chars is well under 70).
+  // "and", not "&", in the tier-2 fallback specifically: a raw "&" here
+  // renders as the 5-character entity "&amp;" (escapeHtmlText(), used for
+  // <title> content, still escapes a genuine "&"), which was pushing a
+  // handful of longer family names' encoded <title> text back over
+  // html-validate's 70-char long-title budget even though the DECODED
+  // text (what assertPageMetadata below actually checks, and what a
+  // browser/search result actually shows) was comfortably under it.
   let title = pageTitle(`${family} — All Variations and ECO Codes`);
-  if (title.length > 70) title = pageTitle(`${family} Variations & ECO Codes`);
+  if (title.length > 70) title = pageTitle(`${family} Variations and ECO Codes`);
   if (title.length > 70) title = pageTitle(family);
 
   let description = `${lineCount} named ${family} lines across ${ecoCodes.length} ECO code${ecoCodes.length === 1 ? '' : 's'} (${ecoRangeLabel(ecoCodes)}), with real Lichess win rates for the main line.`;
@@ -200,6 +207,13 @@ function renderFamilyHubPage({ familyEntry, bandStats, nav, t0CrossLink = null, 
     ...(t0CrossLink ? [{ label: `${t0CrossLink.label} (full deep-dive)`, href: t0CrossLink.href, note: 'Real replies, common mistakes, and master games for one curated line.' }] : []),
     ...relatedFamilies,
   ];
+  // See src/renderContent.js's renderOpeningPage/renderArticlePage for why
+  // this is precomputed rather than interpolated inline as
+  // "    ${renderRelated(...)}" -- renderRelated() legitimately returns ''
+  // for the (common, for a family with no curated cross-link or related
+  // families) case, and that pattern leaves a whitespace-only line.
+  const relatedSection = renderRelated(related, 'Related');
+  const relatedHtml = relatedSection ? `\n\n    ${relatedSection}` : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -239,9 +253,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd 
     <h2>Browse more</h2>
     <p><a href="${escapeHtml(volumeFile)}">ECO Volume ${escapeHtml(primaryVolume)}: ${escapeHtml(VOLUME_LABELS[primaryVolume])} &rarr;</a> &middot;
        <a href="${ECO_INDEX_FILE}">All ECO families &rarr;</a> &middot;
-       <a href="${ECO_EXPLORER_FILE}">Search and play every line in the interactive explorer &rarr;</a></p>
-
-    ${renderRelated(related, 'Related')}
+       <a href="${ECO_EXPLORER_FILE}">Search and play every line in the interactive explorer &rarr;</a></p>${relatedHtml}
   </main>
   ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a> (main line only, retrieved ${BUILD_DATE}) and the CC0-licensed <a href="https://github.com/lichess-org/chess-openings">lichess.org opening database</a> (all variations). ${pieceAttributionHtml()}`, ECO_LEGAL_LINKS)}
 </body>
@@ -313,7 +325,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd })}
         <caption class="sr-only">ECO Volume ${escapeHtml(volume)} codes</caption>
         <thead><tr><th scope="col">Code</th><th scope="col">Name(s)</th><th scope="col" class="num">Lines</th></tr></thead>
         <tbody>${rows}</tbody>
-      </table>`)}
+      </table>`, `ECO Volume ${volume} codes`)}
 
     <h2>Other volumes</h2>
     <p>${Object.keys(VOLUME_LABELS).filter((v) => v !== volume).map((v) => `<a href="${ecoVolumeFilename(v)}">Volume ${v}</a>`).join(' &middot; ')}
@@ -385,8 +397,14 @@ function renderEcoIndexPage({ pageFamilies, pageNum, totalPages, stats, nav }) {
     </nav>`
     : '';
 
+  // '' on every page after the first (see the template below) --
+  // precomputed with its own leading "\n    " so the call site can
+  // interpolate it directly against the preceding tag with no separate
+  // indented template line, same reasoning as renderOpeningPage's
+  // drillCtaHtml (src/renderContent.js): an indented "    ${introSection}"
+  // line would be a whitespace-only line on every page but the first.
   const introSection = pageNum === 1
-    ? `<p class="subtitle">The Encyclopaedia of Chess Openings (ECO) classifies every recognized opening into
+    ? `\n    <p class="subtitle">The Encyclopaedia of Chess Openings (ECO) classifies every recognized opening into
        500 codes across 5 volumes (A&ndash;E). This site tracks ${stats.totalLines.toLocaleString()} named lines
        across ${stats.totalFamilies} opening families; ${stats.t1Count} families with 8 or more named lines have
        their own guide (linked below).</p>
@@ -402,8 +420,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd })}
   ${renderHeader(nav, 'eco')}
   <main>
     ${renderBreadcrumb(breadcrumbItems)}
-    <h1 class="page-title">${pageNum === 1 ? 'Chess opening families, A–Z' : `Chess opening families, page ${pageNum} of ${totalPages}`}</h1>
-    ${introSection}
+    <h1 class="page-title">${pageNum === 1 ? 'Chess opening families, A–Z' : `Chess opening families, page ${pageNum} of ${totalPages}`}</h1>${introSection}
 
     <h2>Families ${escapeHtml(pageFamilies[0].family)}&ndash;${escapeHtml(pageFamilies[pageFamilies.length - 1].family)}</h2>
     ${wrapTable(`
@@ -411,7 +428,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd })}
         <caption class="sr-only">Chess opening families, page ${pageNum}</caption>
         <thead><tr><th scope="col">Family</th><th scope="col">ECO codes</th><th scope="col" class="num">Lines</th></tr></thead>
         <tbody>${rows}</tbody>
-      </table>`)}
+      </table>`, `Chess opening families, page ${pageNum}`)}
     ${pagination}
   </main>
   ${renderFooter(`ECO classification data from the CC0-licensed <a href="https://github.com/lichess-org/chess-openings">lichess.org opening database</a>.`, ECO_LEGAL_LINKS)}

@@ -132,9 +132,9 @@ ${renderDocumentHead({ title, description, canonical, jsonLd })}
 
     <div class="explorer-layout" data-explorer-app>
       <div class="explorer-board-panel">
-        <figure class="board-figure">
+        <figure class="board-figure" aria-label="Explorer board">
           ${spriteDefsHtml()}
-          <div id="explorer-board-mount" class="explorer-board-mount" aria-label="Explorer board"></div>
+          <div id="explorer-board-mount" class="explorer-board-mount"></div>
         </figure>
         <p id="explorer-current-line" class="explorer-current-line" role="status" aria-live="polite"></p>
         <p id="explorer-identify-status" class="explorer-identify-status" role="status" aria-live="polite"></p>
@@ -159,9 +159,16 @@ ${renderDocumentHead({ title, description, canonical, jsonLd })}
         <form class="lookup-form" id="explorer-search-form" role="search" onsubmit="return false">
           <label for="explorer-search-input">Search by name, ECO code, or move</label>
           <input type="text" id="explorer-search-input" placeholder="e.g. Najdorf, B90, or e4 c5" autocomplete="off">
+          <!-- Results filter live on every keystroke (src/browser/ecoExplorer.client.js);
+               this form is never actually submitted (onsubmit="return false" above). A
+               real, focusable submit control is still required (WCAG 2.1 H32 / html-validate's
+               wcag/h32) for anyone relying on Enter-to-submit or a screen reader's form
+               navigation -- visually hidden, not removed, since the live filtering already
+               covers sighted mouse/keyboard use. -->
+          <button type="submit" class="sr-only">Search</button>
         </form>
         <p id="explorer-result-count" class="explorer-result-count" role="status" aria-live="polite"></p>
-        <div id="explorer-results" class="table-scroll" tabindex="0" role="region" aria-label="Search results"></div>
+        <section id="explorer-results" class="table-scroll" tabindex="0" aria-label="Search results"></section>
       </div>
     </div>
 

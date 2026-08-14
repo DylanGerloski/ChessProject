@@ -74,12 +74,11 @@ ${renderDocumentHead({ title, description, canonical })}
 
     <h2>Third-party links</h2>
     <p>Pages on this site link out to <a href="https://lichess.org" target="_blank" rel="noopener noreferrer">lichess.org</a>
-      for game analysis and data, and to voluntary support links
-      (<a href="https://ko-fi.com/flavaa" target="_blank" rel="noopener noreferrer">Ko-fi</a>,
-      <a href="https://buymeacoffee.com/dylanger254" target="_blank" rel="noopener noreferrer">Buy Me a Coffee</a>).
-      Each of those is operated by its own company under its own privacy policy &mdash; review
-      theirs before using them. See the disclosure note in this site&rsquo;s footer for more on
-      those links.</p>
+      for game analysis and data, and to a voluntary support link
+      (<a href="https://ko-fi.com/flavaa" target="_blank" rel="noopener noreferrer">Ko-fi</a>).
+      That is operated by its own company under its own privacy policy &mdash; review theirs
+      before using it. See the disclosure note in this site&rsquo;s footer for more on that
+      link.</p>
 
     <h2>Cookies</h2>
     <p>This site&rsquo;s own code does not set any cookies. GoatCounter&rsquo;s default configuration
@@ -150,9 +149,9 @@ ${renderDocumentHead({ title, description, canonical })}
       publisher rather than to an invented person.</p>
 
     <h2>Support</h2>
-    <p>This site is free to use. If you find it useful, voluntary support links appear in the
-      footer of every page (Ko-fi, Buy Me a Coffee) &mdash; see the disclosure note there for what
-      that does and doesn&rsquo;t mean.</p>
+    <p>This site is free to use. If you find it useful, a voluntary support link appears in the
+      footer of every page (Ko-fi) &mdash; see the disclosure note there for what that does and
+      doesn&rsquo;t mean.</p>
 
     <h2>Questions</h2>
     <p>See the <a href="${escapeHtml(legalLinks.contact)}">Contact page</a>.</p>

@@ -27,9 +27,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const http = require('http');
-const { chromium } = require('playwright');
-const lighthouse = require('lighthouse').default;
+const { isHttpUrl, resolveTarget, launchBrowser, runLighthouse } = require('./lighthouseRunner');
 
 // --- constants (edit these when reusing this script in another workspace) ---
 const VIEWPORTS = [
@@ -42,65 +40,9 @@ const LIGHTHOUSE_CATEGORIES = ['performance', 'accessibility', 'seo'];
 // A fixed CDP debug port for the Lighthouse pass. 0 (OS-assigned) isn't an
 // option here because Lighthouse needs to be told the port *before* Chrome
 // finishes starting; this port only needs to be free on localhost for the
-// life of this process.
+// life of this process. Distinct from scripts/lighthouseBudget.js's port so
+// both can run in the same CI job without clashing.
 const LIGHTHOUSE_CDP_PORT = 9522;
-
-const CONTENT_TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.htm': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.mjs': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
-  '.xml': 'application/xml; charset=utf-8',
-  '.txt': 'text/plain; charset=utf-8',
-  '.webp': 'image/webp',
-  '.woff': 'font/woff',
-  '.woff2': 'font/woff2',
-};
-
-/** Serves `rootDir` (recursively) on localhost only, on an OS-assigned port. */
-function startStaticServer(rootDir) {
-  return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      let reqPath;
-      try {
-        reqPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
-      } catch {
-        res.writeHead(400);
-        res.end('Bad request');
-        return;
-      }
-      const resolved = path.normalize(path.join(rootDir, reqPath));
-      if (!resolved.startsWith(path.normalize(rootDir))) {
-        res.writeHead(403);
-        res.end('Forbidden');
-        return;
-      }
-      fs.readFile(resolved, (err, data) => {
-        if (err) {
-          res.writeHead(404, { 'Content-Type': 'text/plain' });
-          res.end('Not found');
-          return;
-        }
-        const ext = path.extname(resolved).toLowerCase();
-        res.writeHead(200, { 'Content-Type': CONTENT_TYPES[ext] || 'application/octet-stream' });
-        res.end(data);
-      });
-    });
-    server.on('error', reject);
-    server.listen(0, 'localhost', () => resolve(server));
-  });
-}
-
-function isHttpUrl(target) {
-  return /^https?:\/\//i.test(target);
-}
 
 /** Turns a page path/URL into a filesystem-safe base name for screenshots. */
 function pageNameFor(target) {
@@ -133,30 +75,19 @@ async function main() {
     return;
   }
 
-  let server = null;
-  let pageUrl;
-  if (isHttpUrl(target)) {
-    pageUrl = target;
-  } else {
-    const absPath = path.resolve(target);
-    if (!fs.existsSync(absPath)) {
-      console.error(`File not found: ${absPath}`);
-      process.exitCode = 1;
-      return;
-    }
-    const rootDir = path.dirname(absPath);
-    server = await startStaticServer(rootDir);
-    const port = server.address().port;
-    pageUrl = `http://localhost:${port}/${path.basename(absPath)}`;
+  let pageUrl, cleanup;
+  try {
+    ({ pageUrl, cleanup } = await resolveTarget(target));
+  } catch (err) {
+    console.error(err.message);
+    process.exitCode = 1;
+    return;
   }
 
   const pageName = pageNameFor(target);
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
-  const browser = await chromium.launch({
-    headless: true,
-    args: [`--remote-debugging-port=${LIGHTHOUSE_CDP_PORT}`],
-  });
+  const browser = await launchBrowser(LIGHTHOUSE_CDP_PORT);
 
   try {
     console.log(`Visual QA: ${pageUrl}`);
@@ -172,26 +103,13 @@ async function main() {
     }
 
     // 2. Lighthouse pass, over CDP, against the same browser instance.
-    const result = await lighthouse(pageUrl, {
-      port: LIGHTHOUSE_CDP_PORT,
-      output: 'json',
-      logLevel: 'error',
-      onlyCategories: LIGHTHOUSE_CATEGORIES,
-    });
-
-    if (!result || !result.lhr) {
-      console.error('Lighthouse did not return a report.');
-      process.exitCode = 1;
-      return;
-    }
+    const lhr = await runLighthouse(pageUrl, { categories: LIGHTHOUSE_CATEGORIES, cdpPort: LIGHTHOUSE_CDP_PORT });
 
     console.log('');
-    console.log(formatScoreSummary(result.lhr.categories));
+    console.log(formatScoreSummary(lhr.categories));
   } finally {
     await browser.close();
-    if (server) {
-      await new Promise((resolve) => server.close(resolve));
-    }
+    await cleanup();
   }
 }
 

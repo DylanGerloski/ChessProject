@@ -38,7 +38,7 @@ function render(ctx) {
 
     ${all.length === 0
       ? '<p class="empty-note">No qualifying mistakes were found across the tracked openings in this build &mdash; that itself is a real result, not a placeholder.</p>'
-      : `<h2>Ranked worst-scoring first</h2><ul style="list-style:none; padding:0; margin:0;">${items}</ul>`}
+      : `<h2>Ranked worst-scoring first</h2><ul class="callout-list">${items}</ul>`}
 
     <h2>How to read this</h2>
     <p>&ldquo;Scores only X%&rdquo; uses standard chess scoring (a win counts 1, a draw counts 0.5) as a percentage. A move sitting at 40% isn&rsquo;t losing by force &mdash; it&rsquo;s simply performing below break-even in practice at this rating band, in this exact position, in the sample of games this site&rsquo;s build actually saw. That&rsquo;s a statement about a rating band&rsquo;s habits, not a claim about the objective evaluation of the move.</p>

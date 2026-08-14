@@ -28,6 +28,29 @@ function escapeHtml(str) {
 }
 
 /**
+ * Escapes only what's structurally required inside an HTML *text node*
+ * (& and < -- > is escaped too, defense-in-depth, though not strictly
+ * required outside of closing a comment/CDATA section). Quotes need no
+ * escaping there, unlike escapeHtml() above, which also escapes them
+ * because most of its call sites interpolate into either a text node or an
+ * attribute value and it's simplest to always be safe for both.
+ *
+ * Used specifically for <title> content: escapeHtml()'s attribute-safe
+ * quote-escaping was turning every apostrophe into the 5-character
+ * "&#39;" -- inflating an opening/family name's *rendered source* length
+ * well past html-validate's long-title 70-char budget (that rule reads
+ * node.textContent, i.e. the raw, still-encoded source text, not the
+ * decoded string a browser or search result actually shows) even though
+ * the real, decoded title text was comfortably under it.
+ */
+function escapeHtmlText(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
  * Render-time formatter for a win/draw/loss (or any other) percentage
  * value. The data layer (src/process.js, src/processOpenings.js,
  * src/processRepertoire.js) stores Number(x.toFixed(1)) so values stay
@@ -44,14 +67,26 @@ function formatPct(n) {
 
 /**
  * Single source of truth for every color, size, and spacing value on the
- * site. Nothing below this block may introduce a new hex or raw px value.
- * Kept as a plain JS object (not a CSS string) so it stays independently
- * greppable/inspectable, then interpolated into SITE_CSS's :root block below
- * via designTokensCss(). This can't live in its own module -- render.js is
- * concatenated verbatim into the browser bundle (see this file's header
- * comment) and has no CommonJS loader in that context -- so it stays a
- * same-file constant, same reasoning as SITE_CSS/FAVICON_DATA_URI already
- * being defined directly here rather than required() from elsewhere.
+ * site. Nothing below this block may introduce a new hex or raw px value
+ * (test/designTokens.test.js enforces this for hex; see that file for the
+ * exact allowlist). Kept as a plain JS object (not a CSS string) so it
+ * stays independently greppable/inspectable, then interpolated into
+ * SITE_CSS's :root block below via designTokensCss(). This can't live in
+ * its own module -- render.js is concatenated verbatim into the browser
+ * bundle (see this file's header comment) and has no CommonJS loader in
+ * that context -- so it stays a same-file constant, same reasoning as
+ * SITE_CSS/FAVICON_DATA_URI already being defined directly here rather than
+ * required() from elsewhere.
+ *
+ * This is the VALUE layer only -- ramps of perceptual lightness steps, plus
+ * every non-color scale (type, space, radius, shadow, motion, grid, focus).
+ * The color ROLE layer (which ramp index means "body text" vs "muted", and
+ * how that differs light vs dark) is THEME_ROLES below, not here -- same
+ * two-layer split lol-practice-system/src/web/tokens.css already uses
+ * ("existing semantic names are kept and now assigned FROM the ramps
+ * below"), same ladder construction, different hue seeds (this asset keeps
+ * its own warm parchment/green identity; see docs/DESIGN_PLAYBOOK.md Part 3
+ * Step 4 -- "all three assets run the same generator with different seeds").
  */
 const DESIGN_TOKENS = {
   '--font-sans': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
@@ -64,37 +99,88 @@ const DESIGN_TOKENS = {
   // token) so reading/data legibility can't regress.
   '--font-serif': '"Fraunces Variable", Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif',
 
-  '--color-bg': '#f5f1e6',
-  '--color-surface': '#ffffff',
-  '--color-surface-alt': '#ece3cd',
-  '--color-text': '#23271f',
-  '--color-muted': '#5e5c4b',
-  '--color-accent': '#3c6e52',
-  '--color-accent-dark': '#2a4d3a',
-  '--color-accent-contrast': '#f8f5ea',
-  '--color-hover': 'rgba(60, 110, 82, 0.08)',
-  '--color-focus': '#a35110',
-  '--color-border': '#ddd0ac',
-  '--color-border-strong': '#8a7b54',
+  // ---------------------------------------------------------------------
+  // Color ramps -- one shared luminance ladder (relative-luminance Y
+  // geometric in Y+0.05, ratio 1.365, anchored at index 0 = today's
+  // parchment), six hues. Index is the only thing that matters for
+  // contrast: any two indices >=5 apart clear 4.74:1, >=4 apart clear
+  // 3.47:1, guaranteed across every ramp because they all share one
+  // ladder (see test/designTokens.test.js assertion iv, which checks this
+  // by construction rather than by eyeballing each pair). oklch() is the
+  // source of truth; the hex comment is what a browser actually paints it
+  // as (belt-and-braces reference only, not a CSS fallback chain -- same
+  // convention as the sibling asset's tokens.css). Where a value is
+  // gamut-clamped at a given lightness the requested chroma was reduced;
+  // the luminance the contrast guarantee rests on is exact regardless.
+  // ---------------------------------------------------------------------
+  '--color-ink-0': 'oklch(95.8% 0.015 90)', // #F5F1E6 -- today's parchment bg
+  '--color-ink-1': 'oklch(85.8% 0.028 90)', // #D7D0BC
+  '--color-ink-2': 'oklch(76.6% 0.032 90)', // #BBB29C
+  '--color-ink-3': 'oklch(68.1% 0.030 90)', // #A09884
+  '--color-ink-4': 'oklch(60.2% 0.026 90)', // #87806F
+  '--color-ink-5': 'oklch(52.7% 0.022 90)', // #706B5D
+  '--color-ink-6': 'oklch(45.4% 0.018 90)', // #5A564B
+  '--color-ink-7': 'oklch(38.1% 0.014 90)', // #45423A
+  '--color-ink-8': 'oklch(30.1% 0.010 90)', // #302E28
+  '--color-ink-9': 'oklch(18.7% 0.008 90)', // #14130F -- the dark ground
+  '--color-paper-white': '#FFFFFF', // one off-ramp value, strictly lighter
+  // than ink-0, so every contrast guarantee holds in the safe direction
+  // (documented exemption, same as the sibling's --color-bg-white).
 
-  '--color-win': '#2f7d43',
-  '--color-win-text': '#256034',
-  '--color-win-bg': '#e3f2e6',
-  '--color-draw': '#93731c',
-  '--color-draw-text': '#6f5714',
-  '--color-draw-bg': '#f4ecd2',
-  '--color-loss': '#b23b30',
-  '--color-loss-text': '#96302a',
-  '--color-loss-bg': '#fbe4e0',
+  '--color-accent-0': 'oklch(95.6% 0.020 158)', // #E6F5EB
+  '--color-accent-1': 'oklch(85.3% 0.045 158)', // #B7D8C3
+  '--color-accent-2': 'oklch(75.8% 0.065 158)', // #8EBEA1
+  '--color-accent-3': 'oklch(67.1% 0.080 158)', // #6AA583
+  '--color-accent-4': 'oklch(59.2% 0.085 158)', // #4F8D6A
+  '--color-accent-5': 'oklch(51.7% 0.080 158)', // #3C7656 -- today's --color-accent
+  '--color-accent-6': 'oklch(44.6% 0.070 158)', // #2F6045 -- today's --color-accent-dark
+  '--color-accent-7': 'oklch(37.5% 0.055 158)', // #254A36
+  '--color-accent-8': 'oklch(29.6% 0.040 158)', // #1A3325
+  '--color-accent-9': 'oklch(18.4% 0.028 158)', // #07160E
 
-  '--color-board-light': '#ece3cd',
-  '--color-board-dark': '#c2ad82',
+  '--color-win-0': 'oklch(95.6% 0.020 149)', // #E8F5E9
+  '--color-win-1': 'oklch(85.2% 0.050 149)', // #B9D8BD
+  '--color-win-2': 'oklch(75.7% 0.080 149)', // #8DBF95
+  '--color-win-3': 'oklch(67.0% 0.100 149)', // #67A673
+  '--color-win-4': 'oklch(58.9% 0.120 149)', // #429054 -- bar fill, both themes
+  '--color-win-5': 'oklch(51.5% 0.115 149)', // #2E7941
+  '--color-win-6': 'oklch(44.4% 0.100 149)', // #236233 -- light-theme win text
+  '--color-win-7': 'oklch(37.2% 0.080 149)', // #1C4C28
+  '--color-win-8': 'oklch(29.5% 0.055 149)', // #17341D -- dark-theme win-bg
+  '--color-win-9': 'oklch(18.3% 0.035 149)', // #061709
 
-  // A very light row tint for tbody, replacing the old --color-surface-alt
-  // zebra stripe (which read as a 2010s admin template and, worse, was the
-  // exact same hex as --color-board-light). Kept deliberately faint -- see
-  // the zoom-tracking risk note on the tbody tr:nth-child(even) rule below.
-  '--color-row-tint': 'rgba(35, 39, 31, 0.035)',
+  '--color-draw-0': 'oklch(95.8% 0.020 87)', // #F7F1E2
+  '--color-draw-1': 'oklch(85.8% 0.050 87)', // #DECFAC
+  '--color-draw-2': 'oklch(76.6% 0.080 87)', // #C9B077
+  '--color-draw-3': 'oklch(68.2% 0.100 87)', // #B4954B
+  '--color-draw-4': 'oklch(60.4% 0.120 87)', // #A07B0E -- bar fill, both themes
+  '--color-draw-5': 'oklch(52.9% 0.109 87)', // #866600 [clamped]
+  '--color-draw-6': 'oklch(45.6% 0.094 87)', // #6D5300 [clamped] -- light-theme draw text
+  '--color-draw-7': 'oklch(38.2% 0.080 87)', // #553F00
+  '--color-draw-8': 'oklch(30.1% 0.055 87)', // #3A2C07 -- dark-theme draw-bg
+  '--color-draw-9': 'oklch(18.8% 0.035 87)', // #1A1201
+
+  '--color-loss-0': 'oklch(96.0% 0.018 29)', // #FEEEEB [clamped]
+  '--color-loss-1': 'oklch(86.3% 0.050 29)', // #F1C7BF
+  '--color-loss-2': 'oklch(77.5% 0.080 29)', // #E4A398
+  '--color-loss-3': 'oklch(69.2% 0.100 29)', // #D38478
+  '--color-loss-4': 'oklch(61.7% 0.130 29)', // #C76356 -- bar fill, both themes
+  '--color-loss-5': 'oklch(54.3% 0.140 29)', // #B2493D
+  '--color-loss-6': 'oklch(46.8% 0.120 29)', // #923B31 -- light-theme loss text
+  '--color-loss-7': 'oklch(39.1% 0.090 29)', // #6E3028
+  '--color-loss-8': 'oklch(30.7% 0.060 29)', // #4A231E -- dark-theme loss-bg
+  '--color-loss-9': 'oklch(19.1% 0.038 29)', // #230D0A
+
+  '--color-focus-0': 'oklch(96.0% 0.020 52)', // #FDEEE6
+  '--color-focus-1': 'oklch(86.2% 0.050 52)', // #EDC9B4
+  '--color-focus-2': 'oklch(77.2% 0.080 52)', // #DFA786
+  '--color-focus-3': 'oklch(68.9% 0.100 52)', // #CC8960 -- dark-theme focus ring
+  '--color-focus-4': 'oklch(61.3% 0.130 52)', // #C06B30
+  '--color-focus-5': 'oklch(53.9% 0.138 52)', // #AA5202 [clamped] -- light-theme focus ring
+  '--color-focus-6': 'oklch(46.5% 0.120 52)', // #8C4200
+  '--color-focus-7': 'oklch(38.9% 0.090 52)', // #69340D
+  '--color-focus-8': 'oklch(30.6% 0.060 52)', // #472610
+  '--color-focus-9': 'oklch(19.0% 0.038 52)', // #210E04
 
   '--text-xs': '0.75rem',
   '--text-sm': '0.875rem',
@@ -113,6 +199,36 @@ const DESIGN_TOKENS = {
   '--weight-medium': '600',
   '--weight-bold': '700',
 
+  // Paired type-role tokens (design-standards.md: "each step defining
+  // size + line-height + weight + letter-spacing together"). Each is a
+  // `font:` CSS shorthand (style variant weight size/line-height family)
+  // plus a matching -tracking sibling, built from the SAME --text-*/
+  // --leading-*/--weight-* scale above (not new numbers) -- this changes
+  // how those values are CONSUMED at a handful of central call sites
+  // (body, headings, labels, metadata; see SITE_CSS below), not the scale
+  // itself. font: shorthand resets font-variant, so any element that also
+  // needs tabular-nums re-declares it explicitly after the shorthand --
+  // see th.num/td.num in SITE_CSS, which already do, and
+  // test/designTokens.test.js's tabular-nums regression check.
+  '--type-display': `${'var(--weight-bold)'} ${'var(--text-2xl)'}/${'var(--leading-tight)'} var(--font-serif)`,
+  '--type-display-tracking': '-0.02em',
+  '--type-page-title': `${'var(--weight-bold)'} ${'var(--text-2xl)'}/${'var(--leading-tight)'} var(--font-serif)`,
+  '--type-page-title-tracking': '-0.02em',
+  '--type-section': `${'var(--weight-bold)'} ${'var(--text-lg)'}/${'var(--leading-snug)'} var(--font-serif)`,
+  '--type-section-tracking': '0em',
+  '--type-subsection': `${'var(--weight-bold)'} ${'var(--text-md)'}/${'var(--leading-snug)'} var(--font-serif)`,
+  '--type-subsection-tracking': '0em',
+  '--type-lede': `${'var(--weight-regular)'} ${'var(--text-md)'}/${'var(--leading-relaxed)'} var(--font-sans)`,
+  '--type-lede-tracking': '0em',
+  '--type-body': `${'var(--weight-regular)'} ${'var(--text-base)'}/${'var(--leading-normal)'} var(--font-sans)`,
+  '--type-body-tracking': '0em',
+  '--type-compact': `${'var(--weight-regular)'} ${'var(--text-sm)'}/${'var(--leading-normal)'} var(--font-sans)`,
+  '--type-compact-tracking': '0em',
+  '--type-label': `${'var(--weight-bold)'} ${'var(--text-xs)'}/${'var(--leading-tight)'} var(--font-sans)`,
+  '--type-label-tracking': '0.04em',
+  '--type-metadata': `${'var(--weight-regular)'} ${'var(--text-xs)'}/${'var(--leading-snug)'} var(--font-sans)`,
+  '--type-metadata-tracking': '0.04em',
+
   '--measure': '68ch',
   '--width-page': '880px',
   '--width-wide': '1120px',
@@ -126,27 +242,132 @@ const DESIGN_TOKENS = {
   '--space-7': '3rem',
   '--space-8': '4rem',
 
+  // --radius-lg dropped (design-standards.md: max 3 radii) -- grepped
+  // repo-wide for this task, it had zero consumers outside its own
+  // definition. sm/md/pill remain.
   '--radius-sm': '6px',
   '--radius-md': '10px',
-  '--radius-lg': '16px',
   '--radius-pill': '999px',
-
-  '--shadow-sm': '0 1px 2px rgba(35, 39, 31, 0.08)',
-  '--shadow-md': '0 8px 24px rgba(35, 39, 31, 0.10)',
-  '--shadow-focus': '0 0 0 3px rgba(60, 110, 82, 0.25)',
 
   '--border-hairline': '1px',
   '--border-control': '2px',
 
-  // Motion tokens (design-standards.md: "all durations from motion tokens,
-  // none over 400ms"). Introduced by Phase 7c for the interactive board's
-  // piece-move animation (src/boardWidget.js), which is legitimate motion
-  // (preserves continuity across a position change) rather than decoration
-  // -- capped well under the 400ms ceiling and zeroed under
-  // prefers-reduced-motion by boardWidget.js itself.
+  // Focus geometry: the portfolio's one shared interaction signature
+  // (design-standards.md). --focus-ring-color aliases the theme-role
+  // --color-focus (THEME_ROLES below) rather than repeating a ramp index
+  // literal here, so it stays correct across both themes automatically.
+  '--focus-ring-width': '3px',
+  '--focus-ring-offset': '2px',
+  '--focus-ring-color': 'var(--color-focus)',
+
+  // Grid. --grid-max aliases --width-wide (same 1120px value) rather than
+  // repeating the literal, so test/designTokens.test.js's "no two tokens
+  // share a value under different names" check has nothing to catch here.
+  // Column classes are declared for B2/B5 to apply to the two-panel pages
+  // (explorer, drill, search, player) -- not retrofit onto every page
+  // (design-standards.md: "do not retrofit a grid onto pages that do not
+  // need one").
+  '--grid-max': 'var(--width-wide)',
+  '--grid-gutter': '24px',
+  '--grid-gutter-md': '20px',
+  '--grid-gutter-sm': '16px',
+
+  // Motion (design-standards.md: "all durations from motion tokens, none
+  // over 400ms"). -fast/-piece predate this task (Phase 7c's piece-move
+  // animation); -standard/-entering/-exiting and the ease-* set are new,
+  // replacing the never-consumed --motion-easing-standard this task found
+  // (only its own definition referenced it -- grepped repo-wide).
   '--motion-duration-fast': '150ms',
+  '--motion-duration-standard': '300ms',
+  '--motion-duration-entering': '225ms',
+  '--motion-duration-exiting': '195ms',
   '--motion-duration-piece': '200ms',
-  '--motion-easing-standard': 'cubic-bezier(0.4, 0, 0.2, 1)',
+  '--motion-ease-standard': 'cubic-bezier(0.4, 0, 0.2, 1)',
+  '--motion-ease-decelerate': 'cubic-bezier(0, 0, 0.2, 1)',
+  '--motion-ease-accelerate': 'cubic-bezier(0.4, 0, 1, 1)',
+  '--motion-ease-sharp': 'cubic-bezier(0.4, 0, 0.6, 1)',
+};
+
+/**
+ * Role assignment for every color that differs light vs dark -- kept as one
+ * JS object, {light:{...}, dark:{...}}, so the dark role map is written
+ * exactly once and interpolated into both the [data-theme="dark"] selector
+ * and the prefers-color-scheme media block below (test/designTokens.test.js
+ * asserts those two emitted blocks are byte-identical). Every value here is
+ * a var() reference into the ramps above (or, for the board/row-tint/hover
+ * values the spec hand-tunes per theme rather than deriving from the
+ * ladder, a literal already documented as an exemption) -- never a new raw
+ * hex. light and dark must define the identical key set (assertion iii).
+ */
+const THEME_ROLES = {
+  light: {
+    '--color-bg': 'var(--color-ink-0)',
+    '--color-surface': 'var(--color-paper-white)',
+    '--color-surface-alt': 'var(--color-ink-1)',
+    '--color-text': 'var(--color-ink-8)', // 12.05:1 on bg
+    '--color-muted': 'var(--color-ink-6)', // 6.47:1 on bg
+    '--color-border': 'var(--color-ink-2)', // hairline, decorative
+    '--color-border-strong': 'var(--color-ink-4)', // 3.47:1 on bg -- WCAG 1.4.11
+    '--color-accent': 'var(--color-accent-5)',
+    '--color-accent-dark': 'var(--color-accent-6)', // 6.47:1 on bg -- links
+    '--color-accent-contrast': 'var(--color-ink-0)', // 6.47:1 on an accent-6 fill
+    '--color-focus': 'var(--color-focus-5)', // 4.74:1 on bg
+    '--color-win': 'var(--color-win-4)', // bar fill -- 3.47:1 vs bg
+    '--color-win-text': 'var(--color-win-6)', // 6.47:1
+    '--color-win-bg': 'var(--color-win-0)',
+    '--color-draw': 'var(--color-draw-4)',
+    '--color-draw-text': 'var(--color-draw-6)',
+    '--color-draw-bg': 'var(--color-draw-0)',
+    '--color-loss': 'var(--color-loss-4)',
+    '--color-loss-text': 'var(--color-loss-6)',
+    '--color-loss-bg': 'var(--color-loss-0)',
+    '--color-board-light': '#ECE3CD',
+    '--color-board-dark': '#C2AD82',
+    '--color-row-tint': 'rgba(20, 19, 15, 0.035)',
+    '--color-hover': 'color-mix(in oklch, var(--color-accent) 8%, transparent)',
+    '--shadow-sm': '0 1px 2px rgba(35, 39, 31, 0.08)',
+    '--shadow-md': '0 8px 24px rgba(35, 39, 31, 0.10)',
+  },
+  dark: {
+    '--color-bg': 'var(--color-ink-9)',
+    '--color-surface': 'var(--color-ink-8)',
+    '--color-surface-alt': 'var(--color-ink-7)',
+    '--color-text': 'var(--color-ink-0)', // 16.45:1 on bg, 12.05:1 on surface
+    '--color-muted': 'var(--color-ink-3)', // 6.47 on bg / 4.74 on surface
+    '--color-border': 'var(--color-ink-6)',
+    '--color-border-strong': 'var(--color-ink-4)', // 4.74 on bg / 3.47 on surface
+    '--color-accent': 'var(--color-accent-4)',
+    // "accent-dark" now means link/emphasis accent -- the name reads
+    // backwards in the dark role map (it's lighter than --color-accent
+    // here), kept only so every call site that already references
+    // var(--color-accent-dark) stays correct without a call-site rename.
+    '--color-accent-dark': 'var(--color-accent-3)', // 6.47:1 on bg -- links
+    '--color-accent-contrast': 'var(--color-ink-9)', // 6.47:1 on an accent-3 fill
+    '--color-focus': 'var(--color-focus-3)', // 6.47:1 on bg
+    '--color-win': 'var(--color-win-4)', // bar fill -- 4.74:1 on ink-9, same index works both themes
+    '--color-win-text': 'var(--color-win-3)',
+    '--color-win-bg': 'var(--color-win-8)',
+    '--color-draw': 'var(--color-draw-4)',
+    '--color-draw-text': 'var(--color-draw-3)',
+    '--color-draw-bg': 'var(--color-draw-8)',
+    '--color-loss': 'var(--color-loss-4)',
+    '--color-loss-text': 'var(--color-loss-3)',
+    '--color-loss-bg': 'var(--color-loss-8)',
+    // The board shifts down one step rather than inverting -- the
+    // cburnett sprites are outlined light-on-dark/dark-on-light, so
+    // mid-lightness squares stay legible (square separation 1.90:1 vs the
+    // light theme's 1.71:1); confirmed against a real dark screenshot.
+    '--color-board-light': '#C2AD82',
+    '--color-board-dark': '#8A7B54',
+    '--color-row-tint': 'rgba(245, 241, 230, 0.05)',
+    '--color-hover': 'color-mix(in oklch, var(--color-accent) 14%, transparent)',
+    // A light-ground shadow (the light-theme rgba above) is invisible on
+    // ink-9 -- re-tinted to a hairline (the theme's own border role, so it
+    // still reads as a seam rather than a fixed color) plus a much
+    // stronger black shadow.
+    '--shadow-sm': '0 0 0 1px var(--color-border), 0 1px 2px rgba(0, 0, 0, 0.5)',
+    '--shadow-md': '0 0 0 1px var(--color-border), 0 8px 24px rgba(0, 0, 0, 0.5)',
+  },
 };
 
 /**
@@ -163,13 +384,38 @@ function designTokensCss(tokens) {
 /**
  * Shared design tokens + component styles, used identically by every page
  * across both the local dev server (src/server.js) and the static build
- * (dist/*.html via src/buildStatic.js). One palette, deliberately: a
- * restrained, chess-appropriate ink-and-parchment scheme (no dark-mode
- * toggle -- see task scope).
+ * (dist/*.html via src/buildStatic.js). Light is the default theme, honoring
+ * the OS preference, with an explicit toggle (see renderHeader() /
+ * THEME_TOGGLE_SCRIPT below) that overrides it. Light-by-default is the
+ * deliberate choice here (a sibling project in this portfolio defaults
+ * dark): this reader is scanning comparative prose and tables for several
+ * minutes at a stretch, the case where light-mode legibility matters most.
  */
 const SITE_CSS = `
   :root {
+    color-scheme: light;
 ${designTokensCss(DESIGN_TOKENS)}
+${designTokensCss(THEME_ROLES.light)}
+  }
+
+  /* Explicit override via the toggle (THEME_TOGGLE_SCRIPT persists this to
+     localStorage; THEME_PREPAINT_SCRIPT applies it before first paint). */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+${designTokensCss(THEME_ROLES.dark)}
+  }
+
+  /* OS preference, only when the visitor has never overridden it via the
+     toggle (:not([data-theme="light"]) -- an explicit light choice always
+     wins over the OS, same as an explicit dark choice above). This block
+     and the [data-theme="dark"] block above emit THEME_ROLES.dark through
+     the exact same designTokensCss() call, so they are byte-identical by
+     construction -- test/designTokens.test.js checks this stays true. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+${designTokensCss(THEME_ROLES.dark)}
+    }
   }
 
   /* Self-hosted display face for headings only (--font-serif above). One
@@ -200,17 +446,27 @@ ${designTokensCss(DESIGN_TOKENS)}
     border: 0;
   }
 
+  /* boardSvg.js's spriteDefsHtml() wrapper: a fixed, non-dynamic hiding
+     style (never varies per-instance), so it's a plain class rather than
+     the inline style="..." html-validate's no-inline-style rule flags. */
+  .sprite-defs-hidden {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+  }
+
   html { background: var(--color-bg); }
 
   body {
-    font-family: var(--font-sans);
+    font: var(--type-body);
+    font-family: var(--font-sans); /* re-declared after the shorthand -- see --type-body's comment */
+    letter-spacing: var(--type-body-tracking);
     background: var(--color-bg);
     color: var(--color-text);
     max-width: var(--width-page);
     margin: 0 auto;
     padding: var(--space-5) var(--space-4) var(--space-7);
-    line-height: var(--leading-normal);
-    font-size: var(--text-base);
   }
 
   /* Opt-in wide container for the three data-dense page types (repertoire
@@ -235,8 +491,8 @@ ${designTokensCss(DESIGN_TOKENS)}
   a:hover { color: var(--color-accent); }
 
   :focus-visible {
-    outline: 3px solid var(--color-focus);
-    outline-offset: 2px;
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
     border-radius: var(--radius-sm);
   }
 
@@ -249,6 +505,16 @@ ${designTokensCss(DESIGN_TOKENS)}
     padding-bottom: var(--space-4);
     margin-bottom: var(--space-5);
     border-bottom: 2px solid var(--color-border);
+  }
+
+  /* Brand + theme toggle share one row so the toggle never adds a fourth
+     wrapped nav row on narrow viewports -- same fix the sibling asset
+     (lol-practice-system/src/web/screen.css) already made for the same
+     header shape. */
+  .brand-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
   }
 
   .brand {
@@ -274,6 +540,28 @@ ${designTokensCss(DESIGN_TOKENS)}
     font-size: 0.95em;
   }
 
+  /* Theme toggle: display:none until .js proves it can work (set by
+     THEME_PREPAINT_SCRIPT before first paint), so a no-JS visitor never
+     sees a button that does nothing. 44x44 WCAG 2.5.8 tap target. */
+  .theme-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: var(--border-hairline) solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text);
+    font-size: var(--text-md);
+    cursor: pointer;
+    transition: background-color var(--motion-duration-fast) var(--motion-ease-standard),
+                border-color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+  .js .theme-toggle { display: inline-flex; }
+  .theme-toggle:hover { background: var(--color-hover); border-color: var(--color-accent); }
+
   .site-nav { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 
   .site-nav a {
@@ -283,16 +571,17 @@ ${designTokensCss(DESIGN_TOKENS)}
     font-weight: 600;
     padding: var(--space-3) var(--space-3);
     border-radius: var(--radius-sm);
-    transition: background-color 120ms ease, color 120ms ease;
+    transition: background-color var(--motion-duration-fast) var(--motion-ease-standard),
+                color var(--motion-duration-fast) var(--motion-ease-standard);
   }
 
   .site-nav a:hover { background: var(--color-hover); color: var(--color-accent-dark); }
   .site-nav a[aria-current="page"] { background: var(--color-accent-dark); color: var(--color-accent-contrast); }
 
   h1, h2, h3 { font-family: var(--font-serif); color: var(--color-accent-dark); line-height: var(--leading-snug); text-wrap: balance; }
-  h1.page-title { font-size: var(--text-2xl); line-height: var(--leading-tight); margin: 0; }
-  h2 { font-size: var(--text-lg); margin: var(--space-6) 0 var(--space-3); }
-  h3 { font-size: var(--text-md); margin: var(--space-5) 0 var(--space-2); }
+  h1.page-title { font: var(--type-page-title); font-family: var(--font-serif); letter-spacing: var(--type-page-title-tracking); margin: 0; }
+  h2 { font: var(--type-section); font-family: var(--font-serif); letter-spacing: var(--type-section-tracking); margin: var(--space-6) 0 var(--space-3); }
+  h3 { font: var(--type-subsection); font-family: var(--font-serif); letter-spacing: var(--type-subsection-tracking); margin: var(--space-5) 0 var(--space-2); }
 
   /* Vertical rhythm (design-standards.md 4.5): section spacing opens up at
      tablet width and above; stays tighter on mobile (the --space-6 default
@@ -346,10 +635,10 @@ ${designTokensCss(DESIGN_TOKENS)}
     padding: var(--space-3) var(--space-4);
     background: transparent;
     color: var(--color-muted);
-    font-weight: var(--weight-bold);
-    font-size: var(--text-xs);
+    font: var(--type-label);
+    font-family: var(--font-sans);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.08em; /* wider than --type-label-tracking -- deliberately, for the uppercase treatment */
     white-space: nowrap;
     border-bottom: 2px solid var(--color-accent);
   }
@@ -431,7 +720,7 @@ ${designTokensCss(DESIGN_TOKENS)}
   .lookup-form input:focus-visible,
   .lookup-form select:focus-visible {
     border-color: var(--color-accent);
-    box-shadow: var(--shadow-focus);
+    box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
     outline: none;
   }
 
@@ -509,8 +798,15 @@ ${designTokensCss(DESIGN_TOKENS)}
     color: var(--color-accent-contrast);
   }
 
+  /* Rendered as an <svg> with <rect> segments, not a flex row of styled
+     spans -- each segment's width is a per-row data value (a live win/draw/
+     loss percentage), and html-validate's no-inline-style rule flags any
+     style="..." attribute outright. SVG x/width are geometry attributes,
+     not the flagged style attribute, so the same visual (a stacked
+     percentage bar) is achievable with zero inline styles; see
+     src/renderContent.js's wdlBar(). */
   .wdl-bar {
-    display: inline-flex;
+    display: inline-block;
     width: 110px;
     height: 8px;
     border-radius: var(--radius-pill);
@@ -519,9 +815,9 @@ ${designTokensCss(DESIGN_TOKENS)}
     vertical-align: middle;
   }
 
-  .wdl-seg--win { background: var(--color-win); height: 100%; }
-  .wdl-seg--draw { background: var(--color-draw); height: 100%; border-left: var(--border-hairline) solid var(--color-surface); }
-  .wdl-seg--loss { background: var(--color-loss); height: 100%; border-left: var(--border-hairline) solid var(--color-surface); }
+  .wdl-seg--win { fill: var(--color-win); }
+  .wdl-seg--draw { fill: var(--color-draw); }
+  .wdl-seg--loss { fill: var(--color-loss); }
 
   /* Widened WDL bar for the one hero table per opening page
      (renderBandsTable's "How it scores at your rating"). Percentages stay
@@ -633,40 +929,14 @@ ${designTokensCss(DESIGN_TOKENS)}
     margin: 0 0 var(--space-3);
   }
   .newsletter-signup--pending .newsletter-description { margin-bottom: 0; }
-  .newsletter-fields {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-  }
-  .newsletter-fields input[type="email"] {
-    flex: 1 1 220px;
-    min-height: 44px;
-    padding: var(--space-2) var(--space-3);
+  .newsletter-embed {
+    display: block;
+    width: 100%;
+    max-width: 480px;
+    height: 320px;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
-    font-size: var(--text-sm);
     background: var(--color-bg);
-    color: var(--color-text);
-  }
-  .newsletter-fields input[type="email"]:focus-visible {
-    outline: 2px solid var(--color-focus);
-    outline-offset: 2px;
-  }
-  .newsletter-fields button {
-    min-height: 44px;
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--color-accent);
-    border-radius: var(--radius-sm);
-    background: var(--color-accent);
-    color: var(--color-accent-contrast);
-    font-size: var(--text-sm);
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .newsletter-fields button:hover { background: var(--color-accent-dark); }
-  .newsletter-fields button:focus-visible {
-    outline: 2px solid var(--color-focus);
-    outline-offset: 2px;
   }
 
   .support-links {
@@ -857,6 +1127,11 @@ ${designTokensCss(DESIGN_TOKENS)}
     font-size: var(--text-sm);
   }
 
+  /* Plain <li class="callout"> list with the browser's default list
+     chrome (bullet, indent) stripped -- a static, non-dynamic style, so a
+     class rather than the style="..." attribute no-inline-style flags. */
+  .callout-list { list-style: none; padding: 0; margin: 0; }
+
   .stat-row { display: flex; flex-wrap: wrap; gap: var(--space-4); margin: var(--space-4) 0 var(--space-6); }
   .stat {
     flex: 1 1 140px;
@@ -911,10 +1186,23 @@ ${designTokensCss(DESIGN_TOKENS)}
      "repertoire-theme" and never loads cm-chessboard's own chessboard.css. */
   .cm-chessboard.repertoire-theme .board .square.white { fill: var(--color-board-light); }
   .cm-chessboard.repertoire-theme .board .square.black { fill: var(--color-board-dark); }
-  .cm-chessboard.repertoire-theme.border-type-thin .board .border { stroke: var(--color-accent-dark); stroke-width: 0.7%; fill: var(--color-accent-dark); }
-  .cm-chessboard.repertoire-theme .coordinates .coordinate { font-size: 7px; cursor: default; }
-  .cm-chessboard.repertoire-theme .coordinates .coordinate.black { fill: var(--color-board-light); }
-  .cm-chessboard.repertoire-theme .coordinates .coordinate.white { fill: var(--color-board-dark); }
+  /* Coordinate-overprint fix: boardWidget.js used to
+     mount with borderType: 'none', which draws the a-h/1-8 coordinate
+     labels INSIDE the outer-rank/file squares (cm-chessboard's own inline
+     layout, see node_modules/cm-chessboard/src/view/ChessboardView.js
+     drawCoordinates()) -- visibly colliding with the pieces standing on
+     those squares (confirmed in visual-qa-output/eco-explorer-1440x900.png,
+     e.g. the "8"/"1" labels over the corner rooks). borderType: 'frame'
+     (now set in boardWidget.js) reserves a dedicated border band OUTSIDE
+     the 8x8 grid and draws coordinates there instead -- this is a real
+     positioning fix, not a z-order/opacity hack, so it holds regardless of
+     which piece occupies the square. In frame mode cm-chessboard emits only
+     the base .coordinate class (no .black/.white modifier -- those were an
+     inline-mode-only distinction), so a single fill replaces the old
+     per-square-color pair. */
+  .cm-chessboard.repertoire-theme.border-type-frame .board .border { fill: var(--color-board-light); stroke: none; }
+  .cm-chessboard.repertoire-theme.border-type-frame .board .border-inner { fill: var(--color-board-dark); stroke: var(--color-board-dark); stroke-width: 0.7%; }
+  .cm-chessboard.repertoire-theme .coordinates .coordinate { font-size: 7px; cursor: default; fill: var(--color-muted); }
   .cm-chessboard .board.input-enabled .square { cursor: pointer; }
   .cm-chessboard .coordinates, .cm-chessboard .markers-layer, .cm-chessboard .pieces-layer, .cm-chessboard .markers-top-layer { pointer-events: none; }
   /* Shared focus-ring language (:focus-visible above), not cm-chessboard's
@@ -925,7 +1213,7 @@ ${designTokensCss(DESIGN_TOKENS)}
      them unstyled renders as a solid black square (found during Phase 7c's
      own visual QA, not a cosmetic nicety -- an unstyled .keyboard-focus
      rect fully occludes the piece under it). */
-  .cm-chessboard-widget:focus-within { outline: var(--border-control) solid var(--color-focus); outline-offset: 2px; border-radius: var(--radius-sm); }
+  .cm-chessboard-widget:focus-within { outline: var(--border-control) solid var(--color-focus); outline-offset: var(--focus-ring-offset); border-radius: var(--radius-sm); }
   .cm-chessboard .keyboard-focus-indicator .keyboard-focus { fill: none; stroke: var(--color-focus); stroke-width: 3px; pointer-events: none; }
   .cm-chessboard .keyboard-focus-indicator .keyboard-from-square { fill: var(--color-hover); stroke: var(--color-focus); stroke-width: 2px; pointer-events: none; }
   .cm-chessboard-accessibility.visually-hidden {
@@ -975,7 +1263,7 @@ ${designTokensCss(DESIGN_TOKENS)}
     border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); width: 100%;
   }
   .explorer-paste-inputs input:focus-visible,
-  .explorer-paste-inputs textarea:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+  .explorer-paste-inputs textarea:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring-color); outline-offset: var(--focus-ring-offset); }
   .explorer-paste-inputs textarea { resize: vertical; font-size: var(--text-sm); }
   .explorer-paste-row button,
   .explorer-paste-inputs > button {
@@ -1015,6 +1303,46 @@ ${designTokensCss(DESIGN_TOKENS)}
     .lookup-form label { width: 100%; }
     .card-grid { grid-template-columns: 1fr; }
   }
+
+  /* Grid zone classes (design-standards.md: 12/6/4 column grid at
+     >=1024/768-1023/<768). Declared here for B2/B5 to apply to the
+     two-panel page types (explorer, drill, search, player) -- not
+     retrofit onto every page, per that same rule ("do not retrofit a grid
+     onto pages that do not need one"). .zone-measure is usable today: a
+     drop-in alternative to the ad hoc "main p, main li, ..." selector
+     above for any block that needs the reading measure outside <main>. */
+  .zone-measure { max-width: var(--measure); }
+  .zone-content { max-width: var(--grid-max); margin: 0 auto; }
+  .zone-full-bleed { max-width: none; margin-left: calc(-1 * var(--space-4)); margin-right: calc(-1 * var(--space-4)); }
+
+  /* AdSense in dark mode: this site runs Google
+     Auto Ads (renderDocumentHead's adsbygoogle.js script tag, no manually
+     placed <ins> units), which inject their own wrapper elements at
+     runtime and render their own light-background creative regardless of
+     page theme -- ".adsbygoogle" and Google's own ".google-auto-placed"
+     wrapper are the two selectors its generated markup uses. On the dark
+     ink-9 ground an unstyled ad reads as a broken white rectangle rather
+     than a designed panel, so it gets an explicit light well -- literally
+     ramp index 1 (var(--color-ink-1)), not the theme's --color-surface-alt
+     role (which in dark mode is still dark, ink-7, and would defeat the
+     point). NOTE: this could not be visually verified against a live ad
+     render in this session (no ad inventory renders in a local/static
+     build) -- verify on the real deployed site with ads actually serving
+     before treating this as confirmed. */
+  [data-theme="dark"] .adsbygoogle,
+  [data-theme="dark"] .google-auto-placed {
+    background: var(--color-ink-1);
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .adsbygoogle,
+    :root:not([data-theme="light"]) .google-auto-placed {
+      background: var(--color-ink-1);
+      border-radius: var(--radius-md);
+      padding: var(--space-2);
+    }
+  }
 `;
 
 /**
@@ -1039,9 +1367,67 @@ const FAVICON_DATA_URI = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
 // this file's job. Hardcoded as an absolute URL here rather than built from
 // site.js's SITE_ORIGIN because render.js has no CommonJS module loading
 // available to it at all (see this file's header comment); same reasoning as
-// FAVICON_DATA_URI and the KOFI_URL/BMC_URL constants below already being
-// hardcoded absolute URLs.
+// FAVICON_DATA_URI and the KOFI_URL constant below already being a
+// hardcoded absolute URL.
 const OG_DEFAULT_IMAGE = 'https://repertoire-builder.com/og-default.png';
+
+// Copied by value from DESIGN_TOKENS/THEME_ROLES' light/dark --color-bg
+// (ink-0 / ink-9) -- a <meta name="theme-color"> can't reference a CSS
+// custom property, same reasoning as FAVICON_DATA_URI above.
+const THEME_COLOR_LIGHT = '#F5F1E6';
+const THEME_COLOR_DARK = '#14130F';
+
+// Pre-paint script: applies a stored theme choice, and marks the document
+// as JS-capable, before the <style> block below is parsed -- so there is no
+// flash of the wrong theme, and the theme toggle (display:none by default;
+// see .js .theme-toggle in SITE_CSS) only ever appears once JS has actually
+// run. Wrapped in try/catch for private-mode storage failures. Same
+// localStorage key/values/attribute/hook as lol-practice-system's shell.js
+// (design-standards.md: conform at the interaction layer) -- the one
+// deliberate difference is this asset defaults LIGHT (no stored value AND
+// no OS dark preference leaves <html> with no data-theme attribute, which
+// is what SITE_CSS's plain :root values -- already the light role
+// assignment -- fall through to; see SITE_CSS's own comment above for why).
+const THEME_PREPAINT_SCRIPT = `<script>
+(function () {
+  try {
+    var stored = localStorage.getItem('theme');
+    if (stored === 'light' || stored === 'dark') {
+      document.documentElement.setAttribute('data-theme', stored);
+    }
+    document.documentElement.classList.add('js');
+  } catch (e) {}
+})();
+</script>`;
+
+// Theme toggle behavior: reads the EFFECTIVE theme (an explicit
+// data-theme attribute, else the OS preference) rather than assuming light,
+// since this asset's default honors prefers-color-scheme -- a dark-OS
+// visitor's first click must go to light, not dark again. Persists the
+// explicit choice, which then always wins over the OS (see SITE_CSS's
+// :not([data-theme="light"]) media-query guard). Inline, appended once by
+// renderFooter() below (every page calls it), so a single script node
+// exists no matter how many boards/other scripts a given page also loads.
+const THEME_TOGGLE_SCRIPT = `<script>
+(function () {
+  var btn = document.querySelector('[data-theme-toggle]');
+  if (!btn) return;
+  function effectiveTheme() {
+    return document.documentElement.dataset.theme
+      || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  }
+  function label(theme) {
+    btn.setAttribute('aria-label', theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme');
+  }
+  label(effectiveTheme());
+  btn.addEventListener('click', function () {
+    var next = effectiveTheme() === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('theme', next); } catch (e) {}
+    label(next);
+  });
+})();
+</script>`;
 
 /**
  * @param {string|{title:string, description?:string, canonical?:string,
@@ -1095,11 +1481,14 @@ function renderDocumentHead(arg) {
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(title)}</title>${metaDescription}${canonicalLink}${robotsMeta}${og}${feedLink}
+  <meta name="theme-color" content="${THEME_COLOR_LIGHT}" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="${THEME_COLOR_DARK}" media="(prefers-color-scheme: dark)">
+  <title>${escapeHtmlText(title)}</title>${metaDescription}${canonicalLink}${robotsMeta}${og}${feedLink}
   <link rel="icon" href="${FAVICON_DATA_URI}">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="preload" href="/fonts/fraunces-variable.woff2" as="font" type="font/woff2" crossorigin>
+  ${THEME_PREPAINT_SCRIPT}
   <style>${SITE_CSS}</style>${extraStyleBlock}${jsonLdBlock}
   <script data-goatcounter="https://dylangerrrr.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9767914878112531" crossorigin="anonymous"></script>
@@ -1118,7 +1507,11 @@ const NAV_LABELS = {
   repertoire: 'Repertoire explorer',
   openings: 'Openings',
   eco: 'ECO index',
-  drill: 'Opening drill',
+  // This nav item currently points at Italian-Game-only content --
+  // "Opening drill" would imply a general drill hub across every opening
+  // that doesn't exist yet. Rename back to "Opening drill" once the drill
+  // actually generalizes to more than one opening.
+  drill: 'Italian Game Drill',
   guides: 'Guides',
   faq: 'FAQ',
   player: 'Player lookup',
@@ -1140,22 +1533,38 @@ function renderHeader(nav, active = null) {
     .map((key) => `<a href="${escapeHtml(nav[key])}"${active === key ? ' aria-current="page"' : ''}>${escapeHtml(NAV_LABELS[key])}</a>`)
     .join('\n      ');
 
+  // Brand + theme toggle share one row (.brand-row) so the toggle never
+  // adds a fourth wrapped nav row on narrow viewports -- same fix the
+  // sibling asset already made for the same header shape (see SITE_CSS's
+  // .brand-row comment). The button's server-rendered label always assumes
+  // light (this asset's default); THEME_TOGGLE_SCRIPT re-syncs it to
+  // whatever theme is actually in effect on load.
   return `<header class="site-header">
-    <a class="brand" href="${escapeHtml(nav.home || nav.repertoire || '/')}"><span class="brand-mark" aria-hidden="true">&#9822;</span>Repertoire Builder</a>
+    <div class="brand-row">
+      <a class="brand" href="${escapeHtml(nav.home || nav.repertoire || '/')}"><span class="brand-mark" aria-hidden="true">&#9822;</span>Repertoire Builder</a>
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to dark theme">
+        <span aria-hidden="true">&#9789;</span>
+      </button>
+    </div>
     <nav class="site-nav" aria-label="Main">
       ${links}
     </nav>
   </header>`;
 }
 
-// Support-link URLs, added once here so every page picks them up from this
+// Support-link URL, added once here so every page picks it up from this
 // single shared footer instead of being pasted into each render*.js call
-// site. Real accounts created by the human -- do not modify these strings.
-// The disclosure copy required alongside these links lives in
-// renderDisclosure() below; this constant is just the links/buttons
-// themselves.
+// site. Real account created by the human -- do not modify this string.
+// The disclosure copy required alongside this link lives in
+// renderDisclosure() below; this constant is just the link/button itself.
+//
+// The site used to also link a Buy Me a Coffee account under a different
+// handle ("dylanger254") than Ko-fi's ("flavaa") -- two donation
+// identities under two different names reads as a trust seam (which one is
+// the "real" one?), so Ko-fi is now the only linked donation platform.
+// The Buy Me a Coffee account itself stays open and untouched -- this is a
+// content-only change, the site simply stops linking it.
 const KOFI_URL = 'https://ko-fi.com/flavaa';
-const BMC_URL = 'https://buymeacoffee.com/dylanger254';
 
 /**
  * Shared social-link mark (a ring, a jagged upward line, a dot at the tip)
@@ -1178,24 +1587,38 @@ function renderFooterCredit() {
   return `<p class="footer-credit">Built by Dylan &mdash; also making <a href="https://dylangerloski.github.io/filetools/" rel="noopener noreferrer">filetools</a> and <a href="https://lol-practice-system.com" rel="noopener noreferrer">Solo Queue Practice</a>. <a class="footer-social" href="https://x.com/builtittheycome" rel="noopener noreferrer">${SOCIAL_ICON_SVG}Follow @builtittheycome</a></p>`;
 }
 
-// Newsletter signup: no email provider is connected yet. This constant is
-// the ONE place to enable real capture later: once a provider is chosen,
-// set NEWSLETTER_FORM_ACTION to that provider's real hosted-form action URL
-// (e.g. a Buttondown/ConvertKit "plain HTML form" embed action) -- that one
-// edit is the entire wiring change, no rebuild of renderNewsletterSignup()
-// itself. Left null (the current state) renders an honest "not live yet"
-// placeholder instead of a form with nowhere real to submit to. Defined as
-// a literal constant here (not pulled in from site.js) for the same reason
-// KOFI_URL/BMC_URL above are: this file is concatenated verbatim into the
-// browser bundle (see this file's header comment) and cannot use CommonJS
-// module loading at module scope.
-const NEWSLETTER_FORM_ACTION = null;
-const NEWSLETTER_FORM_METHOD = 'POST';
+// Newsletter signup: wired to the project's Substack publication
+// (builtittheycome.substack.com -- the same portfolio-wide publication
+// filetools and lol-practice-system already wired, per Substack's own
+// "embed a subscribe widget" panel for that publication). This constant is
+// the ONE place that switches capture on/off: left null it renders an
+// honest "not live yet" placeholder; set to the embed URL it renders the
+// real widget. Defined as a literal constant here (not pulled in from
+// site.js) for the same reason KOFI_URL above is: this file is
+// concatenated verbatim into the browser bundle (see this file's header
+// comment) and cannot use CommonJS module loading at module scope.
+const NEWSLETTER_FORM_ACTION = 'https://builtittheycome.substack.com/embed';
+const SUBSTACK_PUBLICATION_URL = 'https://builtittheycome.substack.com';
 
 /**
  * Sitewide newsletter signup, rendered inside the shared footer so it
  * appears on every page. See NEWSLETTER_FORM_ACTION's comment above for how
- * this switches from the placeholder state to a real capture form.
+ * this switches from the placeholder state to the real embed.
+ *
+ * Renders an iframe embed (Substack has no plain-HTML form-post endpoint --
+ * a <form action> posting to the /embed URL, which is what this function
+ * did before this content was real, does not actually subscribe anyone).
+ * The iframe itself is only created client-side once its footer slot nears
+ * the viewport (see the inline script below), not unconditionally on every
+ * page load -- an eagerly-loaded third-party iframe in a sitewide footer
+ * cost the whole Lighthouse Performance budget on this same Substack
+ * publication's other two embeds (filetools, lol-practice-system); this
+ * keeps the signup box fully functional while keeping it off the
+ * initial-load critical path. Kept as one small inline script (rather than
+ * a separate src/browser/*.client.js file copied by build.js/buildStatic.js
+ * and referenced from every render*.js page template) so this remains the
+ * one place in the codebase that needs to change to wire this up, matching
+ * every other page template's existing renderFooter() call unchanged.
  */
 function renderNewsletterSignup() {
   if (!NEWSLETTER_FORM_ACTION) {
@@ -1204,15 +1627,13 @@ function renderNewsletterSignup() {
     <p class="newsletter-description">Email sign-up isn&rsquo;t live yet &mdash; check back soon, or follow the <a href="feed.xml">RSS feed</a> in the meantime.</p>
   </div>`;
   }
-  return `<form class="newsletter-signup" action="${escapeHtml(NEWSLETTER_FORM_ACTION)}" method="${escapeHtml(NEWSLETTER_FORM_METHOD)}">
+  return `<div class="newsletter-signup">
     <h2 class="newsletter-heading">Get new openings and guides by email</h2>
     <p class="newsletter-description">One email when a new opening page or guide ships. No spam, unsubscribe anytime.</p>
-    <div class="newsletter-fields">
-      <label for="newsletter-email" class="sr-only">Email address</label>
-      <input id="newsletter-email" name="email" type="email" required placeholder="you@example.com" autocomplete="email">
-      <button type="submit">Subscribe</button>
-    </div>
-  </form>`;
+    <div class="newsletter-embed" data-newsletter-slot data-newsletter-src="${escapeHtml(NEWSLETTER_FORM_ACTION)}" data-newsletter-title="Email signup for Repertoire Builder updates"></div>
+    <noscript><p class="newsletter-description"><a href="${escapeHtml(SUBSTACK_PUBLICATION_URL)}" target="_blank" rel="noopener noreferrer">Subscribe on Substack</a></p></noscript>
+    <script>(function(){var slots=document.querySelectorAll('[data-newsletter-slot]');if(!slots.length)return;function loadEmbed(slot){var src=slot.getAttribute('data-newsletter-src');var title=slot.getAttribute('data-newsletter-title')||'Email signup form';if(!src||!/^https:\\/\\//.test(src))return;var iframe=document.createElement('iframe');iframe.src=src;iframe.width='480';iframe.height='320';iframe.loading='lazy';iframe.title=title;iframe.className='newsletter-embed';iframe.setAttribute('frameborder','0');iframe.setAttribute('scrolling','no');slot.replaceWith(iframe);}if(!('IntersectionObserver' in window)){slots.forEach(loadEmbed);return;}var observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(entry.isIntersecting){observer.unobserve(entry.target);loadEmbed(entry.target);}});},{rootMargin:'200px 0px'});slots.forEach(function(slot){observer.observe(slot);});})();</script>
+  </div>`;
 }
 
 /**
@@ -1221,12 +1642,12 @@ function renderNewsletterSignup() {
  * snippet/component, reusable on any future page that carries affiliate or
  * support links even outside the shared footer (e.g. a future dedicated
  * review/comparison page). renderFooter() also calls this unconditionally
- * (see below) because every page's footer already renders the Ko-fi/Buy Me
- * a Coffee support links (KOFI_URL/BMC_URL above) -- the disclosure that
- * covers them has to appear everywhere those do.
+ * (see below) because every page's footer already renders the Ko-fi
+ * support link (KOFI_URL above) -- the disclosure that covers it has to
+ * appear everywhere it does.
  */
 function renderDisclosure() {
-  return `<p class="disclosure-note">Disclosure: this site includes voluntary support links (Ko-fi, Buy Me a Coffee) and may in the future include affiliate links that earn a small commission on qualifying purchases at no extra cost to you. Support and affiliate links never influence the win-rate data, rankings, or analysis shown on this site &mdash; all of that comes directly from Lichess&rsquo;s public API and Opening Explorer, unaffected by any link on this page.</p>`;
+  return `<p class="disclosure-note">Disclosure: this site includes a voluntary support link (Ko-fi) and may in the future include affiliate links that earn a small commission on qualifying purchases at no extra cost to you. Support and affiliate links never influence the win-rate data, rankings, or analysis shown on this site &mdash; all of that comes directly from Lichess&rsquo;s public API and Opening Explorer, unaffected by any link on this page.</p>`;
 }
 
 /**
@@ -1251,14 +1672,19 @@ function renderFooter(innerHtml, legalLinks) {
     ${legalLinks.contact ? `<a href="${escapeHtml(legalLinks.contact)}">Contact</a>` : ''}
   </nav>`
     : '';
+  // THEME_TOGGLE_SCRIPT is appended here (not in the header, where the
+  // toggle button itself lives) because renderFooter() is the one function
+  // every page template already calls unconditionally -- it queries
+  // [data-theme-toggle] globally, so its position in the DOM relative to
+  // the button doesn't matter, only that it runs once per page.
   return `<footer class="site-footer">${innerHtml}
   ${renderFooterCredit()}
   ${renderNewsletterSignup()}
   <div class="support-links">
     <a href="${KOFI_URL}" target="_blank" rel="noopener noreferrer">&#9749; Support on Ko-fi</a>
-    <a href="${BMC_URL}" target="_blank" rel="noopener noreferrer">&#9749; Buy Me a Coffee</a>
   </div>
-  ${renderDisclosure()}${legalRow}</footer>`;
+  ${renderDisclosure()}${legalRow}</footer>
+  ${THEME_TOGGLE_SCRIPT}`;
 }
 
 /**
@@ -1285,22 +1711,41 @@ function renderFooter(innerHtml, legalLinks) {
  * @returns {string}
  */
 function renderPageHead({ breadcrumb = '', eyebrow = '', title, subtitle = '', meta = '' }) {
-  return `${breadcrumb}
-    ${eyebrow ? `<p class="page-eyebrow">${eyebrow}</p>` : ''}
-    <h1 class="page-title">${title}</h1>
-    ${subtitle ? `<p class="subtitle">${subtitle}</p>` : ''}
-    ${meta}`;
+  // Built as a list of only the PRESENT blocks, joined with '\n    ' --
+  // never a leading or trailing newline, and never a blank/whitespace-only
+  // line for an omitted optional field. The previous version always
+  // emitted "    ${eyebrow ? ... : ''}" etc. as its own template line
+  // (and, whenever `breadcrumb` was also falsy, started its whole return
+  // value with a bare newline), so any omitted breadcrumb/eyebrow/subtitle/
+  // meta left a line containing only the 4-space indent -- exactly what
+  // html-validate's no-trailing-whitespace rule flags (a text node matching
+  // /^[\t ]+\r?\n$/). `meta` in particular defaults to '' and most callers
+  // never pass it, so this was the single largest source of that gate's
+  // ~2270 total errors.
+  const parts = [];
+  if (breadcrumb) parts.push(breadcrumb);
+  if (eyebrow) parts.push(`<p class="page-eyebrow">${eyebrow}</p>`);
+  parts.push(`<h1 class="page-title">${title}</h1>`);
+  if (subtitle) parts.push(`<p class="subtitle">${subtitle}</p>`);
+  if (meta) parts.push(meta);
+  return parts.join('\n    ');
 }
 
 /**
  * Wraps a `<table>...</table>` string in a horizontally-scrollable
  * container with a visible "there's more, scroll" affordance on narrow
  * viewports, instead of letting the table silently overflow the page.
+ *
+ * `label` is required (no default) and must be unique among any other
+ * table-scroll regions on the SAME page -- a page with more than one
+ * wrapped table needs a real per-table name (its own caption text is
+ * always a good choice; see callers) or html-validate's unique-landmark
+ * rule correctly flags the collision. Renders as a native <section> with
+ * an accessible name rather than `<div role="region">` (prefer-native-element).
  */
-function wrapTable(tableHtml) {
-  return `
-    <p class="table-hint">Scroll to see more &rarr;</p>
-    <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable data table">${tableHtml}</div>`;
+function wrapTable(tableHtml, label) {
+  return `<p class="table-hint">Scroll to see more &rarr;</p>
+    <section class="table-scroll" tabindex="0" aria-label="${escapeHtml(label)}">${tableHtml}</section>`;
 }
 
 function deltaClassFor(change) {
@@ -1335,7 +1780,7 @@ function renderRatingTable(ratingRows) {
         <tr><th>Variant</th><th class="num">Current</th><th class="num">Peak</th><th class="num">Low</th><th class="num">Change</th><th class="num">Data points</th></tr>
       </thead>
       <tbody>${rows}</tbody>
-    </table>`);
+    </table>`, 'Ratings by variant');
 }
 
 function resultBadge(result) {
@@ -1361,8 +1806,7 @@ function renderGamesTable(gameSummary) {
     )
     .join('');
 
-  return `
-    <p class="summary-line">${gameSummary.wins}W / ${gameSummary.losses}L / ${gameSummary.draws}D
+  return `<p class="summary-line">${gameSummary.wins}W / ${gameSummary.losses}L / ${gameSummary.draws}D
        out of ${gameSummary.totalGames} games (win rate ${formatPct(gameSummary.winRate)}%,
        avg opponent rating ${gameSummary.avgOpponentRating ?? 'n/a'})</p>` +
     wrapTable(`
@@ -1371,7 +1815,7 @@ function renderGamesTable(gameSummary) {
         <tr><th>Date</th><th>Opponent</th><th class="num">Opp. rating</th><th>Color</th><th>Variant/Speed</th><th>Result</th></tr>
       </thead>
       <tbody>${rows}</tbody>
-    </table>`);
+    </table>`, 'Recent games');
 }
 
 /**
@@ -1410,24 +1854,34 @@ function renderRepertoireNode(node) {
     ? `<ul>${node.children.map(renderRepertoireNode).join('')}</ul>`
     : '';
   const wdlTitle = `${node.mover} win/draw/loss: ${formatPct(winPct)}% / ${formatPct(drawPct)}% / ${formatPct(lossPct)}%`;
+  // Same SVG-rect technique as src/renderContent.js's wdlBar() -- see that
+  // function's doc comment. Kept in sync here rather than shared because
+  // this file may not require() renderContent.js (this file is also
+  // concatenated verbatim into the browser bundle; see the header comment).
   const wdlBar = winPct == null
     ? ''
-    : `<span class="wdl-bar" title="${escapeHtml(wdlTitle)}">
-        <span class="wdl-seg--win" style="width:${winPct}%"></span>
-        <span class="wdl-seg--draw" style="width:${drawPct}%"></span>
-        <span class="wdl-seg--loss" style="width:${lossPct}%"></span>
-      </span>
+    : `<svg class="wdl-bar" viewBox="0 0 100 12" preserveAspectRatio="none" role="img"><title>${escapeHtml(wdlTitle)}</title><rect class="wdl-seg--win" x="0" y="0" width="${winPct}" height="12"></rect><rect class="wdl-seg--draw" x="${winPct}" y="0" width="${drawPct}" height="12"></rect><rect class="wdl-seg--loss" x="${winPct + drawPct}" y="0" width="${lossPct}" height="12"></rect></svg>
       <span class="wdl-label">${formatPct(winPct)}% / ${formatPct(drawPct)}% / ${formatPct(lossPct)}%</span>`;
+
+  // Built the same "only the present blocks, joined" way as
+  // src/render.js's renderPageHead (see that function's doc comment) --
+  // `wdlBar`/`ratingNote`/`children` are all legitimately '' for a leaf
+  // node/no-rating-data node, and interpolating any of them at their own
+  // indented template line would leave a whitespace-only line for exactly
+  // that (very common, one per leaf) case.
+  const rowParts = [
+    `<span class="move-chip move-chip--${escapeHtml(node.mover)}">${escapeHtml(node.san)}</span>`,
+    `<span class="rep-games">${node.games.toLocaleString()} games <span class="rep-pct">(${formatPct(node.playedPct)}% of this position)</span></span>`,
+  ];
+  if (wdlBar) rowParts.push(wdlBar);
+  if (ratingNote) rowParts.push(ratingNote);
+
+  const liParts = [`<div class="rep-node-row">\n        ${rowParts.join('\n        ')}\n      </div>`];
+  if (children) liParts.push(children);
 
   return `
     <li>
-      <div class="rep-node-row">
-        <span class="move-chip move-chip--${escapeHtml(node.mover)}">${escapeHtml(node.san)}</span>
-        <span class="rep-games">${node.games.toLocaleString()} games <span class="rep-pct">(${formatPct(node.playedPct)}% of this position)</span></span>
-        ${wdlBar}
-        ${ratingNote}
-      </div>
-      ${children}
+      ${liParts.join('\n      ')}
     </li>`;
 }
 
@@ -1494,10 +1948,13 @@ module.exports = {
   renderGamesTable,
   renderRatingTable,
   escapeHtml,
+  escapeHtmlText,
   formatPct,
   SITE_CSS,
   FAVICON_DATA_URI,
   DESIGN_TOKENS,
+  THEME_ROLES,
+  designTokensCss,
   renderDocumentHead,
   renderHeader,
   renderFooter,

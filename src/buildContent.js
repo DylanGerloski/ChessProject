@@ -414,7 +414,7 @@ function buildFaqEntries(entries) {
     },
     {
       question: 'How is this site funded?',
-      answerHtml: `<p>Currently through voluntary support links (Ko-fi, Buy Me a Coffee) shown in the footer of every page &mdash; no advertising currently runs on this site. See the <a href="about.html">About page &rarr;</a> and <a href="privacy.html">Privacy policy &rarr;</a> for the full, current answer.</p>`,
+      answerHtml: `<p>Currently through a voluntary support link (Ko-fi) shown in the footer of every page &mdash; no advertising currently runs on this site. See the <a href="about.html">About page &rarr;</a> and <a href="privacy.html">Privacy policy &rarr;</a> for the full, current answer.</p>`,
     },
   ];
 }
