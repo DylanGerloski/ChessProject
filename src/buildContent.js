@@ -178,6 +178,24 @@ function extractDescription(html) {
 }
 
 /**
+ * The 70/160-char caps below are an SEO guideline about how many visible
+ * characters a search result shows -- they must be measured against the
+ * decoded text a reader would actually see, not the escaped HTML
+ * render.js's escapeHtml() writes into <title>/meta content (e.g. an
+ * apostrophe becomes the 5-character &#39;). Decodes only the fixed, small
+ * set of entities escapeHtml() actually produces -- same precedent as
+ * src/structuredData.js's stripHtmlToText(), not a general-purpose decoder.
+ */
+function decodeEscapedTextLength(str) {
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'").length;
+}
+
+/**
  * Fails the build loudly (spec section 1.9) on a duplicate title, a
  * duplicate meta description, a missing title, or an over-length title
  * (>70 chars, spec 2.2) or description (>160 chars, spec 2.2) -- a half-built
@@ -190,8 +208,9 @@ function assertPageMetadata(written) {
     if (!page.title) {
       throw new Error(`buildContent: ${page.file} has no <title>`);
     }
-    if (page.title.length > 70) {
-      throw new Error(`buildContent: ${page.file}'s title is ${page.title.length} chars, over the 70 cap: "${page.title}"`);
+    const titleLength = decodeEscapedTextLength(page.title);
+    if (titleLength > 70) {
+      throw new Error(`buildContent: ${page.file}'s title is ${titleLength} chars, over the 70 cap: "${page.title}"`);
     }
     if (seenTitles.has(page.title)) {
       throw new Error(`buildContent: duplicate title between ${seenTitles.get(page.title)} and ${page.file}: "${page.title}"`);
@@ -199,8 +218,9 @@ function assertPageMetadata(written) {
     seenTitles.set(page.title, page.file);
 
     if (page.description) {
-      if (page.description.length > 160) {
-        throw new Error(`buildContent: ${page.file}'s meta description is ${page.description.length} chars, over the 160 cap`);
+      const descriptionLength = decodeEscapedTextLength(page.description);
+      if (descriptionLength > 160) {
+        throw new Error(`buildContent: ${page.file}'s meta description is ${descriptionLength} chars, over the 160 cap`);
       }
       if (seenDescriptions.has(page.description)) {
         throw new Error(`buildContent: duplicate meta description between ${seenDescriptions.get(page.description)} and ${page.file}`);

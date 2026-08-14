@@ -22,7 +22,8 @@ function escapeHtml(str) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /**
@@ -1147,10 +1148,10 @@ function renderGamesTable(gameSummary) {
   const rows = gameSummary.results
     .map(
       (r) => `
-      <tr class="result-${r.result}">
-        <td>${r.date || '-'}</td>
+      <tr class="result-${escapeHtml(r.result)}">
+        <td>${escapeHtml(r.date || '-')}</td>
         <td>${escapeHtml(r.opponent)}</td>
-        <td class="num">${r.opponentRating ?? '-'}</td>
+        <td class="num">${escapeHtml(r.opponentRating ?? '-')}</td>
         <td>${escapeHtml(r.color)}</td>
         <td>${escapeHtml(r.variant)} / ${escapeHtml(r.speed)}</td>
         <td>${resultBadge(r.result)}</td>
@@ -1288,6 +1289,7 @@ module.exports = {
   renderPlayerPage,
   renderRepertoireTree,
   renderRepertoirePage,
+  renderGamesTable,
   escapeHtml,
   formatPct,
   SITE_CSS,

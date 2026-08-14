@@ -32,6 +32,23 @@
     return typeof n === 'number' ? n.toFixed(1) : null;
   }
 
+  // This file is bundled without src/render.js (see buildDrillBundle()'s
+  // header comment), so it can't call render.js's escapeHtml -- this is a
+  // standalone copy of the same five-character escaper, kept here because
+  // renderCandidateTable() below builds HTML by string concatenation from
+  // Lichess Opening Explorer data. That data is baked in at build time
+  // rather than typed by a visitor, but it's still third-party content and
+  // is treated as untrusted per the same rule render.js's escapeHtml
+  // follows.
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   var dataEl = document.getElementById('drill-data');
   if (!dataEl) return; // no drill data present -- nothing to wire up
 
@@ -124,8 +141,8 @@
     if (!candidateTableEl) return;
     var rows = candidates
       .map(function (c) {
-        return '<tr><td>' + c.san + '</td><td>' + (c.playedPct != null ? formatPct(c.playedPct) + '%' : '-') + '</td><td>' +
-          (c.winPct != null ? formatPct(c.winPct) + '%' : '-') + '</td><td>' + c.games.toLocaleString() + '</td></tr>';
+        return '<tr><td>' + escapeHtml(c.san) + '</td><td>' + (c.playedPct != null ? escapeHtml(formatPct(c.playedPct) + '%') : '-') + '</td><td>' +
+          (c.winPct != null ? escapeHtml(formatPct(c.winPct) + '%') : '-') + '</td><td>' + escapeHtml(c.games.toLocaleString()) + '</td></tr>';
       })
       .join('');
     candidateTableEl.innerHTML = '<table><thead><tr><th scope="col">Move</th><th scope="col">Pick %</th><th scope="col">Score %</th><th scope="col">Games</th></tr></thead><tbody>' + rows + '</tbody></table>';
