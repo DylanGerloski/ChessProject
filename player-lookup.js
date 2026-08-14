@@ -550,6 +550,20 @@ ${designTokensCss(DESIGN_TOKENS)}
   .legal-links a { color: var(--color-muted); }
   .legal-links a:hover { color: var(--color-accent-dark); }
 
+  .footer-credit {
+    margin: var(--space-3) 0 0;
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+  }
+  .footer-credit a { color: var(--color-muted); }
+  .footer-credit a:hover { color: var(--color-accent-dark); }
+  .footer-social {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  .footer-social svg { display: block; }
+
   .prose { max-width: var(--measure); }
   .prose p { margin: 0 0 var(--space-4); line-height: var(--leading-relaxed); }
   .prose h2 { margin-top: var(--space-6); }
@@ -860,6 +874,8 @@ ${designTokensCss(DESIGN_TOKENS)}
   <style>${extraCss}</style>`:"",feedLink=feedUrl?`
   <link rel="alternate" type="application/rss+xml" title="Repertoire Builder \u2014 new opening guides and articles" href="${escapeHtml(feedUrl)}">`:"";return`<head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>${metaDescription}${canonicalLink}${robotsMeta}${og}${feedLink}
   <link rel="icon" href="${FAVICON_DATA_URI}">
@@ -867,7 +883,7 @@ ${designTokensCss(DESIGN_TOKENS)}
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="preload" href="/fonts/fraunces-variable.woff2" as="font" type="font/woff2" crossorigin>
   <style>${SITE_CSS}</style>${extraStyleBlock}${jsonLdBlock}
-  <script data-goatcounter="https://dylangerrrr.goatcounter.com/count" async src="//gc.zgo.at/count.js"><\/script>
+  <script data-goatcounter="https://dylangerrrr.goatcounter.com/count" async src="https://gc.zgo.at/count.js"><\/script>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9767914878112531" crossorigin="anonymous"><\/script>
 </head>`}var NAV_ORDER=["repertoire","openings","eco","drill","guides","faq","player"],NAV_LABELS={repertoire:"Repertoire explorer",openings:"Openings",eco:"ECO index",drill:"Opening drill",guides:"Guides",faq:"FAQ",player:"Player lookup"};function renderHeader(nav,active=null){let links=NAV_ORDER.filter(key=>nav[key]!=null).map(key=>`<a href="${escapeHtml(nav[key])}"${active===key?' aria-current="page"':""}>${escapeHtml(NAV_LABELS[key])}</a>`).join(`
       `);return`<header class="site-header">
@@ -875,7 +891,7 @@ ${designTokensCss(DESIGN_TOKENS)}
     <nav class="site-nav" aria-label="Main">
       ${links}
     </nav>
-  </header>`}var KOFI_URL="https://ko-fi.com/flavaa",BMC_URL="https://buymeacoffee.com/dylanger254",NEWSLETTER_FORM_ACTION=null,NEWSLETTER_FORM_METHOD="POST";function renderNewsletterSignup(){return NEWSLETTER_FORM_ACTION?`<form class="newsletter-signup" action="${escapeHtml(NEWSLETTER_FORM_ACTION)}" method="${escapeHtml(NEWSLETTER_FORM_METHOD)}">
+  </header>`}var KOFI_URL="https://ko-fi.com/flavaa",BMC_URL="https://buymeacoffee.com/dylanger254",SOCIAL_ICON_SVG='<svg width="18" height="18" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="47" fill="#0f2233"/><circle cx="50" cy="50" r="35" fill="none" stroke="#6f95a1" stroke-width="3"/><path d="M16 74 L38 58 L50 66 L83 27" fill="none" stroke="#c99a44" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="83" cy="27" r="9" fill="#f2e0a8"/></svg>';function renderFooterCredit(){return`<p class="footer-credit">Built by Dylan &mdash; also making <a href="https://dylangerloski.github.io/filetools/" rel="noopener noreferrer">filetools</a> and <a href="https://lol-practice-system.com" rel="noopener noreferrer">Solo Queue Practice</a>. <a class="footer-social" href="https://x.com/builtittheycome" rel="noopener noreferrer">${SOCIAL_ICON_SVG}Follow @builtittheycome</a></p>`}var NEWSLETTER_FORM_ACTION=null,NEWSLETTER_FORM_METHOD="POST";function renderNewsletterSignup(){return NEWSLETTER_FORM_ACTION?`<form class="newsletter-signup" action="${escapeHtml(NEWSLETTER_FORM_ACTION)}" method="${escapeHtml(NEWSLETTER_FORM_METHOD)}">
     <h2 class="newsletter-heading">Get new openings and guides by email</h2>
     <p class="newsletter-description">One email when a new opening page or guide ships. No spam, unsubscribe anytime.</p>
     <div class="newsletter-fields">
@@ -892,6 +908,7 @@ ${designTokensCss(DESIGN_TOKENS)}
     ${legalLinks.about?`<a href="${escapeHtml(legalLinks.about)}">About</a>`:""}
     ${legalLinks.contact?`<a href="${escapeHtml(legalLinks.contact)}">Contact</a>`:""}
   </nav>`:"";return`<footer class="site-footer">${innerHtml}
+  ${renderFooterCredit()}
   ${renderNewsletterSignup()}
   <div class="support-links">
     <a href="${KOFI_URL}" target="_blank" rel="noopener noreferrer">&#9749; Support on Ko-fi</a>

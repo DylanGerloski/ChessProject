@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Best Chess Openings for Beginners, by Win Rate | Repertoire Builder</title>
   <meta name="description" content="The 10 openings this site tracks, ranked by measured score at 1400-1600 rather than by opinion — with the sample size for every number shown.">
@@ -622,6 +624,20 @@
   .legal-links a { color: var(--color-muted); }
   .legal-links a:hover { color: var(--color-accent-dark); }
 
+  .footer-credit {
+    margin: var(--space-3) 0 0;
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+  }
+  .footer-credit a { color: var(--color-muted); }
+  .footer-credit a:hover { color: var(--color-accent-dark); }
+  .footer-social {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  .footer-social svg { display: block; }
+
   .prose { max-width: var(--measure); }
   .prose p { margin: 0 0 var(--space-4); line-height: var(--leading-relaxed); }
   .prose h2 { margin-top: var(--space-6); }
@@ -918,7 +934,7 @@
 </style>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://repertoire-builder.com/"},{"@type":"ListItem","position":2,"name":"Guides","item":"https://repertoire-builder.com/guides.html"},{"@type":"ListItem","position":3,"name":"Best Chess Openings for Beginners, by Win Rate","item":"https://repertoire-builder.com/best-chess-openings-for-beginners.html"}]}</script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Best Chess Openings for Beginners, by Win Rate","description":"The 10 openings this site tracks, ranked by measured score at 1400-1600 rather than by opinion — with the sample size for every number shown.","datePublished":"2026-08-14","dateModified":"2026-08-14","author":{"@type":"Organization","name":"Repertoire Builder"},"publisher":{"@type":"Organization","name":"Repertoire Builder"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://repertoire-builder.com/best-chess-openings-for-beginners.html"}}</script>
-  <script data-goatcounter="https://dylangerrrr.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+  <script data-goatcounter="https://dylangerrrr.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9767914878112531" crossorigin="anonymous"></script>
 </head>
 <body>
@@ -959,6 +975,7 @@
     
   </main>
   <footer class="site-footer">Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved 2026-08-14. This article is written to reflect that data &mdash; not a substitute for a coach&rsquo;s judgment about your own games.
+  <p class="footer-credit">Built by Dylan &mdash; also making <a href="https://dylangerloski.github.io/filetools/" rel="noopener noreferrer">filetools</a> and <a href="https://lol-practice-system.com" rel="noopener noreferrer">Solo Queue Practice</a>. <a class="footer-social" href="https://x.com/builtittheycome" rel="noopener noreferrer"><svg width="18" height="18" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="47" fill="#0f2233"/><circle cx="50" cy="50" r="35" fill="none" stroke="#6f95a1" stroke-width="3"/><path d="M16 74 L38 58 L50 66 L83 27" fill="none" stroke="#c99a44" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="83" cy="27" r="9" fill="#f2e0a8"/></svg>Follow @builtittheycome</a></p>
   <div class="newsletter-signup newsletter-signup--pending">
     <h2 class="newsletter-heading">Get new openings and guides by email</h2>
     <p class="newsletter-description">Email sign-up isn&rsquo;t live yet &mdash; check back soon, or follow the <a href="feed.xml">RSS feed</a> in the meantime.</p>
