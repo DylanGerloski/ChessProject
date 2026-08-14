@@ -6,6 +6,18 @@ dist/
 .lichess-token.txt
 visual-qa-output/
 
+# Dump-ingest aggregate output (src/ingest/, scripts/ingestDump.js): shards
+# are published as a GitHub Release asset, never committed to git history
+# (spec: ~30MB replaced monthly would bloat the repo for no benefit) --
+# manifest.json is the one file that DOES get committed back to master by
+# .github/workflows/ingest-dump.yml, so it's explicitly re-included below.
+data/aggregates/*
+!data/aggregates/manifest.json
+# Ad hoc local/manual ingest runs into a scratch directory (never the
+# production data/aggregates/ path) -- e.g. a smoke-test run kept around for
+# inspection instead of deleted immediately.
+data/aggregates-*/
+
 # Internal planning/testing docs -- not for the public repo. Kept locally,
 # never pushed. Broad patterns since growth/reviewer passes name these
 # inconsistently (SEO_PLAN.md, SITE_HEALTH_REPORT_2026-08-14.md, etc.) --

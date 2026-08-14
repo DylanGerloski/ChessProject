@@ -1,0 +1,120 @@
+name: Ingest Lichess Database Dump
+
+# Manual only, for now. This pulls several GB from a third-party,
+# donation-funded server (database.lichess.org) and publishes a public
+# GitHub Release asset -- a deliberate, separately-approved action, not
+# something that should ever fire unattended until the pipeline has proven
+# itself reliable over a few real runs.
+on:
+  workflow_dispatch:
+    inputs:
+      month:
+        description: 'Dump month to ingest, YYYY-MM (fetches lichess_db_standard_rated_<month>.pgn.zst from database.lichess.org)'
+        required: true
+        type: string
+      games:
+        description: 'Game budget for this run -- the connection is destroyed the moment this many games have been scanned. Use 500000 for the first run against any never-before-ingested month (a cheap smoke test of the real header format and throughput) before ever using a larger value such as 8000000.'
+        required: true
+        type: string
+        default: '500000'
+      smoke_test:
+        description: 'Smoke test (default true): tags the release "-smoke" and does NOT commit manifest.json back to master, so the live site keeps its current data source. Set to false only for a full-scale run that should become the site''s live data source, and only after a prior smoke-test run for the same month has been verified good.'
+        required: true
+        type: boolean
+        default: true
+
+# OFF pending a longer track record. Do not uncomment without a fresh
+# human-gated decision covering an UNATTENDED (not just manual) run -- the
+# approval this workflow currently has (see repo history around this file's
+# introduction) covers workflow_dispatch runs only.
+# schedule:
+#   - cron: '0 6 1 * *'  # monthly, 1st of the month, 06:00 UTC
+
+permissions:
+  contents: write  # commits manifest.json back to master, and creates a Release -- deploy-pages.yml keeps contents: read
+
+# Never run two ingests at once -- both hit the same upstream file, and
+# Non-Negotiable 3 (bandwidth courtesy) already requires exactly one
+# sequential GET per run.
+concurrency:
+  group: ingest-dump
+  cancel-in-progress: false
+
+# A generous but bounded ceiling well under GitHub's own 6-hour hard kill --
+# a hang should fail fast and cheap, not silently eat a runner for hours.
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+
+      # Fails in 5 seconds, not 40 minutes into a download, if the runner
+      # image ever stops shipping either tool (spec open risk 7).
+      - name: Preflight -- confirm zstd and curl are on PATH
+        run: |
+          zstd --version
+          curl --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Ingest dump prefix
+        run: |
+          node scripts/ingestDump.js \
+            --month "${{ inputs.month }}" \
+            --games "${{ inputs.games }}" \
+            --out data/aggregates \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Aggregate-side data-sanity gates only (--skip-dist): this workflow
+      # never builds dist/ -- that happens separately in deploy-pages.yml,
+      # against whatever manifest.json this run commits back to master.
+      - name: Verify data-sanity gates
+        run: node scripts/verifyAggregates.js --aggregates data/aggregates --skip-dist
+
+      - name: Package aggregate shards
+        id: package
+        run: |
+          MONTH="${{ inputs.month }}"
+          TAG="data-${MONTH}"
+          if [ "${{ inputs.smoke_test }}" = "true" ]; then
+            TAG="${TAG}-smoke"
+          fi
+          ASSET="aggregates-${MONTH}.tar.gz"
+          tar -czf "$ASSET" -C data/aggregates .
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+
+      # gh is preinstalled on ubuntu-latest runners and authenticates with
+      # the automatically-issued, workflow-scoped GITHUB_TOKEN below -- no
+      # third-party release-creation Action needed, so there is nothing here
+      # to SHA-pin.
+      - name: Create release and upload aggregate asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.package.outputs.tag }}" \
+            "${{ steps.package.outputs.asset }}" \
+            --title "Aggregate data ${{ inputs.month }}${{ inputs.smoke_test == true && ' (smoke test)' || '' }}" \
+            --notes "Ingested from database.lichess.org, month ${{ inputs.month }}, game budget ${{ inputs.games }}. See the attached manifest.json for the exact gamesScanned/gamesUsed/observedGameDateRange figures for this run."
+
+      - name: Commit manifest back to master
+        if: ${{ inputs.smoke_test == false }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/aggregates/manifest.json
+          if git diff --cached --quiet; then
+            echo "manifest.json unchanged, nothing to commit"
+          else
+            git commit -m "data: update aggregate manifest for ${{ inputs.month }}"
+            git push
+          fi

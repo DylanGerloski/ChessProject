@@ -19,6 +19,7 @@ const {
   hygieneOffenses,
   checkPublicHygiene,
   loadAggregateShards,
+  runAll,
   MAX_SHARD_BYTES,
 } = require('../scripts/verifyAggregates');
 
@@ -271,26 +272,71 @@ test('checkPublicHygiene scans dist files and reports the offending file', () =>
 
 // --- loadAggregateShards -----------------------------------------------------------
 
-test('loadAggregateShards parses the assumed shard shape and builds the parent-edge index for monotonicity', () => {
+test('loadAggregateShards parses the REAL on-disk shard shape (positions-wrapped, no childKey)', () => {
   const dir = mkTmpDir('shards-');
-  // parentA --e4--> childC ; parentB --Nf3--> childC (a transposition), each
-  // move edge carries an optional 7th "childKey" element per this loader's
-  // documented convention.
+  // Real src/ingest/writeShards.js output shape: the band/pool/posKey tree
+  // sits under a `positions` key (root.json also has a sibling
+  // `pathIndex`), and each move edge is
+  // [w,d,l,bw,bd,bl,ratingSum,ratingCount] -- 8 elements, no destination
+  // posKey. This regression-tests the exact bug found wiring the first live
+  // ingest run: an earlier version of this fixture had no `positions`
+  // wrapper and fabricated a 7th "childKey" element that the real writer
+  // never produces, which made loadAggregateShards silently parse zero
+  // positions from every real shard file.
   const shard = {
-    u1200: {
-      blitz: {
-        parentA: [45000, 0, 0, 0, 0, 0, { e4: [40000, 0, 0, 0, 0, 0, 'childC'] }],
-        parentB: [42000, 0, 0, 0, 0, 0, { Nf3: [40000, 0, 0, 0, 0, 0, 'childC'] }],
-        childC: [80000, 0, 0, 0, 0, 0, {}],
+    positions: {
+      u1200: {
+        blitz: {
+          parentA: [45000, 0, 0, 0, 0, 0, { e4: [40000, 0, 0, 0, 0, 0, 1000000, 20] }],
+          childC: [80000, 0, 0, 0, 0, 0, {}],
+        },
       },
     },
+    pathIndex: { e4: 'childC' },
   };
   writeFile(dir, 'root.json', JSON.stringify(shard));
-  writeFile(dir, 'manifest.json', JSON.stringify({ retrievedAt: new Date().toISOString(), shards: [] }));
-  const manifest = { shards: [] };
-  const { positionTotalGames, parentEdgeGames } = loadAggregateShards(dir, manifest);
+  const manifest = { shards: [{ file: 'root.json', bytes: 0 }] };
+  const { positions, positionTotalGames, parentEdgeGames, skippedForMonotonicity } = loadAggregateShards(dir, manifest);
+
+  assert.equal(positions.length, 2, 'both real positions were parsed out from under the positions wrapper');
+  assert.equal(positionTotalGames.get('u1200/blitz/parentA'), 45000);
   assert.equal(positionTotalGames.get('u1200/blitz/childC'), 80000);
-  assert.deepEqual(parentEdgeGames.get('u1200/blitz/childC').sort(), [40000, 40000]);
-  // and feeding this straight into the monotonicity check must not flag it
-  assert.deepEqual(checkSampleSizeMonotonicity(positionTotalGames, parentEdgeGames), []);
+  assert.deepEqual(positions.find((p) => p.posKey === 'u1200/blitz/parentA').moves.e4, [40000, 0, 0, 0, 0, 0]);
+
+  // No destination posKey exists on a move edge in the real schema, so no
+  // edge can ever be resolved into parentEdgeGames -- this is a disclosed,
+  // permanent limitation (see loadAggregateShards' header comment), not
+  // something this fixture happens to omit.
+  assert.equal(parentEdgeGames.size, 0);
+  assert.equal(skippedForMonotonicity.size, 1);
+  assert.ok([...skippedForMonotonicity][0].includes('-> e4'));
+});
+
+test('loadAggregateShards reads its file list from manifest.shards without double-counting root.json', () => {
+  const dir = mkTmpDir('shards-dedupe-');
+  const shard = { positions: { u1200: { blitz: { p1: [10, 0, 0, 0, 0, 0, {}] } } } };
+  writeFile(dir, 'root.json', JSON.stringify(shard));
+  // manifest.shards already lists root.json, exactly as the real writer
+  // produces (src/ingest/writeShards.js includes root.json in the same
+  // array the manifest's shards field is built from).
+  const manifest = { shards: [{ file: 'root.json', bytes: 0 }] };
+  const { positions } = loadAggregateShards(dir, manifest);
+  assert.equal(positions.length, 1, 'root.json must be read exactly once, not once via manifest.shards and again via a hardcoded rootPath');
+});
+
+// --- runAll: skipDist mode, for the ingest-only workflow --------------------------
+
+test('runAll with skipDist:true omits the 5 dist-level checks entirely rather than failing them', () => {
+  const dir = mkTmpDir('skipdist-');
+  writeFile(dir, 'root.json', JSON.stringify({ positions: { u1200: { blitz: { p1: [10, 0, 0, 0, 0, 0, {}] } } } }));
+  writeFile(dir, 'manifest.json', JSON.stringify({ retrievedAt: new Date().toISOString(), shards: [{ file: 'root.json', bytes: fs.statSync(path.join(dir, 'root.json')).size }] }));
+
+  const results = runAll({ distDir: path.join(dir, 'nonexistent-dist'), aggregatesDir: dir, skipDist: true });
+  const names = results.map((r) => r.name);
+  for (const distCheck of ['1b. rendered W/D/L sums to 100', '3. no page ships with an empty table', '5. every rendered rate has a sample size', '6b. dist/data total size budget', '7. public-content hygiene']) {
+    assert.ok(!names.includes(distCheck), `${distCheck} must not appear in results when skipDist is true`);
+  }
+  // Aggregate-side checks still ran and found no real problems.
+  const real = results.flatMap((r) => r.problems).filter((p) => !p.startsWith('skipped:') && !p.startsWith('known-gap:'));
+  assert.deepEqual(real, []);
 });
