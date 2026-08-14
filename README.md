@@ -175,3 +175,20 @@ npm test
 (equivalent to `node --test test/`). All tests run against static fixture
 JSON/ndjson in `test/fixtures/` -- the test suite makes no live network
 calls.
+
+## Third-party origins
+
+Every origin loaded or called by the live site, and why:
+
+- `lichess.org` -- the Lichess public API, called from the visitor's browser
+  for the player-lookup feature (rating history, recent games). Keyless, no
+  account required.
+- `explorer.lichess.org` -- the Lichess Opening Explorer API, called at build
+  time for the pre-rendered repertoire pages. Keyless, no account required.
+- `pagead2.googlesyndication.com` -- Google AdSense, the site's ad script.
+- `gc.zgo.at` -- GoatCounter, privacy-friendly visit-count analytics (no
+  cookies, no personal data collected).
+
+Nothing else is fetched from a third-party origin at runtime -- there are no
+CDN-hosted vendor libraries; this project has no dependencies (see "Running
+it," above).
