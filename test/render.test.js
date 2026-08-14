@@ -46,3 +46,26 @@ test('renderDocumentHead preloads the self-hosted woff2 with crossorigin, before
   assert.ok(preloadMatch, 'expected a font preload link with as="font", type="font/woff2", and crossorigin');
   assert.ok(head.indexOf(preloadMatch[0]) < head.indexOf('<style>'), 'the font preload should come before the <style> block so the browser discovers it as early as possible');
 });
+
+// Security-standards.md "Headers" section: the CSP and referrer meta tags
+// must appear exactly as specified, and GoatCounter must load over an
+// explicit https scheme rather than protocol-relative.
+
+test('renderDocumentHead ships the CSP meta tag exactly as the security standard specifies', () => {
+  const head = renderDocumentHead('Test Page');
+  assert.match(
+    head,
+    /<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'">/
+  );
+});
+
+test('renderDocumentHead ships the strict-origin-when-cross-origin referrer meta tag', () => {
+  const head = renderDocumentHead('Test Page');
+  assert.match(head, /<meta name="referrer" content="strict-origin-when-cross-origin">/);
+});
+
+test('renderDocumentHead loads the GoatCounter script over an explicit https scheme, not protocol-relative', () => {
+  const head = renderDocumentHead('Test Page');
+  assert.match(head, /src="https:\/\/gc\.zgo\.at\/count\.js"/);
+  assert.doesNotMatch(head, /src="\/\/gc\.zgo\.at\/count\.js"/);
+});
