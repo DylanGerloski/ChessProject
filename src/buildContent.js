@@ -15,6 +15,8 @@ const path = require('path');
 const { OPENINGS, assertOpeningsWellFormed } = require('./openings');
 const { RATING_BANDS, DEFAULT_SPEEDS } = require('./processRepertoire');
 const { fetchExplorerMoves } = require('./fetchOpeningExplorer');
+const { fetchMoves, AGGREGATES_DIR } = require('./explorerSource');
+const { slugifyFamilyName } = require('./ecoFamilies');
 const {
   buildOpeningModel,
   findCommonMistakes,
@@ -68,6 +70,18 @@ function repertoireFileName(band, color) {
 }
 
 /**
+ * Site-relative link into the collapsed repertoire.html (spec WS-3.2
+ * section 2.2) for a given band+color -- band/color travel in the URL
+ * FRAGMENT, never a query string (that section's reasoning: fragments are
+ * never sent to the server, are ignored for canonicalization, and cannot
+ * create an indexable duplicate URL). Used wherever this build used to link
+ * to one of the 8 now-collapsed repertoireFileName() files.
+ */
+function repertoireFragmentUrl(band, color) {
+  return `repertoire.html#band=${encodeURIComponent(band)}&color=${encodeURIComponent(color)}`;
+}
+
+/**
  * Walks an opening's defining line ply-by-ply, validating at each step that
  * the configured SAN/UCI actually appears among the API's candidate moves
  * for that position (spec section 1.2's "move-order validation" -- the
@@ -79,14 +93,14 @@ function repertoireFileName(band, color) {
  * @throws if a configured ply never appears among the API's candidates,
  *   even after retrying with a larger `moves` window.
  */
-async function fetchLineWithValidation({ slug, line, ratings, speeds, fetchImpl, movesPerRequest = 12 }) {
+async function fetchLineWithValidation({ slug, line, ratings, speeds, fetchImpl, movesPerRequest = 12, band, familySlug, aggregatesDir = AGGREGATES_DIR }) {
   let response = null;
   for (let i = 0; i < line.length; i += 1) {
     const playSoFar = line.slice(0, i).map((p) => p.uci);
-    response = await fetchExplorerMoves({ play: playSoFar, ratings, speeds, moves: movesPerRequest, fetchImpl });
+    response = await fetchMoves({ play: playSoFar, band, ratings, speeds, moves: movesPerRequest, familySlug, fetchImpl, dir: aggregatesDir });
     let found = (response.moves || []).some((m) => m.uci === line[i].uci);
     if (!found) {
-      response = await fetchExplorerMoves({ play: playSoFar, ratings, speeds, moves: 15, fetchImpl });
+      response = await fetchMoves({ play: playSoFar, band, ratings, speeds, moves: 15, familySlug, fetchImpl, dir: aggregatesDir });
       found = (response.moves || []).some((m) => m.uci === line[i].uci);
     }
     if (!found) {
@@ -97,10 +111,20 @@ async function fetchLineWithValidation({ slug, line, ratings, speeds, fetchImpl,
     }
   }
   // Final call: the full line played, which is also the position we need
-  // stats for. Requests recentGames too (spec 1.3b) -- same call, no extra cost.
+  // stats for. Requests recentGames too (spec 1.3b) -- same call, no extra
+  // cost on the live-API fallback path. NOTE: once aggregate data is
+  // present, recentGames comes back empty -- the dump aggregate stores
+  // position/move COUNTS only, never individual game records, so there is
+  // no per-game "recent games in this line" data to serve once this build
+  // is sourced from data/aggregates. processOpenings.js's buildOpeningModel
+  // already degrades this gracefully (Array.isArray(defaultResp.recentGames)
+  // is false -> [] -> renderGamesTable's existing "No games available for
+  // this section yet." empty state, never a crash or an empty <table>) --
+  // disclosed here rather than silently, since it is a real, visible content
+  // change once WS-3 B2's live ingest lands, not a bug in this migration.
   const fullPlay = line.map((p) => p.uci);
-  response = await fetchExplorerMoves({
-    play: fullPlay, ratings, speeds, moves: movesPerRequest, recentGames: 4, fetchImpl,
+  response = await fetchMoves({
+    play: fullPlay, band, ratings, speeds, moves: movesPerRequest, recentGames: 4, familySlug, fetchImpl, dir: aggregatesDir,
   });
   return response;
 }
@@ -111,18 +135,37 @@ async function fetchLineWithValidation({ slug, line, ratings, speeds, fetchImpl,
  * games), and -- if a common mistake is found -- the follow-up position
  * showing the featured side's most common punishing reply.
  */
-async function fetchOpeningData(openingConfig, { fetchImpl }) {
+async function fetchOpeningData(openingConfig, { fetchImpl, aggregatesDir = AGGREGATES_DIR }) {
   const defaultRatings = RATING_BANDS[DEFAULT_BAND];
   const bandResponses = {};
+  // Every one of the 10 configured openings is <= 5 plies (verified against
+  // src/openings.js), plus at most 1 more for the mistake-follow-up call
+  // below -- ply <= 6, always within root.json's own coverage. familySlug
+  // is still threaded through defensively (cheap, and correct if a future
+  // opening's line ever grows past ply 6), derived the SAME way
+  // src/ingest/familyLookup.js derives it at ingest time (slugifyFamilyName
+  // of the family name), so a lookup here can never disagree with which
+  // shard an ingest run actually filed a deeper position under.
+  const familySlug = slugifyFamilyName(openingConfig.name);
 
   bandResponses[DEFAULT_BAND] = await fetchLineWithValidation({
     slug: openingConfig.slug,
     line: openingConfig.line,
     ratings: defaultRatings,
     speeds: DEFAULT_SPEEDS,
+    band: DEFAULT_BAND,
+    familySlug,
     fetchImpl,
+    aggregatesDir,
   });
 
+  // aggregateSource.js's explorerShapedResponse() always returns
+  // opening: null (the dump aggregate carries no per-position ECO/name
+  // metadata) -- this cross-check is a no-op once sourced from aggregates,
+  // same graceful degradation as recentGames above. openingConfig.ecoHint
+  // is hand-verified already, and this was only ever a build-time warning,
+  // never a build failure, so losing it is a disclosed limitation, not a
+  // functional regression.
   const apiOpening = bandResponses[DEFAULT_BAND].opening;
   if (apiOpening && apiOpening.eco && apiOpening.eco !== openingConfig.ecoHint) {
     // eslint-disable-next-line no-console
@@ -134,11 +177,16 @@ async function fetchOpeningData(openingConfig, { fetchImpl }) {
   const fullPlay = openingConfig.line.map((p) => p.uci);
   for (const band of Object.keys(RATING_BANDS)) {
     if (band === DEFAULT_BAND) continue;
-    bandResponses[band] = await fetchExplorerMoves({
-      play: fullPlay, ratings: RATING_BANDS[band], speeds: DEFAULT_SPEEDS, moves: 12, fetchImpl,
+    bandResponses[band] = await fetchMoves({
+      play: fullPlay, band, ratings: RATING_BANDS[band], speeds: DEFAULT_SPEEDS, moves: 12, familySlug, fetchImpl, dir: aggregatesDir,
     });
   }
 
+  // The masters database call STAYS on the live Explorer API, unmigrated --
+  // spec section 1.8's decision (i): a genuinely different dataset (real GM
+  // games) this pipeline has no equivalent for.
+  // This is the one narrow, named exception to "zero live API calls",
+  // documented on methodology.html (WS-3 B4).
   const mastersResponse = await fetchExplorerMoves({
     play: fullPlay, database: 'masters', moves: 8, topGames: 5, fetchImpl,
   });
@@ -147,12 +195,15 @@ async function fetchOpeningData(openingConfig, { fetchImpl }) {
   const mistakes = findCommonMistakes(bandResponses[DEFAULT_BAND], opponentColor);
   let mistakeFollowUpResponse = null;
   if (mistakes.length > 0) {
-    mistakeFollowUpResponse = await fetchExplorerMoves({
+    mistakeFollowUpResponse = await fetchMoves({
       play: [...fullPlay, mistakes[0].uci],
+      band: DEFAULT_BAND,
       ratings: defaultRatings,
       speeds: DEFAULT_SPEEDS,
       moves: 8,
+      familySlug,
       fetchImpl,
+      dir: aggregatesDir,
     });
   }
 
@@ -247,28 +298,35 @@ function assertPageMetadata(written) {
  *   Phase 7d: threaded straight through to renderOpeningsHub's own param of
  *   the same name (see that function's doc) -- optional, defaults to
  *   nothing so a caller that predates Phase 7d is unaffected.
+ * @param {string} [opts.aggregatesDir] see src/explorerSource.js's `dir` param.
  * @returns {Promise<{written: Array<{file, html, slug, title, description}>}>}
  */
 async function buildContentPages({
   fetchImpl = fetch,
   outDir = OUT_DIR,
-  nav = { repertoire: '/', openings: 'openings.html', guides: 'guides.html', faq: 'chess-opening-faq.html', player: 'player.html' },
+  nav = { home: '/', repertoire: 'repertoire.html', openings: 'openings.html', guides: 'guides.html', faq: 'chess-opening-faq.html', player: 'player.html' },
   drillPages = {},
   ecoIndexLink = null,
+  aggregatesDir = AGGREGATES_DIR,
 } = {}) {
   assertOpeningsWellFormed();
   fs.mkdirSync(outDir, { recursive: true });
 
   const entries = [];
   for (const openingConfig of OPENINGS) {
-    const { bandResponses, mastersResponse, mistakeFollowUpResponse } = await fetchOpeningData(openingConfig, { fetchImpl });
+    const { bandResponses, mastersResponse, mistakeFollowUpResponse } = await fetchOpeningData(openingConfig, { fetchImpl, aggregatesDir });
     const model = buildOpeningModel({
       openingConfig, bandResponses, mastersResponse, mistakeFollowUpResponse, defaultBand: DEFAULT_BAND,
     });
     entries.push({ openingConfig, model });
   }
 
-  const repertoireLinks = { white: repertoireFileName(DEFAULT_BAND, 'white'), black: repertoireFileName(DEFAULT_BAND, 'black') };
+  // Links into the collapsed repertoire.html (spec WS-3.2 section 2.2),
+  // replacing the old direct links to one of the 8 now-stubbed
+  // repertoire-<band>-<color>.html files -- a real visitor should never
+  // have to bounce through a redirect stub when this build already knows
+  // the canonical destination.
+  const repertoireLinks = { white: repertoireFragmentUrl(DEFAULT_BAND, 'white'), black: repertoireFragmentUrl(DEFAULT_BAND, 'black') };
 
   const written = [];
   for (const entry of entries) {

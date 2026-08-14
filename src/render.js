@@ -1107,6 +1107,12 @@ ${designTokensCss(THEME_ROLES.dark)}
   }
   .band-pill:hover { background: var(--color-accent); color: var(--color-accent-contrast); transform: translateY(-1px); }
   .band-pill-color { font-weight: var(--weight-regular); opacity: 0.85; }
+  /* The currently-selected band+color on the collapsed repertoire.html
+     (WS-3.2) -- set/cleared client-side by repertoire.client.js, never by
+     the server (the server-rendered default is always the one with no
+     aria-current attribute, since it needs no visual distinction from
+     itself). Reuses the sitewide focus-ring tokens rather than a new one. */
+  .band-pill[aria-current="true"] { outline: var(--focus-ring-width) solid var(--focus-ring-color); outline-offset: var(--focus-ring-offset); background: var(--color-accent); }
 
   /* Eyebrow label above an h1, shared by renderPageHead(). */
   .page-eyebrow {
@@ -1941,10 +1947,135 @@ ${renderDocumentHead({ title, description, canonical })}
 `;
 }
 
+/**
+ * The collapsed static repertoire explorer (spec WS-3.2 section 2 -- one
+ * repertoire.html replacing the 8 old repertoire-<band>-<color>.html
+ * files). Server-renders the default band+color combo's numbers directly
+ * into the markup (section 2.1's binding rule: "server-render the default
+ * state into HTML; hydrate only alternate states from JSON" -- a crawler
+ * with JS disabled sees a complete, indexable page for the default state),
+ * and embeds every combo this build produced as a #repertoire-data JSON
+ * block that src/browser/repertoire.client.js reads to swap the DOM
+ * client-side when the URL fragment or a saved localStorage preference
+ * resolves to a different combo (see bandState.client.js).
+ *
+ * @param {object} data
+ * @param {Object<string, {ratingBand:string, color:string,
+ *   opening:{eco:string,name:string}|null,
+ *   totals:{white:number,draws:number,black:number}|null, tree:Array}>}
+ *   data.combos keyed "<band>|<color>" -- every combo this build fetched.
+ * @param {string} data.defaultBand a key present in data.combos.
+ * @param {string} data.defaultColor 'white'|'black', a key present in data.combos.
+ * @param {string} data.bandPickerHtml pre-built band+color picker markup
+ *   (src/buildStatic.js's bandPickerHtml()) -- built by the caller so this
+ *   function doesn't need to know the picker's own pill-generation details,
+ *   same division of labor indexPage() already uses for the home page's
+ *   copy of the same picker.
+ * @param {object} [data.nav]
+ * @param {object} [data.legalLinks]
+ * @param {string} [data.canonical]
+ * @param {string} [data.description]
+ * @returns {string} a full standalone HTML document
+ */
+function renderRepertoireExplorerPage({ combos, defaultBand, defaultColor, bandPickerHtml, nav = { player: '/', repertoire: '/repertoire.html' }, legalLinks, canonical, description }) {
+  const defaultKey = `${defaultBand}|${defaultColor}`;
+  const defaultCombo = combos[defaultKey];
+  if (!defaultCombo) {
+    throw new Error(`renderRepertoireExplorerPage: no combo found for default "${defaultKey}"`);
+  }
+
+  const totalGames = defaultCombo.totals ? defaultCombo.totals.white + defaultCombo.totals.draws + defaultCombo.totals.black : null;
+  const openingNote = defaultCombo.opening ? ` &mdash; starting from ${escapeHtml(defaultCombo.opening.name)} (${escapeHtml(defaultCombo.opening.eco)})` : '';
+  const totalsNote = defaultCombo.totals
+    ? `<p id="repertoire-totals" class="summary-line">${totalGames.toLocaleString()} games played from the starting position in this rating band
+        (${defaultCombo.totals.white.toLocaleString()}W / ${defaultCombo.totals.draws.toLocaleString()}D / ${defaultCombo.totals.black.toLocaleString()}L).</p>`
+    : '<p id="repertoire-totals" class="summary-line" hidden></p>';
+  const title = 'Opening repertoire explorer, by rating band | Repertoire Builder';
+
+  const payload = { default: { band: defaultBand, color: defaultColor }, combos };
+
+  return `<!DOCTYPE html>
+<html lang="en">
+${renderDocumentHead({ title, description, canonical })}
+<body class="layout--wide">
+  ${renderHeader(nav, 'repertoire')}
+  <main>
+    ${renderPageHead({
+      eyebrow: 'Repertoire',
+      title: 'Opening repertoire explorer',
+      subtitle: `<span id="repertoire-subtitle-text">Rating band ${escapeHtml(defaultCombo.ratingBand)}, playing as ${escapeHtml(defaultCombo.color)}${openingNote}</span>`,
+      meta: totalsNote,
+    })}
+    <p class="repertoire-intro">Most-played moves at each ply for players in this rating band, with win/draw/loss rates per move.
+       Your color's plies show the top choices actually played at this rating; the opponent's replies show
+       only their single most common response, to keep the tree readable. Pick a different rating band or
+       color below &mdash; the whole tree updates without leaving this page.</p>
+    ${bandPickerHtml}
+    <div id="repertoire-tree">${renderRepertoireTree(defaultCombo.tree)}</div>
+  </main>
+  ${renderFooter('Data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a> (explorer.lichess.ovh, keyless, no account required).', legalLinks)}
+  <script type="application/json" id="repertoire-data">${JSON.stringify(payload)}</script>
+  <script src="repertoire.js" defer></script>
+</body>
+</html>
+`;
+}
+
+/**
+ * A redirect stub for one of the 8 old repertoire-<band>-<color>.html URLs
+ * (spec WS-3.2 section 2.2), now that their content lives at one collapsed
+ * repertoire.html with band+color in the URL FRAGMENT. GitHub Pages cannot
+ * emit a real HTTP 301 (no server config, _redirects/jekyll-redirect-from
+ * both unavailable -- see that spec section for the full reasoning); an
+ * instant meta refresh is the strongest signal actually available, and
+ * Google's own redirect documentation says it interprets one as a
+ * permanent redirect: https://developers.google.com/search/docs/crawling-indexing/301-redirects
+ *
+ * Deliberately NOT built from renderDocumentHead()/renderHeader()/
+ * renderFooter() -- those pull in the full site stylesheet, GoatCounter,
+ * and AdSense scripts, which would make an intended-to-be-instant,
+ * ~1&nbsp;KB redirect page dozens of KB for no reader who is meant to see
+ * it for more than an instant. Ships only the 5 things spec 2.2 calls for,
+ * plus this site's baseline CSP/referrer meta (security-standards.md).
+ *
+ * @param {object} data
+ * @param {string} data.band
+ * @param {string} data.color 'white'|'black'
+ * @param {string} data.targetPath site-relative path to redirect to, e.g.
+ *   "/repertoire.html#band=1600-1800&color=white" (a root-relative path,
+ *   not a query string -- band/color travel in the fragment, per spec 2.2).
+ * @param {string} data.canonicalUrl absolute canonical URL, e.g.
+ *   "https://repertoire-builder.com/repertoire.html".
+ * @returns {string} a full, minimal standalone HTML document
+ */
+function renderRedirectStubPage({ band, color, targetPath, canonicalUrl }) {
+  const colorLabel = color === 'white' ? 'White' : 'Black';
+  const linkText = `Continue to the Repertoire explorer (${band}, ${colorLabel}) &rarr;`;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="refresh" content="0; url=${escapeHtml(targetPath)}">
+<link rel="canonical" href="${escapeHtml(canonicalUrl)}">
+<meta name="robots" content="noindex, follow">
+<title>Redirecting&hellip; | Repertoire Builder</title>
+</head>
+<body>
+<p>This page has moved. <a href="${escapeHtml(targetPath)}">${linkText}</a></p>
+<script>location.replace(${JSON.stringify(targetPath)});</script>
+</body>
+</html>
+`;
+}
+
 module.exports = {
   renderPlayerPage,
   renderRepertoireTree,
   renderRepertoirePage,
+  renderRepertoireExplorerPage,
+  renderRedirectStubPage,
   renderGamesTable,
   renderRatingTable,
   escapeHtml,

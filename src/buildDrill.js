@@ -20,10 +20,11 @@
  * `then` is null at the deepest user ply; otherwise it's the next oppNode.
  */
 
-const { fetchExplorerMoves } = require('./fetchOpeningExplorer');
 const { RATING_BANDS, DEFAULT_SPEEDS, moveStatsFromExplorerResponse } = require('./processRepertoire');
 const { getOpening } = require('./openings');
 const { PIECE_GLYPH } = require('./renderContent');
+const { fetchMoves, AGGREGATES_DIR } = require('./explorerSource');
+const { slugifyFamilyName } = require('./ecoFamilies');
 
 // How many of the user's own decision points the drill covers. Each is
 // preceded by one opponent ply (auto-played and shown to the user).
@@ -53,7 +54,14 @@ const DRILL_CANDIDATES = 4;
  * @param {number[]} [opts.opponentBreadth]
  * @param {number} [opts.candidateCount]
  * @param {number} [opts.movesPerRequest]
- * @param {Function} [opts.fetchImpl]
+ * @param {Function} [opts.fetchImpl] forwarded to the live-Explorer fallback only.
+ * @param {string} [opts.familySlug] the opening's ECO family slug (see
+ *   ecoFamilies.js's slugifyFamilyName) -- REQUIRED once aggregate data is
+ *   present: unlike buildRepertoireTree's shallow walk, the drill's
+ *   prefixPlay (up to 5 plies) plus up to `userDepth`*2 more plies can go
+ *   well past root.json's ply<=6 coverage, so a position here often needs
+ *   the family shard. Silently ignored on the live-API fallback path.
+ * @param {string} [opts.aggregatesDir] see src/explorerSource.js's `dir` param.
  * @returns {Promise<object>} the root oppNode
  */
 async function buildDrillTree({
@@ -66,6 +74,8 @@ async function buildDrillTree({
   candidateCount = DRILL_CANDIDATES,
   movesPerRequest = 8,
   fetchImpl = fetch,
+  familySlug = null,
+  aggregatesDir = AGGREGATES_DIR,
 } = {}) {
   const ratings = RATING_BANDS[ratingBand];
   if (!ratings) {
@@ -86,7 +96,7 @@ async function buildDrillTree({
   const ctx = { ratings, speeds, userColor, opponentColor, opponentBreadth, candidateCount, userDepth, movesPerRequest, fetchImpl };
 
   async function expandOpponent(play, oppDepth) {
-    const response = await fetchExplorerMoves({ play, ratings, speeds, moves: ctx.movesPerRequest, fetchImpl: ctx.fetchImpl });
+    const response = await fetchMoves({ play, band: ratingBand, ratings, speeds, moves: ctx.movesPerRequest, familySlug, fetchImpl: ctx.fetchImpl, dir: aggregatesDir });
     const candidates = moveStatsFromExplorerResponse(response, opponentColor);
     if (candidates.length === 0) {
       throw new Error(`buildDrillTree: zero candidate moves at opponent ply ${oppDepth} (play=${play.join(',')})`);
@@ -104,7 +114,7 @@ async function buildDrillTree({
   }
 
   async function expandUser(play, oppDepth) {
-    const response = await fetchExplorerMoves({ play, ratings, speeds, moves: ctx.movesPerRequest, fetchImpl: ctx.fetchImpl });
+    const response = await fetchMoves({ play, band: ratingBand, ratings, speeds, moves: ctx.movesPerRequest, familySlug, fetchImpl: ctx.fetchImpl, dir: aggregatesDir });
     const allCandidates = moveStatsFromExplorerResponse(response, userColor);
     if (allCandidates.length === 0) {
       throw new Error(`buildDrillTree: zero candidate moves at user ply ${oppDepth} (play=${play.join(',')})`);
@@ -142,6 +152,7 @@ async function buildDrillTree({
  * @param {number[]} [opts.opponentBreadth]
  * @param {number} [opts.candidateCount]
  * @param {Function} [opts.fetchImpl]
+ * @param {string} [opts.aggregatesDir] see src/explorerSource.js's `dir` param.
  * @returns {Promise<object>} { version, opening, prefix, speeds, retrieved, glyphs, bands }
  */
 async function buildDrillData({
@@ -152,6 +163,7 @@ async function buildDrillData({
   opponentBreadth = DRILL_OPPONENT_BREADTH,
   candidateCount = DRILL_CANDIDATES,
   fetchImpl = fetch,
+  aggregatesDir = AGGREGATES_DIR,
 } = {}) {
   const opening = getOpening(openingSlug);
   if (!opening) {
@@ -161,6 +173,7 @@ async function buildDrillData({
     throw new Error(`buildDrillData: only a white-side opening is supported by this pilot drill, got "${opening.side}" for "${openingSlug}"`);
   }
 
+  const familySlug = slugifyFamilyName(opening.name);
   const prefixPlay = opening.line.map((ply) => ply.uci);
   const bandsOut = {};
   for (const band of bands) {
@@ -173,6 +186,8 @@ async function buildDrillData({
       opponentBreadth,
       candidateCount,
       fetchImpl,
+      familySlug,
+      aggregatesDir,
     });
   }
 

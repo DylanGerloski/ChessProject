@@ -17,9 +17,10 @@
 
 const fs = require('fs');
 const path = require('path');
-const { fetchExplorerMoves, ExplorerRateLimitError, ExplorerApiError } = require('./fetchOpeningExplorer');
+const { ExplorerRateLimitError, ExplorerApiError } = require('./fetchOpeningExplorer');
 const { RATING_BANDS, DEFAULT_SPEEDS, moveStatsFromExplorerResponse } = require('./processRepertoire');
 const { renderRepertoirePage } = require('./render');
+const { fetchMoves, AGGREGATES_DIR } = require('./explorerSource');
 
 /**
  * @param {object} opts
@@ -30,7 +31,12 @@ const { renderRepertoirePage } = require('./render');
  * @param {number} [opts.maxUserPlies] how many of the user's own decision
  *   points to expand (each is followed by one opponent reply)
  * @param {number} [opts.movesPerRequest] moves requested per API call
- * @param {Function} [opts.fetchImpl]
+ * @param {Function} [opts.fetchImpl] forwarded to the live-Explorer fallback only
+ *   (see src/explorerSource.js) -- ignored once aggregate data is present at `aggregatesDir`.
+ * @param {string} [opts.aggregatesDir] see src/explorerSource.js's `dir` param; defaults
+ *   to the real data/aggregates/. Every position this function visits is ply <= 4
+ *   (maxUserPlies=2, one opponent reply each), well within root.json's ply<=6
+ *   coverage, so no familySlug is ever needed here.
  * @returns {Promise<{ratingBand, ratings, color, speeds, opening, totals, tree}>}
  */
 async function buildRepertoireTree({
@@ -41,6 +47,7 @@ async function buildRepertoireTree({
   maxUserPlies = 2,
   movesPerRequest = 8,
   fetchImpl = fetch,
+  aggregatesDir = AGGREGATES_DIR,
 } = {}) {
   const ratings = RATING_BANDS[ratingBand];
   if (!ratings) {
@@ -54,7 +61,7 @@ async function buildRepertoireTree({
   let rootOpening = null;
 
   async function expand(play, userPliesRemaining) {
-    const response = await fetchExplorerMoves({ play, ratings, speeds, moves: movesPerRequest, fetchImpl });
+    const response = await fetchMoves({ play, band: ratingBand, ratings, speeds, moves: movesPerRequest, fetchImpl, dir: aggregatesDir });
 
     if (play.length === 0) {
       rootTotals = { white: response.white || 0, draws: response.draws || 0, black: response.black || 0 };

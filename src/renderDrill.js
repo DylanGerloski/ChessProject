@@ -199,7 +199,7 @@ function renderDrillPage({ drillData, nav, legalLinks, openingLink = 'italian-ga
   const description = 'Drill the Italian Game against the move players at your rating actually play. Four rating bands, real Lichess win rates on every move. Free, no signup.';
   const canonical = absoluteUrl('italian-game-drill.html');
   const breadcrumbItems = [
-    { label: 'Home', href: nav.repertoire },
+    { label: 'Home', href: nav.home },
     { label: 'Openings', href: nav.openings },
     { label: drillData.opening.name, href: openingLink },
     { label: 'Drill' },

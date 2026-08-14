@@ -11,14 +11,18 @@ const {
   buildStatic,
   buildPlayerLookupBundle,
   buildDrillBundle,
+  buildRepertoireBundle,
   bundleBrowserEntry,
   indexPage,
   playerLookupPage,
   repertoireFileName,
+  repertoireFragmentUrl,
+  copyAggregateShardsToDist,
   assertNoTokenLeak,
   assertFilenamesUnique,
 } = require('../src/buildStatic');
 const { RATING_BANDS } = require('../src/processRepertoire');
+const { REDIRECT_STUBS } = require('../src/sitemap');
 const { getOpening } = require('../src/openings');
 const { makeSmartExplorerFetch, fakeResponse } = require('./helpers/fakeExplorer');
 
@@ -141,19 +145,23 @@ function withTempDist(fn) {
 // write this file's FAKE fixture responses into the project's real
 // .cache/explorer/ directory, where a later real `npm run build:static`
 // could silently read them back instead of hitting the live API.
-test('buildStatic writes all 8 pre-rendered repertoire pages, an index, and the player-lookup page+bundle', () =>
+test('buildStatic writes the collapsed repertoire.html + repertoire.js, all 8 redirect stubs, an index, and the player-lookup page+bundle', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();
-    const { outDir, repertoireLinks } = await buildStatic({ fetchImpl, useCache: false });
+    const { outDir, repertoireFile, repertoireStubs } = await buildStatic({ fetchImpl, useCache: false });
 
-    assert.equal(repertoireLinks.length, 8);
+    assert.equal(repertoireFile, 'repertoire.html');
+    assert.ok(fs.existsSync(path.join(outDir, 'repertoire.html')), 'expected repertoire.html to exist on disk');
+    assert.ok(fs.existsSync(path.join(outDir, 'repertoire.js')), 'expected repertoire.js to exist on disk');
+
+    assert.equal(repertoireStubs.length, 8);
     const expectedBands = Object.keys(RATING_BANDS);
     for (const band of expectedBands) {
       for (const color of ['white', 'black']) {
         const file = repertoireFileName(band, color);
         assert.ok(
-          repertoireLinks.some((l) => l.file === file),
-          `expected a repertoire link for ${file}`
+          repertoireStubs.some((l) => l.file === file),
+          `expected a redirect stub for ${file}`
         );
         assert.ok(fs.existsSync(path.join(outDir, file)), `expected ${file} to exist on disk`);
       }
@@ -165,14 +173,14 @@ test('buildStatic writes all 8 pre-rendered repertoire pages, an index, and the 
   })
 );
 
-test('every repertoire page and player.html carry a canonical link, a title ending in the site suffix, and a full OpenGraph block (og:title/description/image), even though they used to ship with none', () =>
+test('repertoire.html carries a canonical link, a title ending in the site suffix, and a full OpenGraph block; player.html carries the same', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();
     const { outDir } = await buildStatic({ fetchImpl, useCache: false });
 
-    const repertoireHtml = fs.readFileSync(path.join(outDir, 'repertoire-1600-1800-white.html'), 'utf8');
+    const repertoireHtml = fs.readFileSync(path.join(outDir, 'repertoire.html'), 'utf8');
     assert.match(repertoireHtml, /<title>[^<]+ \| Repertoire Builder<\/title>/);
-    assert.match(repertoireHtml, /<link rel="canonical" href="https:\/\/repertoire-builder\.com\/repertoire-1600-1800-white\.html">/);
+    assert.match(repertoireHtml, /<link rel="canonical" href="https:\/\/repertoire-builder\.com\/repertoire\.html">/);
     assert.match(repertoireHtml, /<meta name="description" content="[^"]+">/);
     assert.match(repertoireHtml, /<meta property="og:title" content="[^"]+">/);
     assert.match(repertoireHtml, /<meta property="og:description" content="[^"]+">/);
@@ -183,6 +191,20 @@ test('every repertoire page and player.html carry a canonical link, a title endi
     assert.match(playerHtml, /<title>Player lookup \| Repertoire Builder<\/title>/);
     assert.match(playerHtml, /<link rel="canonical" href="https:\/\/repertoire-builder\.com\/player\.html">/);
     assert.match(playerHtml, /<meta property="og:image" content="https:\/\/repertoire-builder\.com\/og-default\.png">/);
+  })
+);
+
+test('a repertoire redirect stub carries an instant meta refresh, canonical to repertoire.html, noindex/follow, a visible link, and a location.replace fallback -- and is never indexed', () =>
+  withTempDist(async () => {
+    const { fetchImpl } = fakeExplorerFetch();
+    const { outDir } = await buildStatic({ fetchImpl, useCache: false });
+
+    const stubHtml = fs.readFileSync(path.join(outDir, 'repertoire-1600-1800-white.html'), 'utf8');
+    assert.match(stubHtml, /<meta http-equiv="refresh" content="0; url=\/repertoire\.html#band=1600-1800&amp;color=white">/);
+    assert.match(stubHtml, /<link rel="canonical" href="https:\/\/repertoire-builder\.com\/repertoire\.html">/);
+    assert.match(stubHtml, /<meta name="robots" content="noindex, follow">/);
+    assert.match(stubHtml, /<a href="\/repertoire\.html#band=1600-1800&amp;color=white">/);
+    assert.match(stubHtml, /location\.replace\(/);
   })
 );
 
@@ -266,7 +288,7 @@ test('buildStatic also writes privacy.html, about.html, contact.html, and ads.tx
     assert.match(homeHtml, /href="contact\.html">Contact<\/a>/);
     assert.match(homeHtml, /class="disclosure-note"/);
 
-    const repertoireHtml = fs.readFileSync(path.join(outDir, 'repertoire-1600-1800-white.html'), 'utf8');
+    const repertoireHtml = fs.readFileSync(path.join(outDir, 'repertoire.html'), 'utf8');
     assert.match(repertoireHtml, /href="privacy\.html">Privacy policy<\/a>/);
 
     const openingHtml = fs.readFileSync(path.join(outDir, 'italian-game.html'), 'utf8');
@@ -359,6 +381,17 @@ test('buildDrillBundle esbuild-bundles chessPosition.js, drillLogic.js, and the 
   assert.doesNotThrow(() => runBundleInSandbox(bundle));
 });
 
+test('buildRepertoireBundle esbuild-bundles bandState.client.js, render.js, and the repertoire browser controller into one self-contained IIFE that runs with no global require/module/exports (file:// invariant)', () => {
+  const bundle = buildRepertoireBundle();
+  assert.match(bundle, /function readBandState/);
+  assert.match(bundle, /function writeBandState/);
+  assert.match(bundle, /function renderRepertoireTree/);
+  // Real proof: run it against a DOM stub with no #repertoire-data element
+  // present (the sandbox's getElementById always returns null) -- the
+  // controller must bail out cleanly rather than throw.
+  assert.doesNotThrow(() => runBundleInSandbox(bundle));
+});
+
 test('bundleBrowserEntry throws loudly on a syntax error in the entry point, same failure-loudly guarantee the old string-splice bundler had', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lichess-bundle-test-'));
   try {
@@ -370,30 +403,16 @@ test('bundleBrowserEntry throws loudly on a syntax error in the entry point, sam
   }
 });
 
-test('indexPage links to player.html and every repertoire file, with no server-only routes', () => {
-  const links = [
-    { band: '1400-1600', color: 'white', file: 'repertoire-1400-1600-white.html' },
-    { band: '1400-1600', color: 'black', file: 'repertoire-1400-1600-black.html' },
-  ];
-  const html = indexPage(links);
+test('indexPage links to player.html and the collapsed repertoire.html (band+color in the fragment), with no server-only routes', () => {
+  const html = indexPage([]);
   assert.match(html, /href="player\.html"/);
-  assert.match(html, /href="repertoire-1400-1600-white\.html"/);
-  assert.match(html, /href="repertoire-1400-1600-black\.html"/);
+  assert.match(html, /href="repertoire\.html#band=1400-1600&amp;color=white"/);
+  assert.match(html, /href="repertoire\.html#band=1400-1600&amp;color=black"/);
   assert.doesNotMatch(html, /href="\/repertoire/);
 });
 
-test('indexPage carries the meta-framing repositioning: new h1/description/canonical and one card per rating band', () => {
-  const links = [
-    { band: '1400-1600', color: 'white', file: 'repertoire-1400-1600-white.html' },
-    { band: '1400-1600', color: 'black', file: 'repertoire-1400-1600-black.html' },
-    { band: '1600-1800', color: 'white', file: 'repertoire-1600-1800-white.html' },
-    { band: '1600-1800', color: 'black', file: 'repertoire-1600-1800-black.html' },
-    { band: '1800-2000', color: 'white', file: 'repertoire-1800-2000-white.html' },
-    { band: '1800-2000', color: 'black', file: 'repertoire-1800-2000-black.html' },
-    { band: '2000+', color: 'white', file: 'repertoire-2000-white.html' },
-    { band: '2000+', color: 'black', file: 'repertoire-2000-black.html' },
-  ];
-  const html = indexPage(links);
+test('indexPage carries the meta-framing repositioning: new h1/description/canonical and one pill per band+color combo, all pointing at repertoire.html', () => {
+  const html = indexPage([]);
   assert.match(html, /<h1 class="page-title">The chess opening meta, by rating band<\/h1>/);
   assert.match(html, /<title>The Chess Opening Meta by Rating Band \| Repertoire Builder<\/title>/);
   assert.match(html, /<meta name="description" content="[^"]{1,160}">/);
@@ -401,7 +420,15 @@ test('indexPage carries the meta-framing repositioning: new h1/description/canon
   // G1: one role=group pill picker, one pill per band+color combo (4 bands x 2 colors).
   assert.match(html, /<div class="band-picker" role="group" aria-label="Pick your rating band and color">/);
   for (const band of ['1400-1600', '1600-1800', '1800-2000', '2000+']) {
-    assert.match(html, new RegExp(`class="band-pill" href="[^"]+">${band.replace('+', '\\+')} `));
+    // The href's band value is percent-encoded (encodeURIComponent, so "+"
+    // becomes "%2B" -- avoids the classic "+ means space" ambiguity a
+    // fragment parsed with URLSearchParams would otherwise hit); the
+    // data-band attribute and visible label are the plain, unencoded band
+    // string -- matches bandState.client.js's own encode-on-write /
+    // decode-on-read split.
+    const encodedBand = encodeURIComponent(band).replace(/\+/g, '\\+');
+    const literalBand = band.replace('+', '\\+');
+    assert.match(html, new RegExp(`class="band-pill" href="repertoire\\.html#band=${encodedBand}&amp;color=[a-z]+" data-band="${literalBand}" data-color="[a-z]+">${literalBand} `));
   }
   assert.match(html, /as White/);
   assert.match(html, /as Black/);
@@ -428,26 +455,24 @@ test('indexPage does NOT opt into the wide layout container (B3: only the three 
 });
 
 test('indexPage (G1, R7): the rating-band picker is a single role=group pill control (the primary action); the drill card and opening cards are demoted outline cards, with no link targets added/removed/reordered', () => {
-  const links = [{ band: '1400-1600', color: 'white', file: 'repertoire-1400-1600-white.html' }];
   // No `bands` field -- exercises renderOpeningStatCard's fallback-to-plain-card path (G2).
   const contentEntries = [{ openingConfig: { slug: 'italian-game' }, model: { name: 'Italian Game', eco: 'C50', side: 'white' } }];
-  const html = indexPage(links, contentEntries, 'italian-game-drill.html');
+  const html = indexPage(contentEntries, 'italian-game-drill.html');
 
   // Band picker: role=group pill control, not a card.
   assert.match(html, /<div class="band-picker" role="group" aria-label="Pick your rating band and color">/);
-  assert.match(html, /<a class="band-pill" href="repertoire-1400-1600-white\.html">1400-1600 <span class="band-pill-color">as White<\/span><\/a>/);
+  assert.match(html, /<a class="band-pill" href="repertoire\.html#band=1400-1600&amp;color=white" data-band="1400-1600" data-color="white">1400-1600 <span class="band-pill-color">as White<\/span><\/a>/);
   // Drill card: card--outline card--nav (pure navigation, no stat data).
   assert.match(html, /<div class="card card--outline card--nav"><h3><a href="italian-game-drill\.html">Italian Game drill<\/a><\/h3>/);
   // Opening card: card--nav card--outline too, since this fixture's model has no `bands` (G2 fallback).
   assert.match(html, /<div class="card card--nav card--outline"><h3><a href="italian-game\.html">Italian Game<\/a><\/h3>/);
   // Same link targets as before -- nothing added, removed, or reordered.
-  assert.match(html, /href="repertoire-1400-1600-white\.html"/);
+  assert.match(html, /href="repertoire\.html#band=1400-1600&amp;color=white"/);
   assert.match(html, /href="italian-game-drill\.html"/);
   assert.match(html, /href="italian-game\.html"/);
 });
 
 test('indexPage (G2): an opening card with real band data shows the WDL bar + score for 1600-1800 inline, never an approximated number', () => {
-  const links = [];
   const contentEntries = [{
     openingConfig: { slug: 'italian-game' },
     model: {
@@ -459,7 +484,7 @@ test('indexPage (G2): an opening card with real band data shows the WDL bar + sc
       ],
     },
   }];
-  const html = indexPage(links, contentEntries, null);
+  const html = indexPage(contentEntries, null);
   assert.match(html, /<div class="card card--stat card--outline">/);
   assert.match(html, /class="wdl-bar"/);
   assert.match(html, /Scores 50\.0% for white at 1600-1800 \(12,345 games\)/);
@@ -475,7 +500,7 @@ test('indexPage embeds WebSite + Organization JSON-LD', () => {
 test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pages) and robots.txt pointing at it', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();
-    const { outDir, repertoireLinks, contentWritten, ecoWritten, ecoExplorerResult, pageFilenames } = await buildStatic({ fetchImpl, useCache: false });
+    const { outDir, repertoireStubs, contentWritten, ecoWritten, ecoExplorerResult, pageFilenames } = await buildStatic({ fetchImpl, useCache: false });
 
     assert.ok(fs.existsSync(path.join(outDir, 'sitemap.xml')));
     assert.ok(fs.existsSync(path.join(outDir, 'robots.txt')));
@@ -484,22 +509,26 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     assert.ok(fs.existsSync(path.join(outDir, 'eco-reverse-lookup.json')), 'Phase 7e: the FEN reverse-lookup asset must be written');
     assert.ok(ecoExplorerResult.reverseLookupCount > 0);
 
-    // index + player + drill + 404 + 8 repertoire + 10 openings + hub + 6 guides + hub + FAQ + privacy/about/contact
+    // index + player + drill + 404 + repertoire.html + 8 redirect stubs
+    // + 10 openings + hub + 6 guides + hub + FAQ + privacy/about/contact
     // + (Phase 7d) 64 T1 family hubs + 5 T2 volume pages + 2 T2 browse-index pages
     // + (Phase 7e) 1 ECO explorer page.
-    // pageFilenames includes 404.html (for the filename-uniqueness check),
-    // but the sitemap itself must exclude it -- see the separate assertion
-    // below, and src/sitemap.js's buildSitemapEntries.
-    const expectedPageCount = 4 + repertoireLinks.length + contentWritten.length + ecoWritten.length + 3 + 1;
+    // pageFilenames includes 404.html and the 8 redirect stubs (for the
+    // filename-uniqueness check), but the sitemap itself must exclude all 9
+    // -- see the separate assertion below, and src/sitemap.js's
+    // buildSitemapEntries/REDIRECT_STUBS.
+    const expectedPageCount = 4 + 1 + repertoireStubs.length + contentWritten.length + ecoWritten.length + 3 + 1;
     assert.equal(pageFilenames.length, expectedPageCount);
     assert.ok(pageFilenames.includes('404.html'));
     assert.ok(pageFilenames.includes('eco-explorer.html'));
+    assert.ok(pageFilenames.includes('repertoire.html'));
 
     const sitemapXml = fs.readFileSync(path.join(outDir, 'sitemap.xml'), 'utf8');
     assert.match(sitemapXml, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
     const locMatches = [...sitemapXml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
-    assert.equal(locMatches.length, expectedPageCount - 1, '404.html must be excluded from the sitemap');
+    assert.equal(locMatches.length, expectedPageCount - 1 - repertoireStubs.length, '404.html and the 8 redirect stubs must be excluded from the sitemap');
     assert.ok(locMatches.includes('https://repertoire-builder.com/'), 'home should canonicalize to the directory form');
+    assert.ok(locMatches.includes('https://repertoire-builder.com/repertoire.html'), 'the collapsed repertoire page must be in the sitemap');
     assert.ok(locMatches.includes('https://repertoire-builder.com/italian-game.html'));
     assert.ok(locMatches.includes('https://repertoire-builder.com/chess-opening-faq.html'));
     assert.ok(locMatches.includes('https://repertoire-builder.com/privacy.html'));
@@ -509,13 +538,20 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     assert.ok(locMatches.includes('https://repertoire-builder.com/eco-volume-b.html'));
     assert.ok(locMatches.includes('https://repertoire-builder.com/eco-openings.html'));
     assert.ok(locMatches.includes('https://repertoire-builder.com/eco-explorer.html'));
-    // player-lookup.js/drill.js/eco-explorer.js/eco-reverse-lookup.json/ads.txt/CNAME are not pages and must not appear.
+    // player-lookup.js/drill.js/repertoire.js/eco-explorer.js/eco-reverse-lookup.json/ads.txt/CNAME are not pages and must not appear.
     assert.ok(!sitemapXml.includes('player-lookup.js'));
     assert.ok(!sitemapXml.includes('drill.js'));
+    assert.ok(!sitemapXml.includes('repertoire.js'));
     assert.ok(!sitemapXml.includes('eco-explorer.js'));
     assert.ok(!sitemapXml.includes('eco-reverse-lookup.json'));
     assert.ok(!sitemapXml.includes('ads.txt'));
     assert.ok(!sitemapXml.includes('404.html'), '404.html must never appear in sitemap.xml');
+    // Every redirect stub must be excluded from the sitemap too (a redirect
+    // source must never appear in a sitemap -- spec WS-3.2 section 2.2).
+    for (const { file } of repertoireStubs) {
+      assert.ok(REDIRECT_STUBS.has(file), `${file} should be a member of sitemap.js's REDIRECT_STUBS`);
+      assert.ok(!locMatches.includes(`https://repertoire-builder.com/${file}`), `${file} must not appear in the sitemap`);
+    }
 
     const robotsTxt = fs.readFileSync(path.join(outDir, 'robots.txt'), 'utf8');
     assert.match(robotsTxt, /^User-agent: \*/);
@@ -613,5 +649,64 @@ test('the nav on an existing static page now includes the drill link', () =>
 
     const openingsHtml = fs.readFileSync(path.join(outDir, 'openings.html'), 'utf8');
     assert.match(openingsHtml, /href="italian-game-drill\.html"/);
+  })
+);
+
+test('copyAggregateShardsToDist: no-op (not an error) when data/aggregates does not exist yet -- WS-3 B2 has not run', () => {
+  const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lichess-no-aggregates-'));
+  try {
+    const result = copyAggregateShardsToDist(emptyDir);
+    assert.deepEqual(result, { copied: false, files: [] });
+  } finally {
+    fs.rmSync(emptyDir, { recursive: true, force: true });
+  }
+});
+
+test('copyAggregateShardsToDist: copies manifest.json + every listed shard verbatim into dist/data/, once aggregate data exists', () =>
+  withTempDist(async () => {
+    fs.mkdirSync(path.join(path.join(__dirname, '..', 'dist')), { recursive: true });
+    const aggregatesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lichess-fixture-aggregates-'));
+    try {
+      fs.mkdirSync(path.join(aggregatesDir, 'f'), { recursive: true });
+      fs.writeFileSync(path.join(aggregatesDir, 'f', 'italian-game.json'), '{"positions":{}}', 'utf8');
+      const manifest = {
+        pipelineVersion: 1,
+        retrievedAt: new Date().toISOString(),
+        shards: [{ file: 'f/italian-game.json', bytes: fs.statSync(path.join(aggregatesDir, 'f', 'italian-game.json')).size, positions: 0 }],
+      };
+      fs.writeFileSync(path.join(aggregatesDir, 'manifest.json'), JSON.stringify(manifest), 'utf8');
+      fs.writeFileSync(path.join(aggregatesDir, 'root.json'), '{"positions":{},"pathIndex":{}}', 'utf8');
+
+      const distDir = path.join(__dirname, '..', 'dist');
+      const result = copyAggregateShardsToDist(aggregatesDir);
+      assert.equal(result.copied, true);
+      assert.deepEqual(result.files.sort(), ['data/f/italian-game.json', 'data/manifest.json'].sort());
+      assert.ok(fs.existsSync(path.join(distDir, 'data', 'manifest.json')));
+      assert.ok(fs.existsSync(path.join(distDir, 'data', 'f', 'italian-game.json')));
+      assert.equal(
+        fs.readFileSync(path.join(distDir, 'data', 'f', 'italian-game.json'), 'utf8'),
+        '{"positions":{}}'
+      );
+    } finally {
+      fs.rmSync(aggregatesDir, { recursive: true, force: true });
+    }
+  })
+);
+
+test('copyAggregateShardsToDist: throws loudly if the manifest lists a shard that is missing on disk', () =>
+  withTempDist(() => {
+    fs.mkdirSync(path.join(__dirname, '..', 'dist'), { recursive: true });
+    const aggregatesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lichess-broken-aggregates-'));
+    try {
+      fs.writeFileSync(
+        path.join(aggregatesDir, 'manifest.json'),
+        JSON.stringify({ pipelineVersion: 1, retrievedAt: new Date().toISOString(), shards: [{ file: 'f/missing.json', bytes: 10 }] }),
+        'utf8'
+      );
+      fs.writeFileSync(path.join(aggregatesDir, 'root.json'), '{"positions":{},"pathIndex":{}}', 'utf8');
+      assert.throws(() => copyAggregateShardsToDist(aggregatesDir), /manifest lists shard/);
+    } finally {
+      fs.rmSync(aggregatesDir, { recursive: true, force: true });
+    }
   })
 );

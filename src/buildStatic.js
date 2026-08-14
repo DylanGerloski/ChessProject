@@ -50,7 +50,7 @@ const path = require('path');
 const esbuild = require('esbuild');
 const { buildRepertoireTree } = require('./buildRepertoire');
 const { RATING_BANDS } = require('./processRepertoire');
-const { renderRepertoirePage, escapeHtml, renderDocumentHead, renderHeader, renderFooter, renderPageHead } = require('./render');
+const { renderRepertoireExplorerPage, renderRedirectStubPage, escapeHtml, renderDocumentHead, renderHeader, renderFooter, renderPageHead } = require('./render');
 const { renderOpeningStatCard } = require('./renderContent');
 const { getApiToken } = require('./fetchOpeningExplorer');
 const { buildContentPages } = require('./buildContent');
@@ -67,6 +67,7 @@ const { homeJsonLd } = require('./structuredData');
 const { SITE_NAME, SITE_TAGLINE, absoluteUrl, pageTitle } = require('./site');
 const { buildDrillData } = require('./buildDrill');
 const { renderDrillPage } = require('./renderDrill');
+const { aggregatesAvailable, AGGREGATES_DIR } = require('./explorerSource');
 
 // Pre-rendering all 8 band/color combinations issues many sequential
 // Explorer API requests (each combination expands several plies), which can
@@ -111,11 +112,25 @@ const IDENTITY_ASSET_FILES = ['og-default.png', 'apple-touch-icon.png', 'favicon
 const FONT_ASSET_FILES = ['fraunces-variable.woff2'];
 
 // Nav link targets for the static build -- flat filenames, no server routes.
-// Shared with renderRepertoirePage() (see repertoire page rendering below)
-// so every static page's header links are identical. 'guides'/'faq' added
-// added once guides.html/chess-opening-faq.html actually existed; 'drill'
-// added once italian-game-drill.html existed (single-opening drill pilot).
-const STATIC_NAV = { player: 'player.html', repertoire: '/', openings: 'openings.html', eco: ECO_INDEX_FILE, drill: 'italian-game-drill.html', guides: 'guides.html', faq: 'chess-opening-faq.html' };
+// 'guides'/'faq' added once guides.html/chess-opening-faq.html actually
+// existed; 'drill' added once italian-game-drill.html existed
+// (single-opening drill pilot). 'repertoire' pointed at '/' (the home page)
+// until WS-3.2 collapsed the 8 repertoire-<band>-<color>.html pages into one
+// real repertoire.html -- now that a single canonical repertoire page
+// exists, the nav link goes straight there.
+//
+// `home` ('/') is a NEW key, added the same time 'repertoire' stopped
+// aliasing it: every "Home" breadcrumb and the header's brand-logo link
+// (render.js's renderHeader(), `nav.home || nav.repertoire || '/'`) used to
+// read `nav.repertoire` specifically BECAUSE it used to equal '/' -- now
+// that 'repertoire' points at a real, different page, every one of those
+// call sites was repointed to `nav.home` instead (see this build's own
+// history for exactly which templates that touched: src/renderContent.js,
+// src/renderDrill.js, src/renderEcoExplorerPage.js, src/renderEcoPages.js).
+// `home` is deliberately NOT in NAV_ORDER (render.js), so it never adds a
+// visible "Home" link to the top nav bar itself -- only the brand logo and
+// breadcrumbs use it.
+const STATIC_NAV = { home: '/', player: 'player.html', repertoire: 'repertoire.html', openings: 'openings.html', eco: ECO_INDEX_FILE, drill: 'italian-game-drill.html', guides: 'guides.html', faq: 'chess-opening-faq.html' };
 
 // The one opening this drill pilot covers, and the rating band its
 // server-rendered starting position and candidate table default to. Kept
@@ -141,10 +156,26 @@ const LEGAL_LINKS = { privacy: 'privacy.html', about: 'about.html', contact: 'co
 const BROWSER_ENTRY = path.join(__dirname, 'browser', 'playerLookup.client.js');
 const DRILL_ENTRY = path.join(__dirname, 'browser', 'drill.client.js');
 const ECO_EXPLORER_ENTRY = path.join(__dirname, 'browser', 'ecoExplorer.client.js');
+const REPERTOIRE_ENTRY = path.join(__dirname, 'browser', 'repertoire.client.js');
 
+// The 8 old repertoire-<band>-<color>.html filenames (RATING_BANDS x
+// white/black) -- now redirect stubs (spec WS-3.2 section 2.2), never
+// deleted. src/sitemap.js's REDIRECT_STUBS computes this exact same set
+// independently (documented there as duplicated on purpose, to avoid a
+// circular require -- this module already requires sitemap.js).
 function repertoireFileName(band, color) {
   const safeBand = band.replace(/[^\w-]/g, '');
   return `repertoire-${safeBand}-${color}.html`;
+}
+
+/**
+ * Site-relative link into the collapsed repertoire.html -- band/color
+ * travel in the URL FRAGMENT, never a query string (spec WS-3.2 section
+ * 2.2: fragments are never sent to the server, are ignored for
+ * canonicalization, and cannot create an indexable duplicate URL).
+ */
+function repertoireFragmentUrl(band, color) {
+  return `repertoire.html#band=${encodeURIComponent(band)}&color=${encodeURIComponent(color)}`;
 }
 
 /**
@@ -228,6 +259,31 @@ function buildDrillBundle() {
 }
 
 /**
+ * Same esbuild strategy again, for the collapsed repertoire.html's client
+ * bundle (WS-3.2): entry point src/browser/repertoire.client.js, which
+ * require()s src/browser/bandState.client.js and src/render.js (for
+ * renderRepertoireTree/escapeHtml, same as buildPlayerLookupBundle()
+ * already does). Makes no network requests -- every band x color
+ * combination it can paint comes from the #repertoire-data JSON block
+ * already on the page, baked in at build time.
+ */
+function buildRepertoireBundle() {
+  const header = [
+    '/* Auto-generated by src/buildStatic.js (esbuild) from',
+    ' * src/browser/repertoire.client.js and its module dependencies',
+    ' * (src/browser/bandState.client.js, src/render.js). Do not edit this',
+    ' * file directly -- edit the source files above and re-run `node',
+    ' * src/buildStatic.js`.',
+    ' *',
+    ' * This makes no network requests -- every band/color combination it',
+    ' * can paint comes from the #repertoire-data JSON block already on the',
+    ' * page, baked in at build time. */',
+  ].join('\n');
+
+  return bundleBrowserEntry(REPERTOIRE_ENTRY, header);
+}
+
+/**
  * Same esbuild strategy again, for T3's client bundle (Phase 7e): entry
  * point src/browser/ecoExplorer.client.js, which require()s
  * src/boardWidget.js, src/pgnWrapper.js, and chess.js -- the only bundle on
@@ -270,15 +326,25 @@ function drillCtaSection(drillFile) {
 }
 
 // The four rating-band pickers as one role=group control with 44px pill
-// links (render.js's .band-picker/.band-pill), replacing four floating
-// .card elements that carried the same visual weight as unrelated nav
-// cards on the same page. Link targets/labels unchanged from the old cards
-// (band + color, e.g. "as White").
-function bandPickerHtml(repertoireLinks) {
+// links (render.js's .band-picker/.band-pill). Link targets/labels
+// unchanged in spirit from the pre-WS-3.2 four floating .card elements
+// (band + color, e.g. "as White") -- only the destination changed, from one
+// of 8 separate repertoire-<band>-<color>.html files to a single
+// repertoire.html with band+color in the URL fragment (spec WS-3.2 section
+// 2.2). `data-band`/`data-color` are what src/browser/repertoire.client.js
+// reads to wire up in-page switching on repertoire.html itself; on the home
+// page these pills are plain cross-page links (the client bundle isn't
+// loaded there) and the data attributes are simply unused, which is
+// harmless. Every href still works with JS disabled: it lands on
+// repertoire.html with the right fragment, which is also what the page's
+// OWN default-state markup already shows for the 1600-1800/white pill.
+function bandPickerHtml() {
   const pills = Object.keys(RATING_BANDS)
-    .flatMap((band) => repertoireLinks
-      .filter((r) => r.band === band)
-      .map(({ color, file }) => `<a class="band-pill" href="${escapeHtml(file)}">${escapeHtml(band)} <span class="band-pill-color">as ${escapeHtml(color === 'white' ? 'White' : 'Black')}</span></a>`))
+    .flatMap((band) => ['white', 'black'].map((color) => {
+      const href = repertoireFragmentUrl(band, color);
+      const colorLabel = color === 'white' ? 'White' : 'Black';
+      return `<a class="band-pill" href="${escapeHtml(href)}" data-band="${escapeHtml(band)}" data-color="${escapeHtml(color)}">${escapeHtml(band)} <span class="band-pill-color">as ${escapeHtml(colorLabel)}</span></a>`;
+    }))
     .join('\n      ');
   return `<div class="band-picker" role="group" aria-label="Pick your rating band and color">
       ${pills}
@@ -294,7 +360,7 @@ function bandPickerHtml(repertoireLinks) {
 // (card--outline) -- same link targets, lower visual weight; see
 // design-standards.md 4.5's "one primary action per view". Openings cards
 // additionally carry inline WDL data via renderOpeningStatCard.
-function indexPage(repertoireLinks, contentEntries = [], drillFile = null) {
+function indexPage(contentEntries = [], drillFile = null) {
   const openingsSection = contentEntries.length > 0
     ? `<h2>Openings by real win rate</h2>
     <p class="repertoire-intro">${contentEntries.length} openings, ranked by what they actually score in real games
@@ -320,7 +386,7 @@ ${renderDocumentHead({
     feedUrl: absoluteUrl('feed.xml'),
   })}
 <body>
-  ${renderHeader(STATIC_NAV, 'repertoire')}
+  ${renderHeader(STATIC_NAV, null)}
   <main>
     ${renderPageHead({
       title: 'The chess opening meta, by rating band',
@@ -330,7 +396,7 @@ ${renderDocumentHead({
     <h2>Start with your rating band</h2>
     <p class="repertoire-intro">Openings behave differently at every rating. Pick your band &mdash; everything below is
        filtered to real games at that level.</p>
-    ${bandPickerHtml(repertoireLinks)}
+    ${bandPickerHtml()}
 
     ${drillCtaSection(drillFile)}
 
@@ -373,25 +439,136 @@ ${renderDocumentHead({ title, description, canonical })}
 `;
 }
 
-async function buildRepertoirePages({ fetchImpl = politeFetch } = {}) {
-  const written = [];
+// Default band+color repertoire.html server-renders into its markup (spec
+// WS-3.2 section 2.1's binding rule) -- matches bandState.client.js's own
+// DEFAULT_STATE and buildContent.js's DEFAULT_BAND, so "the default" means
+// the same rating band everywhere on the site.
+const REPERTOIRE_DEFAULT_BAND = '1600-1800';
+const REPERTOIRE_DEFAULT_COLOR = 'white';
+
+/**
+ * Fetches all 8 (RATING_BANDS x white/black) repertoire trees -- same total
+ * fetch volume as the old 8-separate-pages build, just no longer written to
+ * 8 separate files. Migrated onto src/explorerSource.js inside
+ * buildRepertoireTree() itself (src/buildRepertoire.js) -- see that
+ * module's own header comment for the aggregate-first, live-API-fallback
+ * design.
+ *
+ * @returns {Promise<Object<string, {ratingBand, color, opening, totals, tree}>>}
+ *   keyed "<band>|<color>".
+ */
+async function buildRepertoireCombos({ fetchImpl = politeFetch } = {}) {
+  const combos = {};
   for (const band of Object.keys(RATING_BANDS)) {
     for (const color of COLORS) {
       const data = await buildRepertoireTree({ ratingBand: band, color, fetchImpl });
+      combos[`${band}|${color}`] = {
+        ratingBand: data.ratingBand,
+        color: data.color,
+        opening: data.opening,
+        totals: data.totals,
+        tree: data.tree,
+      };
+    }
+  }
+  return combos;
+}
+
+/**
+ * Writes the single collapsed repertoire.html (spec WS-3.2 section 2) plus
+ * its client bundle. The default band+color is fully server-rendered into
+ * the markup; every other combo this build fetched travels as baked JSON
+ * for src/browser/repertoire.client.js to swap in client-side.
+ *
+ * @param {Object<string, object>} combos buildRepertoireCombos() output.
+ * @returns {{file: string}}
+ */
+function writeRepertoirePage(combos) {
+  const html = renderRepertoireExplorerPage({
+    combos,
+    defaultBand: REPERTOIRE_DEFAULT_BAND,
+    defaultColor: REPERTOIRE_DEFAULT_COLOR,
+    bandPickerHtml: bandPickerHtml(),
+    nav: STATIC_NAV,
+    legalLinks: LEGAL_LINKS,
+    canonical: absoluteUrl('repertoire.html'),
+    description: 'Explore chess opening repertoires by rating band and color: the moves players actually play at each ply, and how each one scores, from real Lichess games.',
+  });
+  fs.writeFileSync(path.join(OUT_DIR, 'repertoire.html'), html, 'utf8');
+  fs.writeFileSync(path.join(OUT_DIR, 'repertoire.js'), buildRepertoireBundle(), 'utf8');
+  return { file: 'repertoire.html' };
+}
+
+/**
+ * Writes the 8 old repertoire-<band>-<color>.html files as redirect stubs
+ * to the collapsed repertoire.html (spec WS-3.2 section 2.2) -- NEVER
+ * deleted, since they're the only thing preserving inbound link equity to
+ * URLs that may still be indexed/linked from elsewhere.
+ *
+ * @returns {Array<{band: string, color: string, file: string}>}
+ */
+function buildRedirectStubs() {
+  const written = [];
+  for (const band of Object.keys(RATING_BANDS)) {
+    for (const color of COLORS) {
       const file = repertoireFileName(band, color);
-      const colorLabel = color === 'white' ? 'White' : 'Black';
-      const html = renderRepertoirePage({
-        ...data,
-        nav: STATIC_NAV,
-        legalLinks: LEGAL_LINKS,
-        canonical: absoluteUrl(file),
-        description: `Repertoire explorer, ${band}, playing as ${colorLabel}: the moves players actually play at each ply, and how each one scores, from real Lichess games.`,
+      const targetPath = `/${repertoireFragmentUrl(band, color)}`;
+      const html = renderRedirectStubPage({
+        band,
+        color,
+        targetPath,
+        canonicalUrl: absoluteUrl('repertoire.html'),
       });
       fs.writeFileSync(path.join(OUT_DIR, file), html, 'utf8');
       written.push({ band, color, file });
     }
   }
   return written;
+}
+
+/**
+ * Copies data/aggregates/ (manifest.json + every shard it lists) verbatim
+ * into dist/data/ -- spec WS-3.2 section 2.4, same
+ * copy-verbatim-and-fail-loudly-if-missing shape as IDENTITY_ASSET_FILES/
+ * FONT_ASSET_FILES above, except missing source data here is NOT a build
+ * failure: this repo's first human-gated live dump ingest (WS-3 B2) hasn't
+ * run yet, so data/aggregates/ legitimately doesn't exist on disk today
+ * (see src/explorerSource.js's header comment for the full reasoning).
+ * Ships only the shards the manifest actually lists, per spec 2.4's "ship
+ * only shards the site actually references" -- today, that's zero pages
+ * (WS-1.4's future general position explorer is what will actually fetch
+ * from here client-side; see src/browser/repertoire.client.js's header
+ * comment for why THIS page's own 8-combo swap uses inline baked JSON
+ * instead). This step exists now so the plumbing is built, tested, and
+ * ready the moment WS-3 B2 lands real data -- not dead code.
+ *
+ * @param {string} [aggregatesDir]
+ * @returns {{copied: boolean, files: string[]}}
+ */
+function copyAggregateShardsToDist(aggregatesDir = AGGREGATES_DIR) {
+  if (!aggregatesAvailable(aggregatesDir)) {
+    return { copied: false, files: [] };
+  }
+  const dataOutDir = path.join(OUT_DIR, 'data');
+  fs.mkdirSync(dataOutDir, { recursive: true });
+  const manifestSrc = path.join(aggregatesDir, 'manifest.json');
+  fs.copyFileSync(manifestSrc, path.join(dataOutDir, 'manifest.json'));
+  const manifest = JSON.parse(fs.readFileSync(manifestSrc, 'utf8'));
+  // Every returned path is 'data/'-prefixed and dist/-relative -- consistent
+  // for both the manifest and every shard, so a caller (assertFilenamesUnique)
+  // never mistakes 'data/manifest.json' for a top-level page.
+  const files = ['data/manifest.json'];
+  for (const shard of manifest.shards || []) {
+    const shardSrc = path.join(aggregatesDir, shard.file);
+    if (!fs.existsSync(shardSrc)) {
+      throw new Error(`copyAggregateShardsToDist: manifest lists shard "${shard.file}" which is missing at ${shardSrc}`);
+    }
+    const shardDest = path.join(dataOutDir, shard.file);
+    fs.mkdirSync(path.dirname(shardDest), { recursive: true });
+    fs.copyFileSync(shardSrc, shardDest);
+    files.push(path.join('data', shard.file).replace(/\\/g, '/'));
+  }
+  return { copied: true, files };
 }
 
 /**
@@ -442,7 +619,13 @@ function assertFilenamesUnique(filenames) {
 async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
-  const repertoireLinks = await buildRepertoirePages({ fetchImpl });
+  // WS-3.2: one repertoire.html (band+color picked client-side, default
+  // server-rendered) instead of 8 separate pages, plus the 8 old filenames
+  // kept alive as redirect stubs. Same total fetch volume as before --
+  // buildRepertoireCombos() still fetches all 8 band x color trees.
+  const repertoireCombos = await buildRepertoireCombos({ fetchImpl });
+  const { file: repertoireFile } = writeRepertoirePage(repertoireCombos);
+  const repertoireStubs = buildRedirectStubs();
 
   // Content pages (opening pages + hub) share the same rate-limited Explorer
   // endpoint, so they get the same politeFetch treatment, plus an on-disk
@@ -476,9 +659,9 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   // Single-opening drill pilot (beta): baked at build time from the same
   // rate-limited, cached Explorer endpoint as the content pages above --
   // see src/buildDrill.js for the request-count budget (25 per band, 100
-  // total). Reuses repertoireFileName() (already defined above) so the
-  // drill's "keep exploring" link points at the real generated filename
-  // rather than a hand-typed one that could drift.
+  // total). Points at the collapsed repertoire.html (spec WS-3.2 section
+  // 2.2) rather than one of the 8 now-stubbed repertoire-<band>-<color>.html
+  // files -- no reason to bounce a real visitor through a redirect stub.
   const drillData = await buildDrillData({ openingSlug: DRILL_OPENING_SLUG, fetchImpl: cachedFetchImpl });
   const drillFile = 'italian-game-drill.html';
   const drillHtml = renderDrillPage({
@@ -486,7 +669,7 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     nav: STATIC_NAV,
     legalLinks: LEGAL_LINKS,
     openingLink: `${DRILL_OPENING_SLUG}.html`,
-    repertoireLink: repertoireFileName(DRILL_DEFAULT_BAND, 'white'),
+    repertoireLink: repertoireFragmentUrl(DRILL_DEFAULT_BAND, 'white'),
   });
   fs.writeFileSync(path.join(OUT_DIR, drillFile), drillHtml, 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'drill.js'), buildDrillBundle(), 'utf8');
@@ -516,7 +699,7 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   });
   fs.writeFileSync(path.join(OUT_DIR, 'eco-explorer.js'), buildEcoExplorerBundle(), 'utf8');
 
-  fs.writeFileSync(path.join(OUT_DIR, 'index.html'), indexPage(repertoireLinks, contentEntries, drillFile), 'utf8');
+  fs.writeFileSync(path.join(OUT_DIR, 'index.html'), indexPage(contentEntries, drillFile), 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'player.html'), playerLookupPage(), 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'player-lookup.js'), buildPlayerLookupBundle(), 'utf8');
 
@@ -538,9 +721,12 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     render404Page({
       nav: STATIC_NAV,
       legalLinks: LEGAL_LINKS,
-      homeLink: STATIC_NAV.repertoire,
+      // STATIC_NAV.repertoire used to alias the home page ('/') before
+      // WS-3.2 gave repertoire.html a real, distinct URL -- the 404 page's
+      // "Home" link must point at the actual site root now, not there.
+      homeLink: '/',
       openingsLink: STATIC_NAV.openings,
-      repertoireLink: repertoireFileName(DRILL_DEFAULT_BAND, 'white'),
+      repertoireLink: repertoireFragmentUrl(DRILL_DEFAULT_BAND, 'white'),
     }),
     'utf8'
   );
@@ -587,6 +773,11 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   // (2026-08-14) precisely because it isn't part of this script's own output.
   fs.writeFileSync(path.join(OUT_DIR, '.nojekyll'), '', 'utf8');
 
+  // dist/data/ (spec WS-3.2 section 2.4): copies data/aggregates/ verbatim
+  // when it exists (see copyAggregateShardsToDist()'s own header comment
+  // for why "doesn't exist yet" is expected, not an error, today).
+  const aggregateShardsResult = copyAggregateShardsToDist();
+
   const pageFilenames = [
     'index.html',
     'player.html',
@@ -595,7 +786,8 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     'contact.html',
     '404.html',
     drillFile,
-    ...repertoireLinks.map((r) => r.file),
+    repertoireFile,
+    ...repertoireStubs.map((r) => r.file),
     ...contentWritten.map((c) => c.file),
     ...ecoWritten.map((e) => e.file),
     ecoExplorerResult.file,
@@ -605,12 +797,14 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     ...pageFilenames,
     'player-lookup.js',
     'drill.js',
+    'repertoire.js',
     'eco-explorer.js',
     REVERSE_LOOKUP_FILE,
     'CNAME',
     'ads.txt',
     'feed.xml',
     ...IDENTITY_ASSET_FILES,
+    ...aggregateShardsResult.files,
   ]);
   assertNoTokenLeak(OUT_DIR, getApiToken());
 
@@ -631,17 +825,29 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   // sitemap, so it can't drift from what's really on disk either.
   fs.writeFileSync(path.join(OUT_DIR, 'feed.xml'), renderRssXml(contentWritten), 'utf8');
 
-  return { outDir: OUT_DIR, repertoireLinks, contentWritten, ecoWritten, ecoExplorerResult, pageFilenames };
+  return {
+    outDir: OUT_DIR,
+    repertoireFile,
+    repertoireStubs,
+    contentWritten,
+    ecoWritten,
+    ecoExplorerResult,
+    pageFilenames,
+    aggregateShardsCopied: aggregateShardsResult.copied,
+  };
 }
 
 async function main() {
   const useCache = !process.argv.includes('--no-cache');
   try {
-    const { outDir, repertoireLinks, contentWritten, ecoWritten, ecoExplorerResult } = await buildStatic({ useCache });
+    const { outDir, repertoireFile, repertoireStubs, contentWritten, ecoWritten, ecoExplorerResult, aggregateShardsCopied } = await buildStatic({ useCache });
     console.log(`Wrote static site to ${outDir}`);
-    console.log(`  - index.html (links to player lookup + ${repertoireLinks.length} repertoire pages + openings)`);
+    console.log(`  - index.html (links to player lookup + ${repertoireFile} + openings)`);
     console.log('  - player.html + player-lookup.js (client-side player lookup, no token used)');
-    for (const { file } of repertoireLinks) {
+    console.log(`  - ${repertoireFile} + repertoire.js (collapsed rating-band repertoire explorer, band+color in the URL fragment)`);
+    console.log(`  - ${repertoireStubs.length} redirect stubs for the old repertoire-<band>-<color>.html URLs`);
+    console.log(aggregateShardsCopied ? '  - dist/data/ (copied from data/aggregates/)' : '  - dist/data/ skipped: no data/aggregates/ on disk yet (WS-3 B2 has not run)');
+    for (const { file } of repertoireStubs) {
       console.log(`  - ${file}`);
     }
     console.log(`  - ${contentWritten.length} content pages (10 opening pages + openings hub)`);
@@ -668,13 +874,19 @@ if (require.main === module) {
 
 module.exports = {
   buildStatic,
-  buildRepertoirePages,
+  buildRepertoireCombos,
+  writeRepertoirePage,
+  buildRedirectStubs,
+  copyAggregateShardsToDist,
   buildPlayerLookupBundle,
   buildDrillBundle,
+  buildRepertoireBundle,
   bundleBrowserEntry,
   indexPage,
   playerLookupPage,
   repertoireFileName,
+  repertoireFragmentUrl,
+  bandPickerHtml,
   assertNoTokenLeak,
   assertFilenamesUnique,
   STATIC_NAV,

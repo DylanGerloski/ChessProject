@@ -16,13 +16,16 @@ const { fenToEpd, posKeyFromEpd } = require('./ingest/positionWalk');
  * src/processRepertoire.js's moveStatsFromExplorerResponse(), so matching
  * that shape exactly is what keeps this a source swap, not a rewrite.
  *
- * Actually flipping the four builders onto this module is explicitly OUT
- * OF SCOPE here -- that migration is a separate, later piece of work that
- * must not run concurrently with this one (it touches the same
- * src/buildRepertoire.js / src/buildContent.js / src/buildDrill.js /
- * src/buildEcoPages.js files another concurrent change in this workspace
- * is already touching). This module is built and tested standalone;
- * nothing in those four files is touched here.
+ * That flip has since happened (spec WS-3.2): all four builders now route
+ * their lichess-database move lookups through src/explorerSource.js's
+ * fetchMoves(), which calls explorerShapedResponse() below when aggregate
+ * data is present at data/aggregates/ and falls back to the live Explorer
+ * API otherwise (data/aggregates/ doesn't exist on disk until this repo's
+ * first human-gated live dump ingest has actually run -- see
+ * explorerSource.js's own header comment for why that fallback exists and
+ * what it means for today's production build). This module itself stays
+ * unchanged either way -- it's still built and tested standalone; the
+ * routing/fallback decision lives entirely in explorerSource.js, not here.
  *
  * `balanced: {white, draws, black}` and `posKey` are NEW fields the live
  * Explorer response never had -- existing consumers ignore unknown fields

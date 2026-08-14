@@ -89,7 +89,7 @@ function renderEcoExplorerPage({ nav, lineIndex, t0CrossLinkMap, reverseLookupUr
   }
   const canonical = absoluteUrl(ECO_EXPLORER_FILE);
   const breadcrumbItems = [
-    { label: 'Home', href: nav.repertoire },
+    { label: 'Home', href: nav.home },
     { label: 'ECO index', href: ECO_INDEX_FILE },
     { label: 'Explorer', href: ECO_EXPLORER_FILE },
   ];

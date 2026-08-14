@@ -189,7 +189,7 @@ function renderFamilyHubPage({ familyEntry, bandStats, nav, t0CrossLink = null, 
   const canonical = absoluteUrl(filename);
   const volumeFile = ecoVolumeFilename(primaryVolume);
   const breadcrumbItems = [
-    { label: 'Home', href: nav.repertoire },
+    { label: 'Home', href: nav.home },
     { label: 'ECO index', href: ECO_INDEX_FILE },
     { label: `Volume ${primaryVolume}`, href: volumeFile },
     { label: family, href: filename },
@@ -284,7 +284,7 @@ function renderEcoVolumeIndexPage({ volume, codeRows, nav }) {
   }
   const canonical = absoluteUrl(filename);
   const breadcrumbItems = [
-    { label: 'Home', href: nav.repertoire },
+    { label: 'Home', href: nav.home },
     { label: 'ECO index', href: ECO_INDEX_FILE },
     { label: `Volume ${volume}`, href: filename },
   ];
@@ -363,7 +363,7 @@ function renderEcoIndexPage({ pageFamilies, pageNum, totalPages, stats, nav }) {
     : `Chess opening families ${pageFamilies[0].family}–${pageFamilies[pageFamilies.length - 1].family}, page ${pageNum} of ${totalPages}.`;
   const canonical = absoluteUrl(filename);
   const breadcrumbItems = [
-    { label: 'Home', href: nav.repertoire },
+    { label: 'Home', href: nav.home },
     { label: 'ECO index', href: ECO_INDEX_FILE },
     ...(pageNum > 1 ? [{ label: `Page ${pageNum}`, href: filename }] : []),
   ];

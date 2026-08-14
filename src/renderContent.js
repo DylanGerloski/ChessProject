@@ -309,7 +309,7 @@ function renderOpeningPage({ model, openingConfig, nav, related = [], repertoire
   }
   const canonical = absoluteUrl(`${openingConfig.slug}.html`);
   const openingFile = `${openingConfig.slug}.html`;
-  const breadcrumbItems = [{ label: 'Home', href: nav.repertoire }, { label: 'Openings', href: nav.openings }, { label: model.name, href: openingFile }];
+  const breadcrumbItems = [{ label: 'Home', href: nav.home }, { label: 'Openings', href: nav.openings }, { label: model.name, href: openingFile }];
 
   const repFile = repertoireLinks[openingConfig.side];
 
@@ -405,7 +405,7 @@ function renderOpeningsHub(entries, { nav, ecoIndexLink = null }) {
   const title = `Chess Openings by Real Win Rate | ${SITE_NAME}`;
   const description = `${entries.length} chess openings compared by real Lichess win rate, move-by-move, across four rating bands from 1400 to 2000+.`;
   const canonical = absoluteUrl('openings.html');
-  const breadcrumbItems = [{ label: 'Home', href: nav.repertoire }, { label: 'Openings', href: 'openings.html' }];
+  const breadcrumbItems = [{ label: 'Home', href: nav.home }, { label: 'Openings', href: 'openings.html' }];
 
   const rows = entries
     .map(({ openingConfig, model }) => {
@@ -483,7 +483,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(b
 function renderArticlePage({ meta, bodyHtml, nav, related = [] }) {
   const title = pageTitle(meta.title);
   const canonical = absoluteUrl(`${meta.slug}.html`);
-  const breadcrumbItems = [{ label: 'Home', href: nav.repertoire }, { label: 'Guides', href: nav.guides }, { label: meta.title, href: `${meta.slug}.html` }];
+  const breadcrumbItems = [{ label: 'Home', href: nav.home }, { label: 'Guides', href: nav.guides }, { label: meta.title, href: `${meta.slug}.html` }];
   const jsonLd = [
     breadcrumbJsonLd(breadcrumbItems),
     articleJsonLd({
@@ -533,7 +533,7 @@ function renderGuidesHub(articles, { nav }) {
   const title = `Chess Opening Guides, Backed by Real Data | ${SITE_NAME}`;
   const description = `${articles.length} data-grounded guides on opening choice, common mistakes, and rating-band trends, backed by real Lichess Opening Explorer numbers.`;
   const canonical = absoluteUrl('guides.html');
-  const breadcrumbItems = [{ label: 'Home', href: nav.repertoire }, { label: 'Guides', href: 'guides.html' }];
+  const breadcrumbItems = [{ label: 'Home', href: nav.home }, { label: 'Guides', href: 'guides.html' }];
 
   const cards = articles
     .map(
@@ -569,7 +569,7 @@ function renderFaqPage({ faqs, nav }) {
   const title = `Chess Opening FAQ: Data-Backed Answers | ${SITE_NAME}`;
   const description = 'Plain-language answers about chess openings, ECO codes, and how to read Lichess Opening Explorer data — grounded in this site\'s own numbers where possible.';
   const canonical = absoluteUrl('chess-opening-faq.html');
-  const breadcrumbItems = [{ label: 'Home', href: nav.repertoire }, { label: 'FAQ', href: 'chess-opening-faq.html' }];
+  const breadcrumbItems = [{ label: 'Home', href: nav.home }, { label: 'FAQ', href: 'chess-opening-faq.html' }];
   // FAQPage JSON-LD lives ONLY on this page, never bolted onto any other --
   // FAQ rich results were removed by Google on 2026-05-07, so this is for
   // parsing value only, not a SERP-feature bet.

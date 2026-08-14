@@ -23,8 +23,8 @@ const path = require('path');
 const { buildEcoDataset } = require('./ecoData');
 const { buildFamilyIndex, t1Families, familyHubFilename } = require('./ecoFamilies');
 const { buildFamilyBandStats } = require('./processEcoFamilies');
-const { fetchExplorerMoves } = require('./fetchOpeningExplorer');
 const { RATING_BANDS, DEFAULT_SPEEDS } = require('./processRepertoire');
+const { fetchMoves, AGGREGATES_DIR } = require('./explorerSource');
 const { OPENINGS } = require('./openings');
 const {
   VOLUME_LABELS,
@@ -52,14 +52,19 @@ const ECO_INDEX_PAGE_COUNT = 2;
  * Fetches one family's main-line 4-band stats, one request at a time (see
  * this module's header comment). `moves: 0` -- callers here only need the
  * position's own win/draws/black totals, never its candidate-move list.
+ *
+ * `familySlug` is REQUIRED once aggregate data is present: a T1 family's
+ * main line frequently runs well past root.json's ply<=6 coverage (unlike
+ * buildRepertoire.js's shallow walk), so the position almost always needs
+ * the family shard, not just root.
  */
-async function fetchFamilyBandResponses(mainLine, { fetchImpl }) {
+async function fetchFamilyBandResponses(mainLine, { fetchImpl, familySlug, aggregatesDir = AGGREGATES_DIR }) {
   const fullPlay = mainLine.plies.map((p) => p.uci);
   const bandResponses = {};
   for (const band of Object.keys(RATING_BANDS)) {
     // eslint-disable-next-line no-await-in-loop -- intentionally serial, see header comment
-    bandResponses[band] = await fetchExplorerMoves({
-      play: fullPlay, ratings: RATING_BANDS[band], speeds: DEFAULT_SPEEDS, moves: 0, fetchImpl,
+    bandResponses[band] = await fetchMoves({
+      play: fullPlay, band, ratings: RATING_BANDS[band], speeds: DEFAULT_SPEEDS, moves: 0, familySlug, fetchImpl, dir: aggregatesDir,
     });
   }
   return bandResponses;
@@ -141,10 +146,11 @@ function buildVolumeCodeRows(lines, volume, familyIndex) {
  * @param {Function} [opts.fetchImpl] injectable fetch, default global fetch
  * @param {string} [opts.outDir] where to write the generated files
  * @param {object} opts.nav nav object passed to renderHeader
+ * @param {string} [opts.aggregatesDir] see src/explorerSource.js's `dir` param.
  * @returns {Promise<{written: Array<{file,html,slug,title,description}>,
  *   familyIndex: Array, t1: Array, stats: object}>}
  */
-async function buildEcoPages({ fetchImpl = fetch, outDir = OUT_DIR, nav } = {}) {
+async function buildEcoPages({ fetchImpl = fetch, outDir = OUT_DIR, nav, aggregatesDir = AGGREGATES_DIR } = {}) {
   fs.mkdirSync(outDir, { recursive: true });
 
   const dataset = buildEcoDataset();
@@ -157,7 +163,7 @@ async function buildEcoPages({ fetchImpl = fetch, outDir = OUT_DIR, nav } = {}) 
   for (const familyEntry of t1) {
     const mainLineSide = resolveMainLineSide(familyEntry);
     // eslint-disable-next-line no-await-in-loop -- serial by design, see header comment
-    const bandResponses = await fetchFamilyBandResponses(familyEntry.mainLine, { fetchImpl });
+    const bandResponses = await fetchFamilyBandResponses(familyEntry.mainLine, { fetchImpl, familySlug: familyEntry.slug, aggregatesDir });
     const bandStats = buildFamilyBandStats({ side: mainLineSide, bandResponses });
     const t0CrossLink = findT0CrossLink(familyEntry);
     const relatedFamilies = pickRelatedFamilies(familyEntry, t1);
