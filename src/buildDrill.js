@@ -1,213 +1,219 @@
 'use strict';
 
 /**
- * Data builder for the single-opening progressive recall drill (beta pilot).
+ * Build-time content for /drill-reference.html (WS-1 spec section 3.3):
+ * real, sourced opening lines with band data, generated from the COMMITTED
+ * band shards (data/rep/, produced by W0's scripts/buildBandShards.js) --
+ * never a live network call, so this runs deterministically at build time
+ * against whatever crawl the repo currently carries.
  *
- * buildRepertoire.js branches at the user's own plies, because it's a browse
- * tool and the user is choosing between real alternatives. A drill instead
- * needs exactly one graded answer per user ply, and gets its variety from
- * the OPPONENT's replies instead -- so this module mirrors that recursion
- * with branching moved to the opponent's plies. It does not modify
- * buildRepertoire.js or any of the already-shipped repertoire pages; the
- * shared logic it reuses lives in fetchOpeningExplorer.js and
- * processRepertoire.js.
- *
- * Tree shape (per rating band), matching the drill's alternating structure:
- *   oppNode  = { replies: [ { uci, san, games, playedPct, node: userNode } ] }
- *   userNode = { candidates: [ {uci,san,games,playedPct,winPct,drawPct,lossPct} ], answerUci, then: oppNode | null }
- * `answerUci` is always candidates[0].uci -- the most-played move in that
- * position, which is what the user is graded against (see drillLogic.js).
- * `then` is null at the deepest user ply; otherwise it's the next oppNode.
+ * REWRITE, stated for anyone comparing this to the pre-WS-1 version: this
+ * module used to bake ONE hardcoded Italian-Game tree per rating band by
+ * calling the LIVE Lichess Opening Explorer (buildDrillTree/buildDrillData,
+ * src/explorerSource.js's fetchMoves()). That approach is now Contract A's
+ * job (WS-1 spec section 2.1): band meta is pre-baked into
+ * src/bandShards.js-shaped shards, read at RUNTIME by
+ * src/browser/bandData.client.js for every interactive surface (the drill
+ * hub's own live seeding, the Repertoire Builder's reply table, the
+ * Opening Report). This module's new job is narrower and purely
+ * server-side: walk those same already-crawled shard files, offline, to
+ * produce the informational full-line reference content the SPOILER RULE
+ * requires living on its own page (drill-reference.html), separate from
+ * the interactive drill. It supersedes buildDrillTree/buildDrillData
+ * entirely -- neither symbol is exported anymore; nothing in
+ * src/buildStatic.js called them (that pilot's own bundle/page write was
+ * already dead code by the time this task started -- see
+ * src/renderDrillHub.js's header comment).
  */
 
-const { RATING_BANDS, DEFAULT_SPEEDS, moveStatsFromExplorerResponse } = require('./processRepertoire');
-const { getOpening } = require('./openings');
-const { PIECE_GLYPH } = require('./renderContent');
-const { fetchMoves, AGGREGATES_DIR } = require('./explorerSource');
-const { slugifyFamilyName } = require('./ecoFamilies');
+const fs = require('fs');
+const path = require('path');
+const { Chess } = require('chess.js');
+const { isValidShard, decodePositionRecord } = require('./bandShards');
+const { applyExplorerUci } = require('./buildPack');
+const { scoreInterval } = require('./stats');
+const { OPENINGS } = require('./openings');
+const { fenToEpd, posKeyFromEpd } = require('./ingest/positionWalk');
 
-// How many of the user's own decision points the drill covers. Each is
-// preceded by one opponent ply (auto-played and shown to the user).
-const DRILL_USER_DEPTH = 4;
+const REP_DATA_DIR = path.join(__dirname, '..', 'data', 'rep');
 
-// How many replies the opponent branches into at each of its plies, indexed
-// 0..DRILL_USER_DEPTH-1. This is the sole source of tree variety -- the user
-// side always follows the single most-played ("band-typical") move. With
-// this exact array, one rating band costs 25 Explorer requests to build
-// (1 + 2 + 2 + 4 + 4 + 4 + 4 + 4); changing it changes that cost.
-const DRILL_OPPONENT_BREADTH = [2, 2, 1, 1];
-
-// How many candidate moves are shown to the user at each of their plies.
-const DRILL_CANDIDATES = 4;
+// Same statistical floor the rest of WS-1 uses (spec 3.2.3 / bandShards.js's
+// own minGames convention) -- a reference line built from under 300 games
+// at a node is more noise than signal, so the walk stops there rather than
+// padding the page with a thin sample.
+const MIN_REFERENCE_GAMES = 300;
 
 /**
- * Builds the drill tree for a single rating band, starting from the position
- * after `prefixPlay` (where the opponent is to move).
- *
- * @param {object} opts
- * @param {string} opts.ratingBand one of the RATING_BANDS keys
- * @param {'white'|'black'} [opts.color] which side the user plays
- * @param {string[]} [opts.speeds]
- * @param {string[]} opts.prefixPlay UCI moves from the start position up to
- *   the drill's root (opponent to move)
- * @param {number} [opts.userDepth]
- * @param {number[]} [opts.opponentBreadth]
- * @param {number} [opts.candidateCount]
- * @param {number} [opts.movesPerRequest]
- * @param {Function} [opts.fetchImpl] forwarded to the live-Explorer fallback only.
- * @param {string} [opts.familySlug] the opening's ECO family slug (see
- *   ecoFamilies.js's slugifyFamilyName) -- REQUIRED once aggregate data is
- *   present: unlike buildRepertoireTree's shallow walk, the drill's
- *   prefixPlay (up to 5 plies) plus up to `userDepth`*2 more plies can go
- *   well past root.json's ply<=ROOT_MAX_PLY coverage (3 as of the
- *   2026-08-15 shard-size fix, src/ingest/aggregate.js), so a position here
- *   often needs the family shard. Silently ignored on the live-API fallback
- *   path.
- * @param {string} [opts.aggregatesDir] see src/explorerSource.js's `dir` param.
- * @returns {Promise<object>} the root oppNode
+ * @param {string} repDataDir
+ * @param {string} band
+ * @param {string} shardKey
+ * @returns {object|null} the parsed, shape-valid Shard, or null on any
+ *   read/parse/shape failure -- same "collapses to no data" contract
+ *   src/browser/bandData.client.js's fetchShard() follows, just synchronous
+ *   and filesystem-backed instead of networked.
  */
-async function buildDrillTree({
-  ratingBand,
-  color = 'white',
-  speeds = DEFAULT_SPEEDS,
-  prefixPlay,
-  userDepth = DRILL_USER_DEPTH,
-  opponentBreadth = DRILL_OPPONENT_BREADTH,
-  candidateCount = DRILL_CANDIDATES,
-  movesPerRequest = 8,
-  fetchImpl = fetch,
-  familySlug = null,
-  aggregatesDir = AGGREGATES_DIR,
-} = {}) {
-  const ratings = RATING_BANDS[ratingBand];
-  if (!ratings) {
-    throw new Error(`buildDrillTree: unknown rating band "${ratingBand}". Valid bands: ${Object.keys(RATING_BANDS).join(', ')}`);
+function readShardSync(repDataDir, band, shardKey) {
+  const file = path.join(repDataDir, band, `${shardKey}.json`);
+  if (!fs.existsSync(file)) return null;
+  try {
+    const json = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return isValidShard(json) ? json : null;
+  } catch (err) {
+    return null;
   }
-  if (color !== 'white' && color !== 'black') {
-    throw new Error(`buildDrillTree: color must be "white" or "black", got "${color}"`);
-  }
-  if (!Array.isArray(prefixPlay) || prefixPlay.length === 0) {
-    throw new Error('buildDrillTree: prefixPlay must be a non-empty array of UCI moves');
-  }
-  if (!Array.isArray(opponentBreadth) || opponentBreadth.length < userDepth) {
-    throw new Error('buildDrillTree: opponentBreadth must have at least userDepth entries');
-  }
+}
 
-  const userColor = color;
-  const opponentColor = color === 'white' ? 'black' : 'white';
-  const ctx = { ratings, speeds, userColor, opponentColor, opponentBreadth, candidateCount, userDepth, movesPerRequest, fetchImpl };
-
-  async function expandOpponent(play, oppDepth) {
-    const response = await fetchMoves({ play, band: ratingBand, ratings, speeds, moves: ctx.movesPerRequest, familySlug, fetchImpl: ctx.fetchImpl, dir: aggregatesDir });
-    const candidates = moveStatsFromExplorerResponse(response, opponentColor);
-    if (candidates.length === 0) {
-      throw new Error(`buildDrillTree: zero candidate moves at opponent ply ${oppDepth} (play=${play.join(',')})`);
-    }
-    const breadth = ctx.opponentBreadth[oppDepth];
-    const top = candidates.slice(0, breadth);
-
-    const replies = [];
-    for (const mv of top) {
-      const nextPlay = [...play, mv.uci];
-      const node = await expandUser(nextPlay, oppDepth);
-      replies.push({ uci: mv.uci, san: mv.san, games: mv.games, playedPct: mv.playedPct, node });
-    }
-    return { replies };
-  }
-
-  async function expandUser(play, oppDepth) {
-    const response = await fetchMoves({ play, band: ratingBand, ratings, speeds, moves: ctx.movesPerRequest, familySlug, fetchImpl: ctx.fetchImpl, dir: aggregatesDir });
-    const allCandidates = moveStatsFromExplorerResponse(response, userColor);
-    if (allCandidates.length === 0) {
-      throw new Error(`buildDrillTree: zero candidate moves at user ply ${oppDepth} (play=${play.join(',')})`);
-    }
-    const candidates = allCandidates.slice(0, ctx.candidateCount);
-    const top = candidates[0];
-    if (top.games === 0) {
-      throw new Error(`buildDrillTree: top candidate has zero games at user ply ${oppDepth} (play=${play.join(',')})`);
-    }
-    const answerUci = top.uci;
-    if (answerUci.length === 5) {
-      throw new Error(`buildDrillTree: answer move "${answerUci}" is a promotion, which the drill has no UI for (user ply ${oppDepth}, play=${play.join(',')})`);
-    }
-
-    let then = null;
-    if (oppDepth + 1 < ctx.userDepth) {
-      const nextPlay = [...play, answerUci];
-      then = await expandOpponent(nextPlay, oppDepth + 1);
-    }
-    return { candidates, answerUci, then };
-  }
-
-  return expandOpponent(prefixPlay, 0);
+function shardKeyForPlay(play) {
+  return play.length <= 2 ? 'root' : `${play[0]}-${play[1]}`;
 }
 
 /**
- * Builds the full drill payload (all rating bands) for one opening, ready to
- * be baked into a static page as JSON.
+ * Looks up one position's decoded record + SAN-annotated moves directly
+ * from the committed shard files -- the same shape
+ * src/browser/bandData.client.js's lookup() returns, but synchronous.
+ *
+ * @param {string} repDataDir
+ * @param {string} band
+ * @param {string[]} play
+ * @returns {{coverage:'in'|'out-of-book', games:number,
+ *   moves:Array<{uci:string, san:string, games:number, score:number,
+ *   scoreLo:number, scoreHi:number}>}}
+ */
+function lookupSync(repDataDir, band, play) {
+  const shard = readShardSync(repDataDir, band, shardKeyForPlay(play));
+  if (!shard) return { coverage: 'out-of-book', games: 0, moves: [] };
+
+  const chess = new Chess();
+  for (const uci of play) {
+    try {
+      applyExplorerUci(chess, uci);
+    } catch (err) {
+      return { coverage: 'out-of-book', games: 0, moves: [] };
+    }
+  }
+  const fen = chess.fen();
+  // Re-derive the posKey the same way bandShards.posKeyFor does, without
+  // paying for a second chess.js replay -- fenToEpd/posKeyFromEpd are pure
+  // string transforms of the FEN we already have in hand.
+  const posKey = posKeyFromEpd(fenToEpd(fen));
+  const record = shard.positions[posKey];
+  if (!record) return { coverage: 'out-of-book', games: 0, moves: [] };
+
+  const decoded = decodePositionRecord(record);
+  const games = decoded.w + decoded.d + decoded.b;
+  const sideToMove = chess.turn();
+  const moves = decoded.moves.map((m) => {
+    const moveGames = m.w + m.d + m.b;
+    const interval = sideToMove === 'w' ? scoreInterval(m.w, m.d, m.b) : scoreInterval(m.b, m.d, m.w);
+    let san = m.uci;
+    try {
+      const result = applyExplorerUci(chess, m.uci);
+      if (result) {
+        san = result.san;
+        chess.undo();
+      }
+    } catch (err) {
+      // leave san as the raw uci -- one bad record degrades a single row.
+    }
+    return { uci: m.uci, san, games: moveGames, score: interval.score, scoreLo: interval.low, scoreHi: interval.high };
+  });
+
+  return { coverage: 'in', games, moves };
+}
+
+/**
+ * Walks one opening's own line, best-first by game count, to `maxPlies`
+ * beyond the opening's prefix, branching into the top `breadth` replies at
+ * each ply. Returns each root-to-leaf path as a plain, printable line.
  *
  * @param {object} opts
- * @param {string} [opts.openingSlug] must name a white-side opening in openings.js
- * @param {string[]} [opts.speeds]
- * @param {string[]} [opts.bands] which RATING_BANDS keys to build; defaults to all
- * @param {number} [opts.userDepth]
- * @param {number[]} [opts.opponentBreadth]
- * @param {number} [opts.candidateCount]
- * @param {Function} [opts.fetchImpl]
- * @param {string} [opts.aggregatesDir] see src/explorerSource.js's `dir` param.
- * @returns {Promise<object>} { version, opening, prefix, speeds, retrieved, glyphs, bands }
+ * @param {string} opts.band
+ * @param {object} opts.opening one of src/openings.js's OPENINGS entries.
+ * @param {string} [opts.repDataDir]
+ * @param {number} [opts.maxPlies]
+ * @param {number} [opts.breadth]
+ * @returns {Array<{totalGames:number, plies:Array<{san:string, games:number,
+ *   score:number}>}>}
  */
-async function buildDrillData({
-  openingSlug = 'italian-game',
-  speeds = DEFAULT_SPEEDS,
-  bands = Object.keys(RATING_BANDS),
-  userDepth = DRILL_USER_DEPTH,
-  opponentBreadth = DRILL_OPPONENT_BREADTH,
-  candidateCount = DRILL_CANDIDATES,
-  fetchImpl = fetch,
-  aggregatesDir = AGGREGATES_DIR,
-} = {}) {
-  const opening = getOpening(openingSlug);
-  if (!opening) {
-    throw new Error(`buildDrillData: unknown opening slug "${openingSlug}"`);
-  }
-  if (opening.side !== 'white') {
-    throw new Error(`buildDrillData: only a white-side opening is supported by this pilot drill, got "${opening.side}" for "${openingSlug}"`);
+function buildReferenceLines({ band, opening, repDataDir = REP_DATA_DIR, maxPlies = 6, breadth = 2 }) {
+  const startPlay = opening.line.map((p) => p.uci);
+  const lines = [];
+
+  function walk(play, plies) {
+    if (play.length - startPlay.length >= maxPlies) {
+      if (plies.length > 0) lines.push({ totalGames: plies[plies.length - 1].games, plies });
+      return;
+    }
+    const result = lookupSync(repDataDir, band, play);
+    const eligible = result.moves.filter((m) => m.games >= MIN_REFERENCE_GAMES).sort((a, b) => b.games - a.games);
+    if (eligible.length === 0) {
+      if (plies.length > 0) lines.push({ totalGames: plies[plies.length - 1].games, plies });
+      return;
+    }
+    const top = eligible.slice(0, breadth);
+    for (const mv of top) {
+      walk([...play, mv.uci], [...plies, { san: mv.san, games: mv.games, score: mv.score }]);
+    }
   }
 
-  const familySlug = slugifyFamilyName(opening.name);
-  const prefixPlay = opening.line.map((ply) => ply.uci);
-  const bandsOut = {};
-  for (const band of bands) {
-    bandsOut[band] = await buildDrillTree({
-      ratingBand: band,
-      color: 'white',
-      speeds,
-      prefixPlay,
-      userDepth,
-      opponentBreadth,
-      candidateCount,
-      fetchImpl,
-      familySlug,
-      aggregatesDir,
-    });
-  }
+  walk(startPlay, []);
+  // Longest, best-supported lines first.
+  return lines.sort((a, b) => b.plies.length - a.plies.length || b.totalGames - a.totalGames).slice(0, breadth ** 2);
+}
 
-  return {
-    version: 1,
-    opening: { slug: opening.slug, name: opening.name, eco: opening.ecoHint, side: opening.side },
-    prefix: opening.line.map((ply) => ({ uci: ply.uci, san: ply.san })),
-    speeds,
-    retrieved: new Date().toISOString(),
-    glyphs: PIECE_GLYPH,
-    bands: bandsOut,
-  };
+/**
+ * Builds the full drill-reference.html content: for every real rating band
+ * (spec 3.4's scope boundary -- no sub-1400 band exists to crawl) and
+ * every opening with actual coverage in the committed shards, the lines
+ * buildReferenceLines() produces. Openings with zero coverage at a given
+ * band are OMITTED for that band (spec Non-Negotiable 4: no locked/empty
+ * content that pretends to exist) rather than rendered as an empty section.
+ *
+ * @param {{bands?:string[], openings?:object[], repDataDir?:string,
+ *   maxPlies?:number, breadth?:number}} [opts]
+ * @returns {Array<{band:string, openings:Array<{slug:string, name:string,
+ *   eco:string, lines:Array<object>}>}>}
+ */
+function buildDrillReferenceData({ bands = ['1400-1600', '1600-1800', '1800-2000', '2000+'], openings = OPENINGS, repDataDir = REP_DATA_DIR, maxPlies = 6, breadth = 2 } = {}) {
+  return bands.map((band) => {
+    const openingEntries = openings
+      .map((opening) => {
+        const lines = buildReferenceLines({ band, opening, repDataDir, maxPlies, breadth });
+        return { slug: opening.slug, name: opening.name, eco: opening.ecoHint, side: opening.side, lines };
+      })
+      .filter((entry) => entry.lines.length > 0);
+    return { band, openings: openingEntries };
+  });
+}
+
+/**
+ * Reads data/rep/manifest.json (spec 2.1: "every number the site later
+ * prints from a shard must be traceable to this manifest"). Never throws --
+ * a missing/unparseable manifest is a real build-state possibility (a
+ * checkout with no crawl run yet) and callers degrade to an honest "no data
+ * yet" message rather than a stack trace.
+ *
+ * @param {string} [repDataDir]
+ * @returns {{retrieved:string, pool:string, source:string}|null}
+ */
+function readManifest(repDataDir = REP_DATA_DIR) {
+  const file = path.join(repDataDir, 'manifest.json');
+  if (!fs.existsSync(file)) return null;
+  try {
+    const json = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (typeof json.retrieved !== 'string') return null;
+    return { retrieved: json.retrieved, pool: json.pool, source: json.source };
+  } catch (err) {
+    return null;
+  }
 }
 
 module.exports = {
-  DRILL_USER_DEPTH,
-  DRILL_OPPONENT_BREADTH,
-  DRILL_CANDIDATES,
-  buildDrillTree,
-  buildDrillData,
+  REP_DATA_DIR,
+  MIN_REFERENCE_GAMES,
+  readShardSync,
+  readManifest,
+  lookupSync,
+  buildReferenceLines,
+  buildDrillReferenceData,
 };

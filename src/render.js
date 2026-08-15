@@ -343,6 +343,13 @@ const THEME_ROLES = {
     '--color-loss': 'var(--color-loss-4)',
     '--color-loss-text': 'var(--color-loss-6)',
     '--color-loss-bg': 'var(--color-loss-0)',
+    // WS-1 spec section 3.5's one pre-authorised new role: the drill
+    // engine's "due now" state. Assigned from the EXISTING --color-focus-*
+    // ramp (no new hue introduced) at the indices the spec names for the
+    // light theme -- 4 for the fill, 6 for text, 0 for the tint background.
+    '--color-due': 'var(--color-focus-4)',
+    '--color-due-text': 'var(--color-focus-6)',
+    '--color-due-bg': 'var(--color-focus-0)',
     '--color-board-light': '#ECE3CD',
     '--color-board-dark': '#C2AD82',
     '--color-row-tint': 'rgba(20, 19, 15, 0.035)',
@@ -375,6 +382,10 @@ const THEME_ROLES = {
     '--color-loss': 'var(--color-loss-4)',
     '--color-loss-text': 'var(--color-loss-3)',
     '--color-loss-bg': 'var(--color-loss-8)',
+    // Dark-theme indices for the same due-state role (spec 3.5: 3 / 1 / 8).
+    '--color-due': 'var(--color-focus-3)',
+    '--color-due-text': 'var(--color-focus-1)',
+    '--color-due-bg': 'var(--color-focus-8)',
     // The board shifts down one step rather than inverting -- the
     // cburnett sprites are outlined light-on-dark/dark-on-light, so
     // mid-lightness squares stay legible (square separation 1.90:1 vs the
