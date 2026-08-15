@@ -29,11 +29,12 @@
 
 const { Chess } = require('chess.js');
 const { shardKeyFor, decodePositionRecord, isValidShard, posKeyFor } = require('../bandShards');
-// From src/explorerUci.js (zero-dependency), NOT src/buildPack.js -- see
-// that module's own header comment: buildPack.js's own
-// require('./explorerSource') pulls in Node's fs/path, which breaks this
-// file's esbuild browser bundling.
-const { applyExplorerUci } = require('../explorerUci');
+// buildPackCore.js, not buildPack.js -- the latter requires ./explorerSource
+// (fs/path) at module load, which breaks any browser bundle that needs this
+// pure helper (see buildPackCore.js's own header comment for the full
+// explanation; fixed as part of WS-1's Repertoire Builder task after the
+// real esbuild bundle of this exact module reproduced the failure).
+const { applyExplorerUci } = require('../buildPackCore');
 const { scoreInterval } = require('../stats');
 
 const SHARD_BASE_PATH = '/data/rep';

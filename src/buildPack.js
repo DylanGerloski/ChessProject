@@ -45,9 +45,21 @@
 
 const { RATING_BANDS, DEFAULT_SPEEDS } = require('./processRepertoire');
 const { scoreInterval } = require('./stats');
-const { fetchMoves, AGGREGATES_DIR } = require('./explorerSource');
 const { Chess } = require('chess.js');
-const { applyExplorerUci } = require('./explorerUci');
+// applyExplorerUci/pgnFromTree moved to src/buildPackCore.js (a zero-
+// dependency, genuinely pure sibling module) and re-exported below
+// unchanged -- see that file's own header comment for why: WS-1 spec
+// section 3.7/4.7 requires src/browser/bandData.client.js and
+// src/repertoireModel.js to reuse these exact two functions, and
+// requiring them via THIS file (which also requires ./explorerSource,
+// which requires fs/path) broke every browser bundle that transitively
+// needed either of them (esbuild "Could not resolve fs/path" against
+// platform:'browser' -- a real, reproduced failure, not a hypothetical
+// one; discovered building WS-1's Repertoire Builder page). Every
+// existing caller of buildPack.js's own applyExplorerUci/pgnFromTree
+// exports is unaffected -- same names, same behavior, now implemented in
+// buildPackCore.js and simply re-exported here.
+const { applyExplorerUci, pgnFromTree } = require('./buildPackCore');
 
 const RULE_VERSION = '1';
 const MIN_N = 300;
@@ -58,15 +70,6 @@ const MIN_REACH = 0.005;
 const SIZE_CAP = 800;
 const THRESHOLD_STEP = 0.005; // 0.5 percentage points
 const TIE_BAND = 0.005; // 0.5 percentage points, spec 1.3's tie-break window
-
-// applyExplorerUci now lives in src/explorerUci.js (a zero-dependency
-// module) and is re-exported below, unchanged in behaviour -- see that
-// file's own header comment for why: this module's own
-// `require('./explorerSource')` (fs/path-dependent, build-time only) used
-// to get pulled into any browser bundle that needed just this one
-// function, which is fatal for esbuild's `platform: 'browser'` bundling.
-// src/bandShards.js and src/browser/bandData.client.js import it directly
-// from src/explorerUci.js now, not from here.
 
 /**
  * FEN after replaying a UCI move list from the standard starting position.
@@ -180,9 +183,12 @@ async function buildPackTree({
   firstMoveUci,
   speeds = DEFAULT_SPEEDS,
   fetchImpl = fetch,
-  aggregatesDir = AGGREGATES_DIR,
+  aggregatesDir,
   movesPerRequest = 40,
 } = {}) {
+  // eslint-disable-next-line global-require -- deliberately lazy; see this file's top-of-file comment.
+  const { fetchMoves, AGGREGATES_DIR } = require('./explorerSource');
+  if (aggregatesDir === undefined) aggregatesDir = AGGREGATES_DIR;
   const ratings = RATING_BANDS[ratingBand];
   if (!ratings) {
     throw new Error(`buildPack.buildPackTree: unknown rating band "${ratingBand}". Valid bands: ${Object.keys(RATING_BANDS).join(', ')}`);
@@ -442,85 +448,6 @@ function pruneToTopLines(root, count) {
     };
   }
   return rebuild(root, 0, '');
-}
-
-function escapePgnHeaderValue(v) {
-  return String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-}
-
-/** The `{n=... score=...% CI low-high}` annotation, our-moves only (spec 1.2 item 1). */
-function commentFor(node) {
-  if (!node.isOurMove || node.n == null || node.score == null || !node.wilson) return '';
-  const scorePct = (node.score * 100).toFixed(1);
-  const lowPct = (node.wilson[0] * 100).toFixed(1);
-  const highPct = (node.wilson[1] * 100).toFixed(1);
-  return ` {n=${node.n} score=${scorePct}% CI ${lowPct}-${highPct}}`;
-}
-
-/** "12. " for a white move, "" or "12... " for a black move depending on forceEllipsis. */
-function movePrefix(ply, forceEllipsis) {
-  const moveNumber = Math.floor(ply / 2) + 1;
-  const isWhite = ply % 2 === 0;
-  if (isWhite) return `${moveNumber}. `;
-  return forceEllipsis ? `${moveNumber}... ` : '';
-}
-
-/**
- * Renders one full alternative branch (used only for the inside of a `(...)`
- * variation, where `node` has no siblings of its own to consider -- it IS
- * the alternative). `forceEllipsis` is always true for the variation's own
- * first move (spec/PGN convention: "(3...Nf6 ...)" when the branch point is
- * black's move).
- */
-function renderSingleLine(node, forceEllipsis) {
-  const token = `${movePrefix(node.ply, forceEllipsis)}${node.san}${commentFor(node)}`;
-  const rest = renderLine(node.children, false);
-  return [token, rest].filter(Boolean).join(' ');
-}
-
-/**
- * Renders `nodes` -- an array of SIBLING alternatives at one ply (what one
- * `.children` array holds) -- as PGN movetext: the first sibling (highest
- * frequency, since candidatesFor()/includedOpponentReplies() already sort
- * that way) continues as the main line; every other sibling becomes a
- * parenthesized variation inserted immediately after the main move's own
- * token, BEFORE the main line's subsequent moves continue -- standard PGN
- * style (e.g. "1. e4 c5 (1...e5) (1...e6) 2. c3 ..."), not the flatter
- * "move THEN all variations THEN rest" order it's easy to mis-derive from a
- * naive single-node recursion (see this function's sibling
- * renderSingleLine() for why a two-function split is what makes the
- * insertion point correct). Redundant move numbers are only ever a
- * readability nicety here, never a correctness requirement: PGN parsers
- * (chess.js included) read the SAN token sequence and parenthesis nesting,
- * not the move-number digits -- see the round-trip test.
- */
-function renderLine(nodes, forceEllipsis) {
-  if (!nodes || nodes.length === 0) return '';
-  const [main, ...alts] = nodes;
-  const token = `${movePrefix(main.ply, forceEllipsis)}${main.san}${commentFor(main)}`;
-  const variationParts = alts.map((alt) => `(${renderSingleLine(alt, true)})`);
-  const rest = renderLine(main.children, alts.length > 0);
-  return [token, ...variationParts, rest].filter(Boolean).join(' ');
-}
-
-/**
- * Serializes a pack tree as a single standard PGN game with variations
- * (spec 1.2 item 1). `headers` are the PGN tag pairs -- callers should
- * supply at least Event/Site/Date/White/Black/Result for a well-formed
- * Seven Tag Roster; chess.js's loadPgn (strict:false, this project's own
- * parsing convention -- see src/pgnWrapper.js) doesn't require all seven,
- * but a real product artifact should still carry them.
- *
- * @param {object} root tree root from buildPackTree()'s `.tree`.
- * @param {Record<string,string>} [headers]
- * @returns {string} a complete PGN document, trailing newline included.
- */
-function pgnFromTree(root, headers = {}) {
-  const headerLines = Object.entries(headers)
-    .map(([k, v]) => `[${k} "${escapePgnHeaderValue(v)}"]`)
-    .join('\n');
-  const movetext = `${renderLine([root], false)} *`;
-  return `${headerLines}\n\n${movetext}\n`;
 }
 
 /**

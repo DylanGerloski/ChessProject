@@ -3,53 +3,47 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-
 const { sha1Hex } = require('../src/sha1');
 
 function nodeSha1(str) {
   return crypto.createHash('sha1').update(str).digest('hex');
 }
 
-test('sha1Hex matches Node\'s crypto.createHash("sha1") for known test vectors', () => {
-  const vectors = [
-    '',
-    'a',
-    'abc',
-    'The quick brown fox jumps over the lazy dog',
-  ];
-  for (const v of vectors) {
-    assert.equal(sha1Hex(v), nodeSha1(v), `mismatch for ${JSON.stringify(v)}`);
+test('sha1Hex matches node:crypto for known test vectors (RFC 3174)', () => {
+  assert.equal(sha1Hex(''), 'da39a3ee5e6b4b0d3255bfef95601890afd80709');
+  assert.equal(sha1Hex('abc'), 'a9993e364706816aba3e25717850c26c9cd0d89d');
+  assert.equal(
+    sha1Hex('abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq'),
+    '84983e441c3bd26ebaae4aa1f95129e5e54670f1'
+  );
+});
+
+test('sha1Hex matches node:crypto across padding-boundary lengths (55-65 bytes)', () => {
+  for (let len = 0; len <= 130; len += 1) {
+    const input = 'x'.repeat(len);
+    assert.equal(sha1Hex(input), nodeSha1(input), `mismatch at length ${len}`);
   }
 });
 
-test('sha1Hex matches Node\'s crypto for real EPD-shaped strings (posKeyFromEpd\'s actual input shape)', () => {
+test('sha1Hex matches node:crypto for real EPD-shaped strings', () => {
   const epds = [
     'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -',
-    'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq -',
-    'r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq -',
+    'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6',
+    'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq -',
   ];
   for (const epd of epds) {
     assert.equal(sha1Hex(epd), nodeSha1(epd));
   }
 });
 
-test('sha1Hex matches Node\'s crypto across every message-length boundary the padding scheme has to handle correctly (55/56/57/63/64/65 bytes, and longer)', () => {
-  for (const len of [0, 1, 54, 55, 56, 57, 63, 64, 65, 119, 120, 121, 1000]) {
-    const s = 'x'.repeat(len);
-    assert.equal(sha1Hex(s), nodeSha1(s), `mismatch at length ${len}`);
-  }
+test('sha1Hex matches node:crypto for multi-byte UTF-8 input', () => {
+  const s = 'café 日本語 emoji 🎉';
+  assert.equal(sha1Hex(s), nodeSha1(s));
 });
 
-test('sha1Hex matches Node\'s crypto for 300 random strings (fuzz)', () => {
-  for (let i = 0; i < 300; i += 1) {
-    const len = Math.floor(Math.random() * 300);
-    const s = crypto.randomBytes(len).toString('hex').slice(0, len);
-    assert.equal(sha1Hex(s), nodeSha1(s), `mismatch for random string of length ${len}: ${JSON.stringify(s)}`);
-  }
-});
-
-test('sha1Hex returns a 40-char lowercase hex string', () => {
-  const out = sha1Hex('anything');
+test('sha1Hex is deterministic and always returns a 40-char lowercase hex string', () => {
+  const out = sha1Hex('some input');
   assert.equal(out.length, 40);
   assert.match(out, /^[0-9a-f]{40}$/);
+  assert.equal(out, sha1Hex('some input'));
 });

@@ -1,75 +1,73 @@
 'use strict';
 
 /**
- * A standalone, dependency-free SHA-1 implementation (FIPS 180-4),
- * synchronous, Node + browser safe. Exists ONLY because
- * src/ingest/positionWalk.js's posKeyFromEpd() -- and therefore
- * src/bandShards.js's posKeyFor(), which src/browser/bandData.client.js
- * (the runtime read path every WS-1 client surface uses) calls -- needs a
- * SYNCHRONOUS hash. Node's own `crypto.createHash('sha1')` is not
- * available to a browser bundle (esbuild's `platform: 'browser'` does not
- * polyfill Node builtins), and the Web Crypto API's equivalent
- * (`crypto.subtle.digest`) is asynchronous, which would force posKeyFor()
- * to become async and ripple through every synchronous call site across
- * this codebase for no correctness gain. SHA-1 is a fully standardized,
- * deterministic algorithm -- ANY correct implementation produces the exact
- * same digest for the same input, so this is a safe drop-in: it does not
- * invalidate a single already-committed shard's posKey (test/sha1.test.js
- * asserts this module's output matches Node's `crypto.createHash('sha1')`
- * byte-for-byte across a range of inputs, including every real EPD string
- * in the checked-in fixture/crawled shard data).
+ * Pure-JS SHA-1 (RFC 3174), zero dependencies, byte-identical output to
+ * Node's `crypto.createHash('sha1').update(str).digest('hex')` for the same
+ * UTF-8 input -- verified directly (see test/sha1.test.js) rather than
+ * assumed, the same "verified today" discipline this codebase's other
+ * hand-rolled/wrapped algorithms document for themselves.
  *
- * NOT for anything security-sensitive (SHA-1 is long broken as a
- * collision-resistant primitive for adversarial input) -- this project only
- * ever uses it as a stable, compact content-address for a chess position,
- * never to authenticate or sign anything. That's the same posture
- * src/ingest/positionWalk.js's own header comment already documents.
+ * Exists because src/ingest/positionWalk.js's posKeyFromEpd() (sha1 of a
+ * position's EPD, truncated to 24 hex chars -- this project's canonical
+ * position id, WS-1 spec section 4.2) used Node's `node:crypto` directly,
+ * which cannot be resolved by esbuild for a browser bundle (there is no
+ * browser equivalent of Node's synchronous `crypto.createHash` API --
+ * WebCrypto's `crypto.subtle.digest` is a different, async API). Since
+ * WS-1's src/browser/bandData.client.js needs to compute the SAME posKey
+ * client-side (to look up a position inside an already-fetched shard),
+ * posKeyFromEpd must be callable from the browser too. Swapping in this
+ * module keeps every already-computed/committed posKey (data/rep/*.json,
+ * data/aggregates/*) byte-identical -- same algorithm, just not tied to a
+ * Node-only binding -- rather than requiring a re-key or a re-crawl.
+ *
+ * SHA-1 is used here purely as a fast, well-distributed, non-adversarial
+ * content-addressing hash (a position id), never for anything security-
+ * sensitive (no signatures, no password storage, no integrity-against-a-
+ * malicious-actor guarantee) -- its known cryptographic weaknesses are
+ * irrelevant to this use.
  */
 
-function toHexPair(byte) {
-  return byte.toString(16).padStart(2, '0');
+function toHexByte(n) {
+  return (n < 16 ? '0' : '') + n.toString(16);
 }
 
 /**
- * @param {string} message a UTF-8 string (this project only ever hashes
- *   ASCII EPD strings, but this implementation is correct for any string).
- * @returns {string} the 40-char lowercase hex SHA-1 digest.
+ * @param {string} str a JS string (UTF-8 encoded before hashing, same as
+ *   Node's `crypto` module's own default encoding for `.update(str)`).
+ * @returns {string} 40-char lowercase hex SHA-1 digest.
  */
-function sha1Hex(message) {
+function sha1Hex(str) {
   const bytes = typeof TextEncoder !== 'undefined'
-    ? new TextEncoder().encode(message)
-    : Buffer.from(message, 'utf8');
+    ? Array.from(new TextEncoder().encode(str))
+    : Array.from(Buffer.from(str, 'utf8'));
 
-  const bitLength = bytes.length * 8;
-  // Padding: 0x80, then zeros, until length % 64 === 56, then the original
-  // bit length as a big-endian 64-bit integer.
-  const paddedLength = Math.ceil((bytes.length + 9) / 64) * 64;
-  const padded = new Uint8Array(paddedLength);
-  padded.set(bytes);
-  padded[bytes.length] = 0x80;
-  // bitLength fits comfortably in 32 bits for anything this project hashes
-  // (EPD strings are well under 2^32 bits long) -- write the high 32 bits
-  // as zero explicitly for correctness at any length, low 32 bits as the
-  // real value.
-  const view = new DataView(padded.buffer);
-  view.setUint32(paddedLength - 4, bitLength >>> 0, false);
-  view.setUint32(paddedLength - 8, Math.floor(bitLength / 0x100000000), false);
+  // Pre-processing: append 0x80, then zero-pad, then the original bit
+  // length as a 64-bit big-endian integer, to a total length that's a
+  // multiple of 64 bytes (512 bits) -- RFC 3174 section 4.
+  const bitLen = bytes.length * 8;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  // bitLen fits comfortably in 32 bits for every input this project ever
+  // hashes (an EPD string is well under 200 bytes) -- the high 32 bits of
+  // the 64-bit length field are always zero here.
+  for (let shift = 24; shift >= 0; shift -= 8) bytes.push(0);
+  for (let shift = 24; shift >= 0; shift -= 8) bytes.push((bitLen >>> shift) & 0xff);
 
   let h0 = 0x67452301;
-  let h1 = 0xEFCDAB89;
-  let h2 = 0x98BADCFE;
+  let h1 = 0xefcdab89;
+  let h2 = 0x98badcfe;
   let h3 = 0x10325476;
-  let h4 = 0xC3D2E1F0;
+  let h4 = 0xc3d2e1f0;
 
-  const w = new Int32Array(80);
-
-  for (let chunkStart = 0; chunkStart < paddedLength; chunkStart += 64) {
+  const w = new Array(80);
+  for (let chunkStart = 0; chunkStart < bytes.length; chunkStart += 64) {
     for (let i = 0; i < 16; i += 1) {
-      w[i] = view.getInt32(chunkStart + i * 4, false);
+      const o = chunkStart + i * 4;
+      w[i] = ((bytes[o] << 24) | (bytes[o + 1] << 16) | (bytes[o + 2] << 8) | bytes[o + 3]) >>> 0;
     }
     for (let i = 16; i < 80; i += 1) {
-      const val = w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16];
-      w[i] = (val << 1) | (val >>> 31);
+      const v = w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16];
+      w[i] = ((v << 1) | (v >>> 31)) >>> 0;
     }
 
     let a = h0;
@@ -83,43 +81,35 @@ function sha1Hex(message) {
       let k;
       if (i < 20) {
         f = (b & c) | (~b & d);
-        k = 0x5A827999;
+        k = 0x5a827999;
       } else if (i < 40) {
         f = b ^ c ^ d;
-        k = 0x6ED9EBA1;
+        k = 0x6ed9eba1;
       } else if (i < 60) {
         f = (b & c) | (b & d) | (c & d);
-        k = 0x8F1BBCDC;
+        k = 0x8f1bbcdc;
       } else {
         f = b ^ c ^ d;
-        k = 0xCA62C1D6;
+        k = 0xca62c1d6;
       }
-      const temp = (((a << 5) | (a >>> 27)) + f + e + k + w[i]) | 0;
+      const temp = (((a << 5) | (a >>> 27)) + f + e + k + w[i]) >>> 0;
       e = d;
       d = c;
-      c = (b << 30) | (b >>> 2);
+      c = ((b << 30) | (b >>> 2)) >>> 0;
       b = a;
       a = temp;
     }
 
-    h0 = (h0 + a) | 0;
-    h1 = (h1 + b) | 0;
-    h2 = (h2 + c) | 0;
-    h3 = (h3 + d) | 0;
-    h4 = (h4 + e) | 0;
+    h0 = (h0 + a) >>> 0;
+    h1 = (h1 + b) >>> 0;
+    h2 = (h2 + c) >>> 0;
+    h3 = (h3 + d) >>> 0;
+    h4 = (h4 + e) >>> 0;
   }
 
-  const out = new Uint8Array(20);
-  const outView = new DataView(out.buffer);
-  outView.setInt32(0, h0, false);
-  outView.setInt32(4, h1, false);
-  outView.setInt32(8, h2, false);
-  outView.setInt32(12, h3, false);
-  outView.setInt32(16, h4, false);
-
-  let hex = '';
-  for (let i = 0; i < out.length; i += 1) hex += toHexPair(out[i]);
-  return hex;
+  return [h0, h1, h2, h3, h4]
+    .map((h) => toHexByte((h >>> 24) & 0xff) + toHexByte((h >>> 16) & 0xff) + toHexByte((h >>> 8) & 0xff) + toHexByte(h & 0xff))
+    .join('');
 }
 
 module.exports = { sha1Hex };
