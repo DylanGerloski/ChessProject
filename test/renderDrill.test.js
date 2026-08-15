@@ -226,9 +226,11 @@ test('renderDrillPage: the server-rendered board matches the position after the 
 
 test('NAV_ORDER/NAV_LABELS include drill, and a 2-key server.js-style nav still renders without it', () => {
   assert.ok(NAV_ORDER.includes('drill'));
-  // The nav label must not imply a general drill hub that doesn't exist
-  // yet -- only the Italian Game has a drill so far.
-  assert.equal(NAV_LABELS.drill, 'Italian Game Drill');
+  // Relabeled from "Italian Game Drill" once WS-1's Drill Engine v2
+  // generalized the drill hub beyond one hardcoded opening (WS-1 spec section 3.3) -- see src/render.js's own NAV_LABELS
+  // comment for why "Opening drill" no longer carries the old
+  // rename-once-it-generalizes caveat.
+  assert.equal(NAV_LABELS.drill, 'Opening drill');
   const html = renderHeader({ player: '/', repertoire: '/repertoire' });
-  assert.doesNotMatch(html, /Italian Game Drill/);
+  assert.doesNotMatch(html, /Opening drill/);
 });

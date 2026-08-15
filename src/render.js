@@ -1885,30 +1885,42 @@ function renderDocumentHead(arg) {
 // 1.6.4: "one nav item"). Placed right after 'repertoire' -- the packs are a
 // finished output of the same repertoire-building idea, not a separate
 // product line, so they sit next to it in the nav rather than at the end.
-const NAV_ORDER = ['repertoire', 'packs', 'openings', 'eco', 'drill', 'guides', 'faq', 'player'];
+// 'builder' added for WS-1's Repertoire Builder (WS-1 spec section 3.1) -- first in NAV_ORDER because "it is
+// the site's name; it should be the site's first nav item" (that spec's
+// own words). Placeholder-page wiring for 'builder'/'player'/'drill' is
+// landed by that spec's W0 (shared-spine) task; see
+// src/renderRepertoireBuilder.js, src/renderOpeningReport.js, and
+// src/renderDrillHub.js for what each currently renders and why those
+// files, not this one, change again once each real surface ships.
+const NAV_ORDER = ['builder', 'repertoire', 'packs', 'openings', 'eco', 'drill', 'guides', 'faq', 'player'];
 const NAV_LABELS = {
+  builder: 'Repertoire builder',
   repertoire: 'Repertoire explorer',
   packs: 'Repertoire packs',
   openings: 'Openings',
   eco: 'ECO index',
-  // This nav item currently points at Italian-Game-only content --
-  // "Opening drill" would imply a general drill hub across every opening
-  // that doesn't exist yet. Rename back to "Opening drill" once the drill
-  // actually generalizes to more than one opening.
-  drill: 'Italian Game Drill',
+  // Relabeled from "Italian Game Drill" -- WS-1's Drill Engine v2 (spec
+  // section 3.3) generalizes this from one hardcoded opening to any
+  // opening in the band data, so the nav label no longer needs the
+  // "rename back once it generalizes" caveat this used to carry.
+  drill: 'Opening drill',
   guides: 'Guides',
   faq: 'FAQ',
-  player: 'Player lookup',
+  // Relabeled from "Player lookup" -- WS-1's Personal Opening Report (spec
+  // section 3.2) folds rating-history/recent-games lookup into a bigger
+  // page (a leak report against band data); the old page survives as a
+  // redirect stub (src/buildStatic.js), never deleted.
+  player: 'Opening report',
 };
 
 /**
- * @param {{player?: string, repertoire?: string, packs?: string, openings?: string,
- *   eco?: string, drill?: string, guides?: string, faq?: string}} nav link
- *   targets for whichever pages currently exist -- either the dynamic
+ * @param {{builder?: string, player?: string, repertoire?: string, packs?: string,
+ *   openings?: string, eco?: string, drill?: string, guides?: string, faq?: string}} nav
+ *   link targets for whichever pages currently exist -- either the dynamic
  *   dev-server routes (server.js's default, 2 keys) or flat static
- *   filenames (buildStatic.js, up to 8 keys). Only keys present in this
+ *   filenames (buildStatic.js, up to 9 keys). Only keys present in this
  *   object are rendered.
- * @param {'player'|'repertoire'|'packs'|'openings'|'eco'|'drill'|'guides'|'faq'|null} [active]
+ * @param {'builder'|'player'|'repertoire'|'packs'|'openings'|'eco'|'drill'|'guides'|'faq'|null} [active]
  *   which nav link, if any, represents the current page.
  * @returns {string} the shared header/nav markup used on every page.
  */
@@ -2499,12 +2511,50 @@ function renderRedirectStubPage({ band, color, targetPath, canonicalUrl }) {
 `;
 }
 
+/**
+ * A generic version of renderRedirectStubPage above, for a redirect stub
+ * whose target isn't a band/color repertoire URL -- WS-1's
+ * player.html -> opening-report.html and italian-game-drill.html ->
+ * drill.html stubs (the WS-1 spec sections 3.2/3.3)
+ * use this one; the band/color-specific renderer above is unchanged and
+ * still used for the 8 repertoire-<band>-<color>.html stubs. Same minimal
+ * shape and same 5 spec-2.2 elements (instant meta refresh, canonical,
+ * noindex/follow, a visible link, a location.replace fallback).
+ *
+ * @param {object} data
+ * @param {string} data.linkText visible link text, e.g. "Continue to the
+ *   opening report".
+ * @param {string} data.targetPath site-relative path to redirect to.
+ * @param {string} data.canonicalUrl absolute canonical URL of the target.
+ * @returns {string} a full, minimal standalone HTML document
+ */
+function renderGenericRedirectStub({ linkText, targetPath, canonicalUrl }) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="refresh" content="0; url=${escapeHtml(targetPath)}">
+<link rel="canonical" href="${escapeHtml(canonicalUrl)}">
+<meta name="robots" content="noindex, follow">
+<title>Redirecting&hellip; | Repertoire Builder</title>
+</head>
+<body>
+<p>This page has moved. <a href="${escapeHtml(targetPath)}">${escapeHtml(linkText)} &rarr;</a></p>
+<script>location.replace(${JSON.stringify(targetPath)});</script>
+</body>
+</html>
+`;
+}
+
 module.exports = {
   renderPlayerPage,
   renderRepertoireTree,
   renderRepertoirePage,
   renderRepertoireExplorerPage,
   renderRedirectStubPage,
+  renderGenericRedirectStub,
   renderGamesTable,
   renderRatingTable,
   escapeHtml,

@@ -41,9 +41,17 @@ function redirectStubFileName(band, color) {
   return `repertoire-${safeBand}-${color}.html`;
 }
 
-const REDIRECT_STUBS = new Set(
-  Object.keys(RATING_BANDS).flatMap((band) => ['white', 'black'].map((color) => redirectStubFileName(band, color)))
-);
+const REDIRECT_STUBS = new Set([
+  ...Object.keys(RATING_BANDS).flatMap((band) => ['white', 'black'].map((color) => redirectStubFileName(band, color))),
+  // WS-1 (the WS-1 spec sections 3.2/3.3): player.html
+  // now redirects to opening-report.html, italian-game-drill.html now
+  // redirects to drill.html -- same "a redirect source must never appear
+  // in a sitemap" rule as the repertoire stubs above, added by hand here
+  // rather than computed (there are only two, and they aren't a
+  // band x color product like the repertoire stubs).
+  'player.html',
+  'italian-game-drill.html',
+]);
 
 /**
  * @param {string[]} files flat filenames as written to dist/ (any

@@ -1,0 +1,19 @@
+{
+  "v": 1,
+  "generatedAt": "2026-08-15T00:00:00.000Z",
+  "retrieved": "2026-08-15",
+  "pool": "blitz",
+  "source": "lichess-opening-explorer",
+  "note": "HAND-CHECKED FIXTURE, not a real crawl output -- see README.md in this directory. Every posKey here was computed with src/bandShards.js's own posKeyFor() (verified 2026-08-15) so it matches what a real shard would key positions under; the game counts are small round numbers picked for readability, not real Explorer data.",
+  "thresholds": { "minReach": 0.002, "minGames": 300, "maxPly": 12, "budgetPerBand": 1500 },
+  "bands": [
+    {
+      "band": "1600-1800",
+      "positions": 4,
+      "shards": [
+        { "file": "1600-1800/root.json", "shardKey": "root", "positions": 2 },
+        { "file": "1600-1800/e2e4-e7e5.json", "shardKey": "e2e4-e7e5", "positions": 2 }
+      ]
+    }
+  ]
+}
