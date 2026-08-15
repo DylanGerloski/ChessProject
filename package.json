@@ -13,7 +13,7 @@
     "visual-qa": "node scripts/visual-qa.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "license": "UNLICENSED",
   "devDependencies": {
