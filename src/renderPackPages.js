@@ -496,8 +496,7 @@ function renderPackDetailPage({ pack, otherPacks = [], nav, legalLinks }) {
 
   const contentHtml = `<div class="pack-detail-content">
       <h2>What&rsquo;s in this pack</h2>
-      ${contentsTableHtml(rows)}
-      ${cappedNote}
+      ${contentsTableHtml(rows)}${cappedNote ? `\n      ${cappedNote}` : ''}
     </div>`;
 
   const html = `<!DOCTYPE html>
