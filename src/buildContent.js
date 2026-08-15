@@ -52,7 +52,8 @@ const { BUILD_DATE } = require('./site');
 // verification this build isn't equipped to do responsibly. The remaining
 // guides are all built entirely from ctx.entries (this build's own
 // already-fetched opening data) -- no hand-typed statistics. The repertoire
-// how-to guide was added later (2026-08) under the same contract.
+// how-to guide and the opening-principles-by-win-rate guide were both added
+// later (2026-08) under the same contract.
 const GUIDES = [
   require('./content/how-to-beat-the-london-system'),
   require('./content/best-chess-openings-for-beginners'),
@@ -61,6 +62,7 @@ const GUIDES = [
   require('./content/should-you-study-openings-under-1500'),
   require('./content/scandinavian-defense-at-club-level'),
   require('./content/how-to-build-your-opening-repertoire'),
+  require('./content/opening-principles-by-win-rate'),
 ];
 
 const DEFAULT_BAND = '1600-1800';
