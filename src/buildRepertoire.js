@@ -35,8 +35,20 @@ const { fetchMoves, AGGREGATES_DIR } = require('./explorerSource');
  *   (see src/explorerSource.js) -- ignored once aggregate data is present at `aggregatesDir`.
  * @param {string} [opts.aggregatesDir] see src/explorerSource.js's `dir` param; defaults
  *   to the real data/aggregates/. Every position this function visits is ply <= 4
- *   (maxUserPlies=2, one opponent reply each), well within root.json's ply<=6
- *   coverage, so no familySlug is ever needed here.
+ *   (maxUserPlies=2, one opponent reply each). KNOWN GAP as of the 2026-08-15
+ *   shard-size fix (src/ingest/aggregate.js): root.json's coverage shrank from
+ *   ply<=6 to ply<=ROOT_MAX_PLY (3), so a ply-4 position here can now miss
+ *   root.json and needs a familySlug to resolve via the family shard -- which
+ *   this function does not compute or pass (it walks moves generically, not
+ *   within one known opening, so there is no single family slug valid for
+ *   every branch). Currently harmless in production: no committed
+ *   data/aggregates/ exists yet (explorerSource.js's own header comment), so
+ *   fetchMoves() always falls back to the live Explorer API here regardless.
+ *   Whoever wires real aggregate data into this function (the still-separate
+ *   WS-3 B2 full-ingest activation -- see explorerSource.js's header) must
+ *   resolve this -- either derive a familySlug per branch from an ECO/
+ *   position lookup, or accept that ply-4 positions silently return empty
+ *   aggregate data until then.
  * @returns {Promise<{ratingBand, ratings, color, speeds, opening, totals, tree}>}
  */
 async function buildRepertoireTree({

@@ -87,8 +87,9 @@ function positionRecordFrom(positionsByBand, band, pool, posKey) {
 
 /**
  * Resolves one (band, pool, posKey) position record, checking root.json
- * first, then the given family shard. A position at ply <= 6 always lives
- * in root.json (src/ingest/aggregate.js's shard-assignment rule); a
+ * first, then the given family shard. A position at ply <= ROOT_MAX_PLY
+ * (src/ingest/aggregate.js, 3 as of the 2026-08-15 shard-size fix) always
+ * lives in root.json (src/ingest/aggregate.js's shard-assignment rule); a
  * `familySlug` is only needed for deeper positions.
  */
 function findPositionRecord({ aggregates, band, pool, posKey, familySlug }) {
@@ -152,7 +153,8 @@ function resolvePosition(play) {
  * @param {string} args.band one of gameFilter.BANDS' keys.
  * @param {string} args.pool one of 'bullet'|'blitz'|'rapid_classical'.
  * @param {string} [args.familySlug] required to resolve any position deeper
- *   than ply 6 (root.json only carries ply <= 6) -- the caller (a
+ *   than ROOT_MAX_PLY (root.json only carries ply <= ROOT_MAX_PLY, 3 as of
+ *   the 2026-08-15 shard-size fix) -- the caller (a
  *   family-scoped page builder) always knows which family it's building.
  * @returns {{white:number, draws:number, black:number,
  *   moves: Array<{uci:string, san:string, averageRating:number|null,

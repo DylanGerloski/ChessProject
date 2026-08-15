@@ -54,7 +54,8 @@ const ECO_INDEX_PAGE_COUNT = 2;
  * position's own win/draws/black totals, never its candidate-move list.
  *
  * `familySlug` is REQUIRED once aggregate data is present: a T1 family's
- * main line frequently runs well past root.json's ply<=6 coverage (unlike
+ * main line frequently runs well past root.json's ply<=ROOT_MAX_PLY coverage
+ * (3 as of the 2026-08-15 shard-size fix, src/ingest/aggregate.js -- unlike
  * buildRepertoire.js's shallow walk), so the position almost always needs
  * the family shard, not just root.
  */

@@ -14,20 +14,39 @@
  *
  * Shard assignment (see src/ingest/familyLookup.js's header comment for how
  * a family slug is derived): a position goes to root.json if the
- * SHALLOWEST ply any game in this run reached it at is <= 6 (root.json's
- * own definition: "every position at ply <= 6"), else to whichever ECO
- * family contributed the most games reaching it (a plurality vote,
- * tie-broken by slug for determinism). Because transposition merging means
- * the same position can legitimately be reached at different plies by
- * different games, "shallowest ply observed in this run" is the only
- * well-defined single answer available -- it is a build-time bucketing
+ * SHALLOWEST ply any game in this run reached it at is <= ROOT_MAX_PLY
+ * (root.json's own definition: "every position at ply <= ROOT_MAX_PLY"),
+ * else to whichever ECO family contributed the most games reaching it (a
+ * plurality vote, tie-broken by slug for determinism). Because transposition
+ * merging means the same position can legitimately be reached at different
+ * plies by different games, "shallowest ply observed in this run" is the
+ * only well-defined single answer available -- it is a build-time bucketing
  * choice, not a statistical one: the counts stored are correct regardless
  * of which file they end up in.
+ *
+ * ROOT_MAX_PLY was 6 through the 2026-08-15 smoke-test run (games=500000),
+ * which produced a root.json of 10,999,304 bytes against
+ * src/ingest/writeShards.js's 5 MB MAX_SHARD_BYTES budget -- root.json's
+ * size is driven by tree depth (positions with minPly <= ROOT_MAX_PLY,
+ * replicated across all 6 rating bands x 3 speed pools), not by
+ * positionWalk.js's own `maxPlies` (the per-game walk depth, default 16):
+ * root.json's population is unaffected by `maxPlies` as long as `maxPlies
+ * >= ROOT_MAX_PLY`, so `maxPlies` only trades off family-shard depth/size,
+ * never root.json's. ROOT_MAX_PLY=3 was chosen from the local fixture's
+ * observed per-ply shrink ratio (root.json shrank to roughly 0.62-0.70x its
+ * size for each ply removed, measured with `--min-games 1` against
+ * test/fixtures/ingest/sample.pgn) applied to the real 500k-game baseline
+ * above, landing at a projected ~3.0-3.8 MB (60-73% of budget) --
+ * comfortable margin given the fixture-derived ratio is an estimate, not
+ * measured at real scale. Reconfirm with a fresh smoke-test run before the
+ * full games=8000000 run; if still over budget at real scale, reduce
+ * further (each additional ply removed should track roughly the same
+ * shrink ratio).
  */
 
 const RESULT_LETTERS = ['w', 'd', 'l'];
 const UNCLASSIFIED_FAMILY_SLUG = 'unclassified';
-const ROOT_MAX_PLY = 6;
+const ROOT_MAX_PLY = 3;
 
 function emptyPositionRecord() {
   return {

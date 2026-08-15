@@ -59,8 +59,10 @@ const DRILL_CANDIDATES = 4;
  *   ecoFamilies.js's slugifyFamilyName) -- REQUIRED once aggregate data is
  *   present: unlike buildRepertoireTree's shallow walk, the drill's
  *   prefixPlay (up to 5 plies) plus up to `userDepth`*2 more plies can go
- *   well past root.json's ply<=6 coverage, so a position here often needs
- *   the family shard. Silently ignored on the live-API fallback path.
+ *   well past root.json's ply<=ROOT_MAX_PLY coverage (3 as of the
+ *   2026-08-15 shard-size fix, src/ingest/aggregate.js), so a position here
+ *   often needs the family shard. Silently ignored on the live-API fallback
+ *   path.
  * @param {string} [opts.aggregatesDir] see src/explorerSource.js's `dir` param.
  * @returns {Promise<object>} the root oppNode
  */
