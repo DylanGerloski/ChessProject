@@ -58,6 +58,8 @@ const { BALANCED_ELO_WINDOW } = require('./ingest/gameFilter');
 const { getApiToken } = require('./fetchOpeningExplorer');
 const { buildContentPages } = require('./buildContent');
 const { buildEcoPages } = require('./buildEcoPages');
+const { buildPackPages } = require('./buildPackPages');
+const { packsIndexFilename, packOgImageFilename } = require('./renderPackPages');
 const { buildEcoDataset } = require('./ecoData');
 const { buildFamilyIndex, t1Families } = require('./ecoFamilies');
 const { ECO_INDEX_FILE } = require('./renderEcoPages');
@@ -133,7 +135,7 @@ const FONT_ASSET_FILES = ['fraunces-variable.woff2'];
 // `home` is deliberately NOT in NAV_ORDER (render.js), so it never adds a
 // visible "Home" link to the top nav bar itself -- only the brand logo and
 // breadcrumbs use it.
-const STATIC_NAV = { home: '/', player: 'player.html', repertoire: 'repertoire.html', openings: 'openings.html', eco: ECO_INDEX_FILE, drill: 'italian-game-drill.html', guides: 'guides.html', faq: 'chess-opening-faq.html' };
+const STATIC_NAV = { home: '/', player: 'player.html', repertoire: 'repertoire.html', packs: packsIndexFilename(), openings: 'openings.html', eco: ECO_INDEX_FILE, drill: 'italian-game-drill.html', guides: 'guides.html', faq: 'chess-opening-faq.html' };
 
 // The one opening this drill pilot covers, and the rating band its
 // server-rendered starting position and candidate table default to. Kept
@@ -604,6 +606,38 @@ function assertNoTokenLeak(outDir, token) {
 }
 
 /**
+ * Fails loudly if the literal string "PLACEHOLDER" appears anywhere in
+ * dist/ (monetization-layer spec 1.4: "a test asserting no page in dist/
+ * renders a literal PLACEHOLDER string"). This is what makes it safe for
+ * render.js's STORE constant to carry sentinel PLACEHOLDER urls in source
+ * -- src/renderPackPages.js's packCtaHtml() never emits STORE.packs[id] as
+ * an href while it's still a placeholder (see isPlaceholderStoreUrl()), so
+ * this check should always pass; it exists as the automated backstop, the
+ * same role assertNoTokenLeak() plays for the Lichess API token above.
+ */
+function assertNoPlaceholderLeak(outDir) {
+  const offenders = [];
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir)) {
+      const full = path.join(dir, entry);
+      if (fs.statSync(full).isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!entry.endsWith('.html')) continue;
+      const content = fs.readFileSync(full, 'utf8');
+      if (content.includes('PLACEHOLDER')) {
+        offenders.push(path.relative(outDir, full));
+      }
+    }
+  }
+  walk(outDir);
+  if (offenders.length > 0) {
+    throw new Error(`Literal "PLACEHOLDER" string leaked into generated static output: ${offenders.join(', ')}`);
+  }
+}
+
+/**
  * Fails loudly on any filename collision across every page this build
  * writes -- a content page slug colliding with a repertoire filename or
  * another content page would silently overwrite one of them otherwise.
@@ -701,6 +735,34 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     nav: STATIC_NAV,
   });
   fs.writeFileSync(path.join(OUT_DIR, 'eco-explorer.js'), buildEcoExplorerBundle(), 'utf8');
+
+  // Repertoire Pack sales pages (monetization-layer spec, section 1.11
+  // "M2 -- PACK PAGES"): the packs index + two pack detail pages, plus each
+  // pack's free sample.pgn. Same cached/rate-limited Explorer fetch chain
+  // as every other page above -- see src/buildPackPages.js's own header
+  // comment for why this re-derives the tree rather than depending on
+  // packs/<id>/pack.json (a local, gitignored, hand-run artifact) existing.
+  const { written: packWritten } = await buildPackPages({
+    fetchImpl: cachedFetchImpl,
+    outDir: OUT_DIR,
+    nav: STATIC_NAV,
+    legalLinks: LEGAL_LINKS,
+  });
+
+  // Per-pack OG images: same "committed under assets/, copied verbatim,
+  // fail loudly if missing" pattern as IDENTITY_ASSET_FILES below --
+  // regenerate with `node scripts/build-og-image.js` and commit the result
+  // whenever a pack's catalogue entry changes.
+  const packOgAssetFiles = packWritten
+    .filter((p) => p.slug !== 'repertoire-packs')
+    .map((p) => packOgImageFilename(p.slug));
+  for (const assetFile of packOgAssetFiles) {
+    const src = path.join(ASSETS_DIR, assetFile);
+    if (!fs.existsSync(src)) {
+      throw new Error(`Missing pack OG image ${src} -- run "node scripts/build-og-image.js" first.`);
+    }
+    fs.copyFileSync(src, path.join(OUT_DIR, assetFile));
+  }
 
   fs.writeFileSync(path.join(OUT_DIR, 'index.html'), indexPage(contentEntries, drillFile), 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'player.html'), playerLookupPage(), 'utf8');
@@ -817,7 +879,16 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     ...contentWritten.map((c) => c.file),
     ...ecoWritten.map((e) => e.file),
     ecoExplorerResult.file,
+    ...packWritten.map((p) => p.file),
   ];
+
+  // Non-.html files packWritten also causes to exist on disk (each pack's
+  // free sample.pgn) -- tracked for the uniqueness check below but never
+  // fed to the sitemap (buildSitemapEntries() already filters to
+  // `.html` only).
+  const packSampleFiles = packWritten
+    .filter((p) => p.slug !== 'repertoire-packs')
+    .map((p) => `repertoire-packs/${p.slug}-sample.pgn`);
 
   assertFilenamesUnique([
     ...pageFilenames,
@@ -831,16 +902,28 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     'ads.txt',
     'feed.xml',
     ...IDENTITY_ASSET_FILES,
+    ...packOgAssetFiles,
+    ...packSampleFiles,
     ...aggregateShardsResult.files,
   ]);
   assertNoTokenLeak(OUT_DIR, getApiToken());
+  assertNoPlaceholderLeak(OUT_DIR);
+
+  // Pack pages still carrying a STORE PLACEHOLDER url stay out of
+  // sitemap.xml while noindex (spec 1.4/1.9) -- same treatment
+  // src/sitemap.js already gives 404.html/REDIRECT_STUBS: a page a crawler
+  // shouldn't index shouldn't be submitted for indexing either. Once real
+  // merchant urls land, packWritten's own `noindex` flips false and these
+  // rejoin the sitemap on the next build with no further code change.
+  const noindexPackFiles = new Set(packWritten.filter((p) => p.noindex).map((p) => p.file));
+  const sitemapFilenames = pageFilenames.filter((f) => !noindexPackFiles.has(f));
 
   // sitemap.xml / robots.txt (phase 3): generated from the actual list of
   // .html pages just written above, so they can't drift from what's really
   // on disk -- written last, after the uniqueness/token checks, so a
   // failed build never leaves a stale sitemap pointing at pages that
   // didn't actually get (re)written this run.
-  fs.writeFileSync(path.join(OUT_DIR, 'sitemap.xml'), renderSitemapXml(pageFilenames), 'utf8');
+  fs.writeFileSync(path.join(OUT_DIR, 'sitemap.xml'), renderSitemapXml(sitemapFilenames), 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'robots.txt'), robotsTxtContent(), 'utf8');
 
   // feed.xml: RSS for the content pages that actually get added/updated
@@ -859,6 +942,7 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     contentWritten,
     ecoWritten,
     ecoExplorerResult,
+    packWritten,
     pageFilenames,
     aggregateShardsCopied: aggregateShardsResult.copied,
   };
@@ -867,7 +951,7 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
 async function main() {
   const useCache = !process.argv.includes('--no-cache');
   try {
-    const { outDir, repertoireFile, repertoireStubs, contentWritten, ecoWritten, ecoExplorerResult, aggregateShardsCopied } = await buildStatic({ useCache });
+    const { outDir, repertoireFile, repertoireStubs, contentWritten, ecoWritten, ecoExplorerResult, packWritten, aggregateShardsCopied } = await buildStatic({ useCache });
     console.log(`Wrote static site to ${outDir}`);
     console.log(`  - index.html (links to player lookup + ${repertoireFile} + openings)`);
     console.log('  - player.html + player-lookup.js (client-side player lookup, no token used)');
@@ -885,8 +969,13 @@ async function main() {
     console.log(`  - ${ecoExplorerResult.file} + eco-explorer.js + ${ecoExplorerResult.reverseLookupFile} (interactive ECO explorer, Phase 7e, ${ecoExplorerResult.reverseLookupCount.toLocaleString()} reverse-lookup positions)`);
     console.log('  - privacy.html, about.html, contact.html, ads.txt (compliance pages)');
     console.log('  - italian-game-drill.html + drill.js (single-opening drill pilot, beta)');
-    console.log('  - sitemap.xml, robots.txt (generated from the pages actually written above)');
+    console.log(`  - ${packWritten.length} Repertoire Pack pages (index + detail, M2)${packWritten.some((p) => p.noindex) ? ' -- at least one still noindex (STORE still carries a PLACEHOLDER url, see src/render.js)' : ''}`);
+    for (const { file, noindex } of packWritten) {
+      console.log(`  - ${file}${noindex ? ' (noindex)' : ''}`);
+    }
+    console.log('  - sitemap.xml, robots.txt (generated from the pages actually written above, noindex pack pages excluded)');
     console.log('Verified: no Lichess API token string appears in any generated file.');
+    console.log('Verified: no literal "PLACEHOLDER" string appears in any generated file.');
     console.log('Verified: no filename collisions across the static build.');
     console.log('Open dist/index.html directly in a browser (file:// URL) -- no server needed.');
   } catch (err) {
@@ -915,6 +1004,7 @@ module.exports = {
   repertoireFragmentUrl,
   bandPickerHtml,
   assertNoTokenLeak,
+  assertNoPlaceholderLeak,
   assertFilenamesUnique,
   STATIC_NAV,
   LEGAL_LINKS,
