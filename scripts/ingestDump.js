@@ -7,7 +7,35 @@
  * aggregate dataset.
  *
  *   node scripts/ingestDump.js --source test/fixtures/ingest/sample.pgn
- *   node scripts/ingestDump.js --month 2026-07 --games 8000000
+ *   node scripts/ingestDump.js --month 2026-07 --games 2000000
+ *
+ * MEMORY MODEL, DISCLOSED (2026-08-15 OOM incident): this script's PGN
+ * reading (src/ingest/pgnStream.js) and per-game position walk
+ * (src/ingest/positionWalk.js) are genuinely bounded -- one game at a time,
+ * discarded immediately. What is NOT bounded is src/ingest/aggregate.js's
+ * AggregateBuilder: it holds every distinct position/move it has ever seen
+ * in memory for the entire run (by design -- family-shard assignment is a
+ * plurality vote over the whole run, so it can't be decided early and
+ * flushed). A real 2026-07 full-scale run (games=8000000) hit Node's
+ * default ~4GB old-space ceiling and crashed with a FATAL ERROR OOM after
+ * ~19 minutes of scanning, well short of 8,000,000 games, while a same-month
+ * 500,000-game smoke test had completed cleanly. Two changes landed together
+ * to address this, neither of which is a claim that memory use is now
+ * bounded -- it still is not, it is just no longer silently uninstrumented:
+ *   1. AggregateBuilder no longer retains a dead, unused EPD string per
+ *      distinct position (see src/ingest/aggregate.js's header comment).
+ *   2. This script now logs gamesScanned + process.memoryUsage() every
+ *      DEFAULT_PROGRESS_EVERY games (see below), and .github/workflows/
+ *      ingest-dump.yml now sets NODE_OPTIONS=--max-old-space-size dynamically
+ *      from the runner's own actual free memory instead of relying on
+ *      Node's conservative default. A genuine incremental-flush redesign of
+ *      AggregateBuilder (so memory stays roughly constant regardless of
+ *      games scanned) is the real fix if a future run still OOMs even with
+ *      more heap -- deliberately out of scope here: a heap-ceiling increase
+ *      plus a reduced, empirically-justified games budget is a smaller,
+ *      lower-risk change to verify before trusting another multi-hour run,
+ *      and buys time to design the incremental-flush version properly
+ *      rather than rushing it.
  *
  * IMPORTANT -- this script CAN reach the network (a `--source` that is an
  * http(s) URL, or a bare `--month` which builds the real
@@ -40,9 +68,21 @@ const DEFAULT_MIN_GAMES = 50;
 const USER_AGENT = 'repertoire-builder-ingest/1 (+https://repertoire-builder.com/contact.html)';
 const RETRY_DELAY_MS = 60_000;
 const MAX_RETRIES = 2;
+// Added 2026-08-15 with the OOM fix (see this file's header comment and
+// src/ingest/aggregate.js's header comment): the run that OOM'd printed
+// nothing between "observed header set" and the fatal crash, so there was
+// no way to tell how many games -- or how much heap -- had been consumed
+// before it died. Every DEFAULT_PROGRESS_EVERY games, run() now logs
+// gamesScanned/gamesUsed plus process.memoryUsage(), so a future run (OOM
+// or not) leaves a real trail instead of a silent jump from "started" to
+// "crashed".
+const DEFAULT_PROGRESS_EVERY = 250_000;
 
 function parseArgs(argv) {
-  const args = { out: DEFAULT_OUT_DIR, maxPlies: DEFAULT_MAX_PLIES, minGames: DEFAULT_MIN_GAMES, games: Infinity };
+  const args = {
+    out: DEFAULT_OUT_DIR, maxPlies: DEFAULT_MAX_PLIES, minGames: DEFAULT_MIN_GAMES, games: Infinity,
+    progressEvery: DEFAULT_PROGRESS_EVERY,
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     const next = () => argv[i += 1];
@@ -53,11 +93,18 @@ function parseArgs(argv) {
       case '--out': args.out = path.resolve(next()); break;
       case '--max-plies': args.maxPlies = Number(next()); break;
       case '--min-games': args.minGames = Number(next()); break;
+      case '--progress-every': args.progressEvery = Number(next()); break;
       default:
         throw new Error(`ingestDump: unrecognized argument "${arg}"`);
     }
   }
   return args;
+}
+
+function formatMemoryUsage() {
+  const m = process.memoryUsage();
+  const mb = (n) => `${(n / (1024 * 1024)).toFixed(0)}MB`;
+  return `rss=${mb(m.rss)} heapUsed=${mb(m.heapUsed)} heapTotal=${mb(m.heapTotal)} external=${mb(m.external)}`;
 }
 
 function dumpUrlForMonth(month) {
@@ -155,6 +202,7 @@ async function run(argv) {
   let observedHeaderKeys = null;
   let minDate = null;
   let maxDate = null;
+  let peakHeapUsedBytes = 0;
 
   for await (const game of iterateGames(source, { maxPlies: args.maxPlies })) {
     if (gamesScanned === 0) {
@@ -198,10 +246,21 @@ async function run(argv) {
       });
     }
 
+    if (args.progressEvery > 0 && gamesScanned % args.progressEvery === 0) {
+      const heapUsed = process.memoryUsage().heapUsed;
+      if (heapUsed > peakHeapUsedBytes) peakHeapUsedBytes = heapUsed;
+      // eslint-disable-next-line no-console
+      console.log(`ingestDump: progress gamesScanned=${gamesScanned} gamesUsed=${gamesUsed} ${formatMemoryUsage()}`);
+    }
+
     if (gamesScanned >= args.games) {
       destroy();
       break;
     }
+  }
+  {
+    const heapUsed = process.memoryUsage().heapUsed;
+    if (heapUsed > peakHeapUsedBytes) peakHeapUsedBytes = heapUsed;
   }
 
   const finalized = builder.finalize({ minGames: args.minGames });
@@ -220,6 +279,13 @@ async function run(argv) {
     bands: ['u1200', '1200-1400', '1400-1600', '1600-1800', '1800-2000', '2000+'],
     pools: ['bullet', 'blitz', 'rapid_classical'],
     balancedEloWindow: 50,
+    // Added with the 2026-08-15 OOM fix -- the highest process.memoryUsage()
+    // .heapUsed observed at any progress checkpoint (see DEFAULT_PROGRESS_EVERY
+    // above) during this run, in MB. Informational only (nothing downstream
+    // reads it), kept on the manifest so a run's actual peak memory is on
+    // permanent record next to its gamesScanned/games budget, not just in a
+    // GitHub Actions log that eventually ages out.
+    peakHeapUsedMB: Math.round(peakHeapUsedBytes / (1024 * 1024)),
   };
 
   const { manifest, shardFiles } = writeShards({
@@ -231,6 +297,8 @@ async function run(argv) {
 
   // eslint-disable-next-line no-console
   console.log(`ingestDump: gamesScanned=${gamesScanned} gamesUsed=${gamesUsed} positions=${finalized.positionCount} filteredBelowMinGames=${finalized.filteredCount}`);
+  // eslint-disable-next-line no-console
+  console.log(`ingestDump: peak heapUsed during scan = ${manifestFields.peakHeapUsedMB}MB (final: ${formatMemoryUsage()})`);
   for (const shard of shardFiles) {
     // eslint-disable-next-line no-console
     console.log(`ingestDump: shard ${shard.file} -- ${shard.bytes} bytes, ${shard.positions} positions`);

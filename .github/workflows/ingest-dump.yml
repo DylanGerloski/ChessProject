@@ -13,7 +13,7 @@ on:
         required: true
         type: string
       games:
-        description: 'Game budget for this run -- the connection is destroyed the moment this many games have been scanned. Use 500000 for the first run against any never-before-ingested month (a cheap smoke test of the real header format and throughput) before ever using a larger value such as 8000000.'
+        description: 'Game budget for this run -- the connection is destroyed the moment this many games have been scanned. Use 500000 for the first run against any never-before-ingested month (a cheap smoke test of the real header format and throughput). A 2026-08-15 games=8000000 run OOM''d (aggregate memory use is NOT bounded by games scanned -- see scripts/ingestDump.js''s header comment); until a real fix for that lands, step up gradually from a verified-good run rather than jumping straight to a large number, and watch the run''s own progress/heap log lines.'
         required: true
         type: string
         default: '500000'
@@ -66,9 +66,37 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Added after the 2026-08-15 OOM (see scripts/ingestDump.js's header
+      # comment): Node's own default old-space ceiling is conservative
+      # (observed ~4128MB on this runner regardless of actual free memory),
+      # not a real reflection of what's available. Rather than hardcode a
+      # number that silently goes stale if GitHub changes the standard
+      # runner's spec, size the heap from what this run's own runner
+      # actually reports at the time -- 80% of total, leaving headroom for
+      # the OS plus the curl/zstd/git/tar subprocesses this workflow also
+      # runs, which don't count against Node's own heap flag but do share
+      # the same physical memory.
+      # NOTE (2026-08-15, second attempt): the first version of this step set
+      # NODE_OPTIONS via `$GITHUB_ENV`, which GitHub Actions silently refuses
+      # for a short list of security-sensitive variable names (NODE_OPTIONS
+      # among them -- ##[error]Can't store NODE_OPTIONS output parameter
+      # using '$GITHUB_ENV' command., confirmed against a real run). That
+      # meant the "raised ceiling" was never actually applied and the next
+      # step OOM'd again on Node's untouched ~4128MB default. Fixed by
+      # computing the value as a step OUTPUT (`$GITHUB_OUTPUT`, which has no
+      # such restriction) and passing it directly on node's own command
+      # line as a V8 flag in the next step, never through the environment.
+      - name: Configure Node heap ceiling from this runner's actual memory
+        id: heap
+        run: |
+          TOTAL_MB=$(free -m | awk '/^Mem:/{print $2}')
+          HEAP_MB=$(( TOTAL_MB * 80 / 100 ))
+          echo "heap_mb=${HEAP_MB}" >> "$GITHUB_OUTPUT"
+          echo "runner total memory: ${TOTAL_MB}MB -> Node old-space ceiling: ${HEAP_MB}MB" | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Ingest dump prefix
         run: |
-          node scripts/ingestDump.js \
+          node --max-old-space-size="${{ steps.heap.outputs.heap_mb }}" scripts/ingestDump.js \
             --month "${{ inputs.month }}" \
             --games "${{ inputs.games }}" \
             --out data/aggregates \
