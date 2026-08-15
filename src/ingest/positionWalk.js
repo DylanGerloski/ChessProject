@@ -1,7 +1,15 @@
 'use strict';
 
 const { Chess } = require('chess.js');
-const crypto = require('node:crypto');
+// Pure-JS, not node:crypto -- see src/sha1.js's own header comment. This
+// module (and its posKeyFromEpd, this project's canonical position id) is
+// required, transitively, by src/browser/bandData.client.js for WS-1's
+// client-side shard lookups, which esbuild cannot bundle against a
+// node:crypto import (there is no browser equivalent of Node's synchronous
+// crypto.createHash API). Verified byte-identical output against
+// node:crypto for the same input -- see test/sha1.test.js and this file's
+// own posKeyFromEpd tests, unchanged.
+const { sha1Hex } = require('../sha1');
 
 /**
  * SAN -> position walk. chess.js is already a devDependency
@@ -26,7 +34,7 @@ function fenToEpd(fen) {
  * stored positions).
  */
 function posKeyFromEpd(epd) {
-  return crypto.createHash('sha1').update(epd).digest('hex').slice(0, 24);
+  return sha1Hex(epd).slice(0, 24);
 }
 
 /**

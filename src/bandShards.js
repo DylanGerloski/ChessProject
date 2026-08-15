@@ -11,7 +11,12 @@
 
 const { Chess } = require('chess.js');
 const { fenToEpd, posKeyFromEpd } = require('./ingest/positionWalk');
-const { applyExplorerUci } = require('./buildPack');
+// buildPackCore.js, not buildPack.js -- the latter requires ./explorerSource
+// (fs/path) at module load, which breaks any browser bundle needing this
+// pure helper. This module is required by src/browser/bandData.client.js,
+// so it must stay on the browser-safe import path -- see
+// src/buildPackCore.js's own header comment for the full explanation.
+const { applyExplorerUci } = require('./buildPackCore');
 
 const SCHEMA_VERSION = 1;
 const SOURCE_EXPLORER = 'lichess-opening-explorer';

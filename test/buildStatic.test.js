@@ -619,18 +619,19 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     assert.ok(ecoExplorerResult.reverseLookupCount > 0);
 
     // index + player.html (stub) + italian-game-drill.html (stub) +
-    // repertoire-builder.html + opening-report.html + drill-reference.html
-    // (WS-1 placeholders) + privacy/about/contact/methodology + 404 +
+    // repertoire-builder.html (real, WS-1 W1a) + opening-report.html +
+    // drill-reference.html (still WS-1 placeholders) +
+    // privacy/about/contact/methodology + 404 +
     // drill.html (the WS-1 hub, drillFile) + repertoire.html = 13 fixed
     // entries + 8 redirect stubs + 10 openings + hub + 8 guides + hub + FAQ
     // + (Phase 7d) 64 T1 family hubs + 5 T2 volume pages + 2 T2
     // browse-index pages + (Phase 7e) 1 ECO explorer page + (M2) 3
     // Repertoire Pack pages.
     // pageFilenames includes 404.html, the 8 repertoire redirect stubs,
-    // player.html/italian-game-drill.html (also now redirect stubs), the 4
-    // WS-1 placeholder pages (still noindex), and the 3 pack pages (for
-    // the filename-uniqueness check), but the sitemap itself must exclude
-    // all of those -- see src/sitemap.js's buildSitemapEntries/
+    // player.html/italian-game-drill.html (also now redirect stubs), the
+    // remaining 3 WS-1 placeholder pages (still noindex), and the 3 pack
+    // pages (for the filename-uniqueness check), but the sitemap itself
+    // must exclude all of those -- see src/sitemap.js's buildSitemapEntries/
     // REDIRECT_STUBS plus src/buildStatic.js's own noindexPackFiles/
     // noindexPlaceholderFiles filters.
     const expectedPageCount = 13 + 1 + repertoireStubs.length + contentWritten.length + ecoWritten.length + packWritten.length;
@@ -645,9 +646,10 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     const locMatches = [...sitemapXml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
     // Excluded from the sitemap: 404.html (1), the 8 repertoire redirect
     // stubs, the (currently noindex) pack pages, player.html +
-    // italian-game-drill.html (2, now redirect stubs), and the 4 WS-1
-    // placeholder pages (still noindex).
-    const excludedCount = 1 + repertoireStubs.length + packWritten.length + 2 + 4;
+    // italian-game-drill.html (2, now redirect stubs), and the remaining 3
+    // WS-1 placeholder pages (still noindex) -- repertoire-builder.html
+    // shipped for real (WS-1 W1a) and is no longer excluded here.
+    const excludedCount = 1 + repertoireStubs.length + packWritten.length + 2 + 3;
     assert.equal(locMatches.length, expectedPageCount - excludedCount, '404.html, the redirect stubs, the noindex pack pages, and the still-placeholder WS-1 pages must all be excluded from the sitemap');
     assert.ok(!locMatches.some((loc) => loc.includes('repertoire-packs')), 'no noindex pack page should appear in the sitemap');
     assert.ok(locMatches.includes('https://repertoire-builder.com/'), 'home should canonicalize to the directory form');
@@ -660,7 +662,7 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     assert.ok(!locMatches.includes('https://repertoire-builder.com/italian-game-drill.html'), 'a redirect source must never appear in the sitemap');
     assert.ok(!locMatches.includes('https://repertoire-builder.com/player.html'), 'a redirect source must never appear in the sitemap');
     assert.ok(!locMatches.includes('https://repertoire-builder.com/drill.html'), 'the WS-1 drill hub is still a placeholder (noindex) in this test');
-    assert.ok(!locMatches.includes('https://repertoire-builder.com/repertoire-builder.html'), 'the WS-1 repertoire builder is still a placeholder (noindex) in this test');
+    assert.ok(locMatches.includes('https://repertoire-builder.com/repertoire-builder.html'), 'the WS-1 repertoire builder shipped for real (W1a) and must now be in the sitemap');
     assert.ok(!locMatches.includes('https://repertoire-builder.com/opening-report.html'), 'the WS-1 opening report is still a placeholder (noindex) in this test');
     assert.ok(!locMatches.includes('https://repertoire-builder.com/drill-reference.html'), 'the WS-1 drill reference is still a placeholder (noindex) in this test');
     assert.equal(ecoWritten.length, 64 + 5 + 2, 'Phase 7d: 64 T1 hubs + 5 T2 volume pages + 2 T2 browse-index pages');
