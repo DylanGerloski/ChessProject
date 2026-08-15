@@ -921,6 +921,12 @@ ${designTokensCss(THEME_ROLES.dark)}
     box-shadow: var(--shadow-sm);
   }
 
+  .rep-node-label {
+    font-weight: var(--weight-bold);
+    color: var(--color-text);
+    white-space: nowrap;
+  }
+
   .rep-games { font-size: var(--text-sm); color: var(--color-text); }
   .rep-pct { color: var(--color-muted); }
   .rep-rating { color: var(--color-muted); font-size: var(--text-xs); }
@@ -1742,7 +1748,7 @@ const SOCIAL_ICON_SVG = '<svg width="18" height="18" viewBox="0 0 100 100" xmlns
  * docs/DESIGN_PLAYBOOK.md's "What stays shared across the portfolio".
  */
 function renderFooterCredit() {
-  return `<p class="footer-credit">Built by Dylan &mdash; also making <a href="https://dylangerloski.github.io/filetools/" rel="noopener noreferrer">filetools</a> and <a href="https://lol-practice-system.com" rel="noopener noreferrer">Solo Queue Practice</a>. <a class="footer-social" href="https://x.com/builtittheycome" rel="noopener noreferrer">${SOCIAL_ICON_SVG}Follow @builtittheycome</a></p>`;
+  return `<p class="footer-credit">Built by Dylan, who also makes <a href="https://dylangerloski.github.io/filetools/" rel="noopener noreferrer">filetools</a> and <a href="https://lol-practice-system.com" rel="noopener noreferrer">Solo Queue Practice</a>. <a class="footer-social" href="https://x.com/builtittheycome" rel="noopener noreferrer">${SOCIAL_ICON_SVG}Follow @builtittheycome</a></p>`;
 }
 
 // Newsletter signup: wired to the project's Substack publication
@@ -1805,7 +1811,7 @@ function renderNewsletterSignup() {
  * appear everywhere it does.
  */
 function renderDisclosure() {
-  return `<p class="disclosure-note">Disclosure: this site includes a voluntary support link (Ko-fi) and may in the future include affiliate links that earn a small commission on qualifying purchases at no extra cost to you. Support and affiliate links never influence the win-rate data, rankings, or analysis shown on this site &mdash; all of that comes directly from Lichess&rsquo;s public API and Opening Explorer, unaffected by any link on this page.</p>`;
+  return `<p class="disclosure-note">Disclosure: this site includes a voluntary support link (Ko-fi) and may in the future include affiliate links that earn a small commission on qualifying purchases at no extra cost to you. Support and affiliate links never influence the win-rate data, rankings, or analysis shown on this site. All of that comes directly from Lichess&rsquo;s public API and Opening Explorer, unaffected by any link on this page.</p>`;
 }
 
 /**
