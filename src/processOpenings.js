@@ -17,7 +17,16 @@
  * often go wrong against you, and how to punish it").
  */
 
-const { moveStatsFromExplorerResponse } = require('./processRepertoire');
+const { moveStatsFromExplorerResponse, RATING_BANDS } = require('./processRepertoire');
+
+// Ordinal rating-band order (1400-1600, 1600-1800, 1800-2000, 2000+), used
+// below to sort buildOpeningModel's `bands` array. bandResponses is built by
+// its caller with the DEFAULT band inserted first (so the default-band
+// lookup is a plain property access), so Object.keys(bandResponses) alone
+// yields the default band hoisted ahead of lower bands -- fine for a table,
+// wrong for anything that treats bands as an ordinal axis (e.g. a
+// score-by-band chart, where an out-of-order x-axis misrepresents the trend).
+const RATING_BAND_ORDER = Object.keys(RATING_BANDS);
 const { scoreInterval, wilsonInterval } = require('./stats');
 
 function opponentOf(side) {
@@ -201,7 +210,10 @@ function buildOpeningModel({
   // trustworthy at n>=300" judgment applies to both).
   const minBalancedNForBand = MISTAKE_THRESHOLDS.minBalancedN;
 
-  const bands = Object.keys(bandResponses || {}).map((band) => {
+  const bandKeysOrdinal = Object.keys(bandResponses || {}).sort(
+    (a, b) => RATING_BAND_ORDER.indexOf(a) - RATING_BAND_ORDER.indexOf(b)
+  );
+  const bands = bandKeysOrdinal.map((band) => {
     const resp = bandResponses[band];
     const totals = { white: (resp && resp.white) || 0, draws: (resp && resp.draws) || 0, black: (resp && resp.black) || 0 };
     const games = totals.white + totals.draws + totals.black;

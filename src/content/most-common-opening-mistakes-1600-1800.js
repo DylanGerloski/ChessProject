@@ -12,7 +12,7 @@ const SLUG = 'most-common-opening-mistakes-1600-1800';
 const meta = {
   slug: SLUG,
   title: 'The Most Common Opening Mistakes at 1600-1800',
-  description: "Moves that are played often but score badly at 1600-1800, aggregated across every opening this site tracks — true by arithmetic, not by engine evaluation.",
+  description: "Moves that are played often but score badly at 1600-1800, aggregated across every opening this site tracks, straight from the arithmetic of real game outcomes.",
   targetQuery: 'most common opening mistakes club level',
   related: [],
 };

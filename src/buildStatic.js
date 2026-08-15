@@ -50,7 +50,7 @@ const path = require('path');
 const esbuild = require('esbuild');
 const { buildRepertoireTree } = require('./buildRepertoire');
 const { RATING_BANDS } = require('./processRepertoire');
-const { renderRepertoireExplorerPage, renderRedirectStubPage, escapeHtml, renderDocumentHead, renderHeader, renderFooter, renderPageHead } = require('./render');
+const { renderRepertoireExplorerPage, renderRedirectStubPage, escapeHtml, formatPct, renderDocumentHead, renderHeader, renderFooter, renderPageHead } = require('./render');
 const { renderOpeningStatCard, renderMethodologyPage } = require('./renderContent');
 const { MISTAKE_THRESHOLDS } = require('./processOpenings');
 const { loadAggregates } = require('./aggregateSource');
@@ -325,7 +325,7 @@ function buildEcoExplorerBundle() {
 function drillCtaSection(drillFile) {
   if (!drillFile) return '';
   return `<h2>Drill it: play the move your rating band plays</h2>
-    <div class="card-grid">
+    <div class="card-grid card-grid--single">
       <div class="card card--outline card--nav"><h3><a href="${escapeHtml(drillFile)}">Italian Game drill</a></h3><p>Pick the move, see instantly whether it is the move players at your rating actually make, and what that move scores.</p></div>
     </div>`;
 }
@@ -356,6 +356,46 @@ function bandPickerHtml() {
     </div>`;
 }
 
+// Above-the-fold data strip: for each rating band, the single top-scoring
+// tracked opening at that band, its score, and a fixed-domain micro-bar
+// (45-57%, the observed cross-opening spread -- render.js's
+// --chart-domain-lo/--chart-domain-hi). Full-bleed (render.js's
+// .zone-full-bleed) so it's the first element on the site that reaches the
+// viewport edge, and it puts a real number above the fold on both the
+// 1440x900 and 360x800 viewports design-standards.md requires -- the
+// homepage previously showed no data until the second screenful. Built
+// entirely from contentEntries the caller already has (no extra fetch).
+function dataStripHtml(contentEntries) {
+  if (contentEntries.length === 0) return '';
+  const domainLo = 45;
+  const domainHi = 57;
+  const cols = Object.keys(RATING_BANDS).map((bandName) => {
+    let best = null;
+    for (const entry of contentEntries) {
+      const b = (entry.model.bands || []).find((x) => x.band === bandName);
+      if (b && b.enoughData && b.scoreForSide != null && (!best || b.scoreForSide > best.score)) {
+        best = { name: entry.model.name, score: b.scoreForSide, side: entry.model.side, games: b.games };
+      }
+    }
+    if (!best) {
+      return `<div class="data-strip-col">
+        <span class="data-strip-band">${escapeHtml(bandName)}</span>
+        <span class="data-strip-empty">Not enough data yet</span>
+      </div>`;
+    }
+    const fillPct = Math.max(0, Math.min(100, ((best.score - domainLo) / (domainHi - domainLo)) * 100));
+    return `<div class="data-strip-col">
+      <span class="data-strip-band">${escapeHtml(bandName)}</span>
+      <span class="data-strip-opening">${escapeHtml(best.name)}</span>
+      <span class="data-strip-score">${formatPct(best.score)}%<span class="data-strip-meta"> for ${escapeHtml(best.side)}, ${best.games.toLocaleString()} games</span></span>
+      <svg class="data-strip-bar" viewBox="0 0 100 12" preserveAspectRatio="none" role="img" aria-hidden="true"><title>${escapeHtml(best.name)} scores ${formatPct(best.score)}% at ${escapeHtml(bandName)}</title><rect class="data-strip-bar-track" x="0" y="0" width="100" height="12"></rect><rect class="data-strip-bar-fill" x="0" y="0" width="${fillPct}" height="12"></rect></svg>
+    </div>`;
+  }).join('');
+  return `<div class="zone-full-bleed data-strip">
+    <div class="data-strip-inner">${cols}</div>
+  </div>`;
+}
+
 // Product decision: the rating-band picker below is the homepage's single
 // primary action -- repertoire lookup is the site's core value prop and
 // existing traffic driver (now a single role=group pill control, not four
@@ -367,7 +407,7 @@ function bandPickerHtml() {
 // additionally carry inline WDL data via renderOpeningStatCard.
 function indexPage(contentEntries = [], drillFile = null) {
   const openingsSection = contentEntries.length > 0
-    ? `<h2>Openings by real win rate</h2>
+    ? `<h2 class="section-lead">Openings by real win rate</h2>
     <p class="repertoire-intro">${contentEntries.length} openings, ranked by what they actually score in real games
        at each rating band &mdash; see <a href="openings.html">all openings &rarr;</a></p>
     <div class="card-grid">
@@ -391,14 +431,17 @@ ${renderDocumentHead({
     feedUrl: absoluteUrl('feed.xml'),
   })}
 <body>
+<div class="page">
   ${renderHeader(STATIC_NAV, null)}
   <main>
     ${renderPageHead({
       title: 'The chess opening meta, by rating band',
-      subtitle: 'Which openings players at your rating actually play, and how often those picks actually win. Every number on this site comes from real Lichess games &mdash; no theory, no opinions, no engine lines.',
+      subtitle: 'Which openings players at your rating actually play, and how often those picks actually win. Every number on this site comes straight from real Lichess games.',
     })}
 
-    <h2>Start with your rating band</h2>
+    ${dataStripHtml(contentEntries)}
+
+    <h2 class="section-lead">Start with your rating band</h2>
     <p class="repertoire-intro">Openings behave differently at every rating. Pick your band &mdash; everything below is
        filtered to real games at that level.</p>
     ${bandPickerHtml()}
@@ -412,6 +455,7 @@ ${renderDocumentHead({
        directly in your browser when you open this page; nothing is pre-baked).</p>
   </main>
   ${renderFooter('Data source: <a href="https://lichess.org/api">lichess.org/api</a>.', LEGAL_LINKS)}
+</div>
 </body>
 </html>
 `;
@@ -424,7 +468,8 @@ function playerLookupPage() {
   return `<!DOCTYPE html>
 <html lang="en">
 ${renderDocumentHead({ title, description, canonical })}
-<body class="layout--wide">
+<body>
+<div class="page page--wide">
   ${renderHeader(STATIC_NAV, 'player')}
   <main>
     <h1 class="page-title">Player lookup</h1>
@@ -439,6 +484,7 @@ ${renderDocumentHead({ title, description, canonical })}
   </main>
   ${renderFooter('Data source: <a href="https://lichess.org/api">lichess.org/api</a>, called directly from this page in your browser.', LEGAL_LINKS)}
   <script src="player-lookup.js"></script>
+</div>
 </body>
 </html>
 `;

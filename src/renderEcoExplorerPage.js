@@ -112,7 +112,8 @@ function renderEcoExplorerPage({ nav, lineIndex, t0CrossLinkMap, reverseLookupUr
   return `<!DOCTYPE html>
 <html lang="en">
 ${renderDocumentHead({ title, description, canonical, jsonLd })}
-<body class="layout--wide">
+<body>
+<div class="page page--wide">
   ${renderHeader(nav, 'eco')}
   <main>
     ${renderPageHead({
@@ -182,6 +183,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd })}
   </main>
   ${renderFooter(`Aggregate position data from <a href="https://github.com/hayatbiralem/eco.json">hayatbiralem/eco.json</a> (MIT) and the CC0-licensed <a href="https://github.com/lichess-org/chess-openings">lichess.org opening database</a>. ${pieceAttributionHtml()}`, ECO_EXPLORER_LEGAL_LINKS)}
   <script src="eco-explorer.js" defer></script>
+</div>
 </body>
 </html>
 `;

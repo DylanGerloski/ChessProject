@@ -38,6 +38,7 @@ function renderPrivacyPage({ nav, legalLinks }) {
 <html lang="en">
 ${renderDocumentHead({ title, description, canonical })}
 <body>
+<div class="page">
   ${renderHeader(nav)}
   <main class="prose">
     <h1 class="page-title">Privacy Policy</h1>
@@ -101,6 +102,7 @@ ${renderDocumentHead({ title, description, canonical })}
     <p>Questions about this policy? See the <a href="${escapeHtml(legalLinks.contact)}">Contact page</a>.</p>
   </main>
   ${renderFooter('This is the privacy policy for the whole site.', legalLinks)}
+</div>
 </body>
 </html>
 `;
@@ -119,6 +121,7 @@ function renderAboutPage({ nav, legalLinks }) {
 <html lang="en">
 ${renderDocumentHead({ title, description, canonical })}
 <body>
+<div class="page">
   ${renderHeader(nav)}
   <main class="prose">
     <h1 class="page-title">About ${escapeHtml(SITE_NAME)}</h1>
@@ -157,6 +160,7 @@ ${renderDocumentHead({ title, description, canonical })}
     <p>See the <a href="${escapeHtml(legalLinks.contact)}">Contact page</a>.</p>
   </main>
   ${renderFooter('Data source for every page on this site: <a href="https://lichess.org/api">lichess.org/api</a>.', legalLinks)}
+</div>
 </body>
 </html>
 `;
@@ -176,6 +180,7 @@ function renderContactPage({ nav, legalLinks }) {
 <html lang="en">
 ${renderDocumentHead({ title, description, canonical })}
 <body>
+<div class="page">
   ${renderHeader(nav)}
   <main class="prose">
     <h1 class="page-title">Contact</h1>
@@ -191,6 +196,7 @@ ${renderDocumentHead({ title, description, canonical })}
       <a href="${escapeHtml(legalLinks.about)}">About page</a>.</p>
   </main>
   ${renderFooter('This is the contact page for the whole site.', legalLinks)}
+</div>
 </body>
 </html>
 `;
@@ -220,6 +226,7 @@ function render404Page({ nav, legalLinks, homeLink, openingsLink, repertoireLink
 <html lang="en">
 ${renderDocumentHead({ title, description, noindex: true })}
 <body>
+<div class="page">
   ${renderHeader(nav)}
   <main class="prose">
     <h1 class="page-title">That page doesn&rsquo;t exist</h1>
@@ -232,6 +239,7 @@ ${renderDocumentHead({ title, description, noindex: true })}
     </ul>
   </main>
   ${renderFooter('If you think this is a broken link on our end, the Contact page below can reach us.', legalLinks)}
+</div>
 </body>
 </html>
 `;

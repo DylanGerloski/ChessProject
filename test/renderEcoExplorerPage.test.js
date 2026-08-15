@@ -102,5 +102,5 @@ test('renderEcoExplorerPage emits a DefinedTermSet JSON-LD block with one term p
 
 test('renderEcoExplorerPage opts into the wide layout (data-dense page type, same as player.html/repertoire pages)', () => {
   const html = renderEcoExplorerPage(baseArgs());
-  assert.match(html, /<body class="layout--wide">/);
+  assert.match(html, /<div class="page page--wide">/);
 });

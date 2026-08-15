@@ -234,7 +234,8 @@ function renderDrillPage({ drillData, nav, legalLinks, openingLink = 'italian-ga
   return `<!DOCTYPE html>
 <html lang="en">
 ${renderDocumentHead({ title, description, canonical, ogType: 'website', jsonLd, extraCss: DRILL_CSS })}
-<body class="layout--wide">
+<body>
+<div class="page page--wide">
   ${renderHeader(nav, 'drill')}
   <main>
     ${renderPageHead({
@@ -298,6 +299,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'website', jsonLd,
     <script src="drill.js" defer></script>
   </main>
   ${renderFooter(`Drill data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${escapeHtml(String(drillData.retrieved).slice(0, 10))}. Your level/streak progress is saved only in your own browser (local storage) &mdash; see the privacy policy.`, legalLinks)}
+</div>
 </body>
 </html>
 `;

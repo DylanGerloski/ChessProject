@@ -448,6 +448,7 @@ function renderOpeningPage({ model, openingConfig, nav, related = [], repertoire
 <html lang="en">
 ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd: breadcrumbJsonLd(breadcrumbItems) })}
 <body>
+<div class="page">
   ${renderHeader(nav, 'openings')}
   <main>
     ${renderPageHead({
@@ -490,6 +491,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd:
     </p>${relatedHtml}
   </main>
   ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a> (lichess database, blitz + rapid), retrieved ${BUILD_DATE}. Master games from the Lichess masters database. ${pieceAttributionHtml()}`, CONTENT_LEGAL_LINKS)}
+</div>
 </body>
 </html>
 `;
@@ -580,6 +582,7 @@ function renderOpeningsHub(entries, { nav, ecoIndexLink = null, ranked = null })
 <html lang="en">
 ${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(breadcrumbItems) })}
 <body>
+<div class="page">
   ${renderHeader(nav, 'openings')}
   <main>
     ${renderBreadcrumb(breadcrumbItems)}
@@ -607,6 +610,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(b
        <a href="${escapeHtml(ecoIndexLink.href)}">browse the ECO index &rarr;</a></p>` : ''}
   </main>
   ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}.`, CONTENT_LEGAL_LINKS)}
+</div>
 </body>
 </html>
 `;
@@ -659,6 +663,7 @@ function renderArticlePage({ meta, bodyHtml, nav, related = [] }) {
 <html lang="en">
 ${renderDocumentHead({ title, description: meta.description, canonical, ogType: 'article', jsonLd })}
 <body>
+<div class="page">
   ${renderHeader(nav, 'guides')}
   <main>
     ${renderBreadcrumb(breadcrumbItems)}
@@ -669,6 +674,7 @@ ${renderDocumentHead({ title, description: meta.description, canonical, ogType: 
     </article>${relatedHtml}
   </main>
   ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}. This article is written to reflect that data &mdash; not a substitute for a coach&rsquo;s judgment about your own games.`, CONTENT_LEGAL_LINKS)}
+</div>
 </body>
 </html>
 `;
@@ -695,14 +701,16 @@ function renderGuidesHub(articles, { nav }) {
 <html lang="en">
 ${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(breadcrumbItems) })}
 <body>
+<div class="page">
   ${renderHeader(nav, 'guides')}
   <main>
     ${renderBreadcrumb(breadcrumbItems)}
     <h1 class="page-title">Chess opening guides</h1>
-    <p class="subtitle">${articles.length} articles, each grounded in this site&rsquo;s own Lichess Opening Explorer data &mdash; not opinion.</p>
+    <p class="subtitle">${articles.length} articles, each grounded in this site&rsquo;s own Lichess Opening Explorer data.</p>
     <div class="card-grid">${cards}</div>
   </main>
   ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}.`, CONTENT_LEGAL_LINKS)}
+</div>
 </body>
 </html>
 `;
@@ -731,14 +739,16 @@ function renderFaqPage({ faqs, nav }) {
 <html lang="en">
 ${renderDocumentHead({ title, description, canonical, jsonLd })}
 <body>
+<div class="page">
   ${renderHeader(nav, 'faq')}
   <main>
     ${renderBreadcrumb(breadcrumbItems)}
     <h1 class="page-title">Chess opening FAQ</h1>
-    <p class="subtitle">Plain answers &mdash; most of them backed directly by this site&rsquo;s own Lichess data, not just opinion.</p>
+    <p class="subtitle">Plain answers, most of them backed directly by this site&rsquo;s own Lichess data.</p>
     <div class="prose">${items}</div>
   </main>
   ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}.`, CONTENT_LEGAL_LINKS)}
+</div>
 </body>
 </html>
 `;
@@ -808,17 +818,17 @@ function renderMethodologyPage({ nav, manifest = null, thresholds, minGamesForPc
   // THIS build actually ran on dump-sourced aggregates or is still on the
   // live-Explorer-API fallback (see this function's own doc comment).
   const sourceSection = manifest
-    ? `<p>Every win/draw/loss number on this site is computed from Lichess&rsquo;s own published database dumps (<a href="https://database.lichess.org">database.lichess.org</a>), released under a CC0 public-domain dedication &mdash; free to use for any purpose, with attribution here as a courtesy rather than a license requirement.</p>
+    ? `<p>Every win/draw/loss number on this site is computed from Lichess&rsquo;s own published database dumps (<a href="https://database.lichess.org">database.lichess.org</a>), released under a CC0 public-domain dedication &mdash; free to use for any purpose. Attribution here is included as a courtesy.</p>
       <p>This build used ${escapeHtml((manifest.dumpMonths || []).join(', ') || 'an unspecified month')}. A full month&rsquo;s dump is tens of gigabytes; this pipeline reads a BOUNDED PREFIX of it (not the whole month) to stay within GitHub Actions&rsquo; free runner limits and to keep bandwidth use to the Lichess database modest. The games actually observed in this build span ${manifest.observedGameDateRange ? `${escapeHtml(manifest.observedGameDateRange[0])} to ${escapeHtml(manifest.observedGameDateRange[1])}` : 'a date range not recorded in this build'} &mdash; the start of the month, not the whole month, which is a real bias this page states outright rather than hiding: games later in the month are systematically absent from this sample.</p>
       <p>${(manifest.gamesScanned || 0).toLocaleString()} games were scanned; ${(manifest.gamesUsed || 0).toLocaleString()} were used after filtering. Retrieved ${escapeHtml((manifest.retrievedAt || '').slice(0, 10) || BUILD_DATE)}.</p>`
-    : `<p>This build&rsquo;s numbers are computed from the live <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a> (the same public, keyless database Lichess itself exposes), retrieved at build time on ${escapeHtml(BUILD_DATE)}. Lichess&rsquo;s underlying game data is released under a CC0 public-domain dedication (<a href="https://database.lichess.org">database.lichess.org</a>); attribution here is a courtesy, not a license requirement.</p>
+    : `<p>This build&rsquo;s numbers are computed from the live <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a> (the same public, keyless database Lichess itself exposes), retrieved at build time on ${escapeHtml(BUILD_DATE)}. Lichess&rsquo;s underlying game data is released under a CC0 public-domain dedication (<a href="https://database.lichess.org">database.lichess.org</a>); attribution here is included as a courtesy.</p>
       <p>This site is migrating to compute the same numbers directly from Lichess&rsquo;s own published monthly database dumps instead of live API calls, which will additionally unlock the rating-gap-controlled (&ldquo;balanced&rdquo;) figures described in this page&rsquo;s later sections. That migration&rsquo;s first live data run has not happened yet as of this build &mdash; this page will update to name the exact month(s) and observed date range once it has.</p>`;
 
   const bucketingSection = `<p>Games are grouped by <strong>rating band</strong>, using the average of both players&rsquo; ratings at the time of the game &mdash; the same bucketing the Lichess Opening Explorer itself uses, which keeps this site&rsquo;s numbers comparable to it. Bands shown on this site run 1400-1600 through 2000+.</p>
     <p>Games are also grouped by <strong>time-control pool</strong>: this site&rsquo;s default, and the number shown unless you pick another, is blitz. Correspondence games are excluded outright &mdash; a correspondence game (played over days, often with opening-book assistance) is a genuinely different population from a live blitz or rapid game, and folding it into &ldquo;what players at your rating play&rdquo; would misstate what the number means.</p>
     <p>A second, narrower subset &mdash; <strong>balanced</strong> games, where both players&rsquo; ratings are within ${balancedEloWindow} points of each other &mdash; powers every rating-gap-controlled figure on this site (see &ldquo;What we do not control for&rdquo; and &ldquo;How &lsquo;common mistake&rsquo; is defined&rdquo; below). A lopsided-rating game tells you less about how an opening performs between evenly-matched opponents, which is the comparison a &ldquo;common mistake&rdquo; claim actually needs.</p>`;
 
-  const computationSection = `<p>Two different quantities are shown on this site, and they use two different formulas &mdash; this is a real distinction, not a stylistic choice:</p>
+  const computationSection = `<p>Two different quantities are shown on this site, and they use two different formulas because they measure genuinely different things:</p>
     <ul>
       <li><strong>Win / draw / loss rate</strong> is a proportion (how many of these games ended this way) &mdash; shown with a <a href="https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval#Wilson_score_interval">Wilson score interval</a>, which stays accurate at small sample sizes and near 0% or 100%, unlike the naive normal-approximation interval most simple stats tools use.</li>
       <li><strong>Score</strong> (the standard chess-scoring convention: a win counts 1, a draw counts 0.5) is the MEAN of a value that can be 0, 0.5, or 1 for each game &mdash; not a proportion, so it uses a different formula (a trinomial-variance confidence interval), not the Wilson interval. Applying the Wilson formula to a mean would produce a confidence interval that looks precise but is mathematically wrong for this quantity.</li>
@@ -826,7 +836,7 @@ function renderMethodologyPage({ nav, manifest = null, thresholds, minGamesForPc
     <p>Every rate and score on this site that has enough games to trust carries its 95% confidence interval as a small &ldquo;&plusmn;&rdquo; figure next to the number, and a screen-reader-only sentence spelling out the full interval and sample size. A row whose interval half-width is 1.0 percentage point or wider &mdash; wide enough that it could change how you&rsquo;d read the number &mdash; carries a visible &ldquo;wide interval, small sample&rdquo; note as well.</p>
     <p>Below ${minGamesForPct.toLocaleString()} games at a given rating band, this site shows no percentage at all for that band, rather than a number computed from too small a sample to mean anything.</p>`;
 
-  const uncontrolledSection = `<p>Stated plainly, not buried:</p>
+  const uncontrolledSection = `<p>Stated plainly:</p>
     <ul>
       <li><strong>Selection effects on cross-opening comparisons.</strong> When two different openings are compared by score, the players who choose each one are not the same players &mdash; a raw score difference partly reflects who tends to play each opening, not just how the opening performs. This site&rsquo;s cross-opening rankings rank on the ${balancedEloWindow}-rating-point-gap-controlled subset where that data is available, which removes the largest single confound, but does not remove every one (see below).</li>
       <li><strong>Time-control mix within a pool.</strong> &ldquo;Blitz&rdquo; on Lichess spans a range of actual time controls; this site does not further split by exact clock setting.</li>
@@ -851,6 +861,7 @@ function renderMethodologyPage({ nav, manifest = null, thresholds, minGamesForPc
 <html lang="en">
 ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd })}
 <body>
+<div class="page">
   ${renderHeader(nav, null)}
   <main>
     ${renderBreadcrumb(breadcrumbItems)}
@@ -895,6 +906,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd 
     </article>
   </main>
   ${renderFooter(`Methodology retrieved ${BUILD_DATE}. ${pieceAttributionHtml()}`, CONTENT_LEGAL_LINKS)}
+</div>
 </body>
 </html>
 `;

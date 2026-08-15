@@ -135,7 +135,7 @@ test('renderDrillPage: exactly one h1, and the confident (non-hedging) subtitle 
 test('renderDrillPage (B3): opts into the wide layout container and wraps controls/board and the candidates table in the two-column grid, without disturbing any id drill.client.js queries by', async () => {
   const drillData = await getDrillData();
   const html = renderDrillPage({ drillData, nav: NAV });
-  assert.match(html, /<body class="layout--wide">/);
+  assert.match(html, /<div class="page page--wide">/);
   assert.match(html, /<div class="drill-layout">/);
   assert.match(html, /<div class="drill-column-play">/);
   assert.match(html, /<div class="drill-column-candidates">/);
