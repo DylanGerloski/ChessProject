@@ -40,3 +40,4 @@ SEO_*.md
 # separate build step, not by being committed here. Regenerate locally
 # with `node scripts/buildPacks.js` any time; never restored from git.
 packs/
+.qa-standalone/

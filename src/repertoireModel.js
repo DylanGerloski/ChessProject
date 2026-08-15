@@ -38,7 +38,7 @@ const { Chess } = require('chess.js');
 // module is required by src/browser/repertoireBuilder.client.js, so it
 // must stay on the browser-safe import path.
 const { applyExplorerUci, pgnFromTree } = require('./buildPackCore');
-const { parsePgnSafe } = require('./pgnWrapper');
+const { parsePgnSafe, splitPgnHeaderAndMovetext, findTopLevelParenSpans } = require('./pgnWrapper');
 
 const FORMAT_VERSION = 1;
 const VALID_SIDES = new Set(['white', 'black']);
@@ -62,6 +62,37 @@ const MAX_TREE_DEPTH = 60; // guards a pathological/adversarial or corrupt docum
 const STORAGE_KEY = 'rb.repertoires.v1';
 
 const UCI_RE = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
+
+// --- Import (spec 3.1 IMPORT, W1b's stated scope) --------------------------
+
+// Repertoire Pack manifest format string (src/buildPack.js's
+// packJsonFromResult -- the one other place in this codebase that writes
+// this literal). MAX_PACK_POSITIONS mirrors security-standards.md /
+// the monetization spec's own section 1.7 #2 stated cap.
+const PACK_FORMAT = 'repertoire-pack/1';
+const MAX_PACK_POSITIONS = 2000;
+const MAX_PACK_JSON_BYTES = 2 * 1024 * 1024; // 2 MB -- same order of magnitude as pgnWrapper's own MAX_PGN_BYTES headroom reasoning; a real pack tops out around a few hundred KB.
+const MAX_PACK_PLY = 60; // matches MAX_TREE_DEPTH's sanity ceiling below
+
+// Caps the number of PGN variation branches one import will attempt to
+// recover (security-standards.md: a hand-written parser over untrusted
+// text needs an explicit size cap, not just a byte cap -- see
+// importPgnTree()'s doc comment for why a variation COUNT cap is the right
+// shape here, distinct from pgnWrapper's own byte/paren-depth caps). A
+// real prepared repertoire has a handful of branch points; 100 is
+// generous headroom over that while bounding the O(variations x document
+// size) re-parse cost this importer's design requires.
+const MAX_IMPORT_VARIATIONS = 100;
+
+// Whole-document caps for a (possibly multi-game) PGN import -- checked
+// before splitting into per-game text (MAX_IMPORT_PGN_BYTES) and after
+// (MAX_IMPORT_GAMES), so a many-tiny-games adversarial file can't dodge
+// the byte cap the way a many-tiny-variations file dodges MAX_PGN_BYTES
+// without MAX_IMPORT_VARIATIONS. MAX_IMPORT_GAMES is generous over any
+// realistic multi-game export this tool itself produces (bounded by
+// MAX_NODE_CHILDREN root branches) while still bounding adversarial input.
+const MAX_IMPORT_PGN_BYTES = 2 * 1024 * 1024; // 2 MB
+const MAX_IMPORT_GAMES = 60;
 
 function byteLength(str) {
   if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(str).length;
@@ -335,32 +366,146 @@ function toPgn(repertoire, headers = {}) {
 }
 
 /**
- * Imports a single line of moves from visitor-supplied PGN text into a
- * fresh Node tree, always through pgnWrapper.parsePgnSafe first (spec 3.1:
- * "fromPgn runs input through pgnWrapper.parsePgnSafe first, always" --
- * the untrusted-PGN discipline security-standards.md and pgnWrapper.js's
- * own header comment require).
+ * Imports visitor-supplied PGN text into a fresh Node TREE -- including
+ * variations, not just the main line (spec 3.1 IMPORT: "a .pgn file or
+ * paste"; this is W1b's stated scope, completing the "KNOWN LIMITATION"
+ * W1a's original single-line version of this function documented).
+ * Always through pgnWrapper.parsePgnSafe first, on the FULL original text,
+ * unconditionally -- the untrusted-PGN discipline security-standards.md
+ * and pgnWrapper.js's own header comment require, and the ONLY thing in
+ * this whole import path that talks to chess.js's real PGN grammar/move
+ * legality. That first call is also what makes everything below safe:
+ * `parsePgnSafe`'s own `scanParenDepth` pre-scan already proved the
+ * document's parentheses are balanced and within `MAX_PAREN_DEPTH`
+ * BEFORE chess.js's real recursive-descent grammar even ran, and a
+ * successful `chess.loadPgn()` (which this module verified empirically
+ * DOES walk into and legality-check every variation's moves, even though
+ * it then discards them from its own public API -- see this file's test
+ * suite) proves every token in the document, main line AND every
+ * variation, is a legal chess move in its own context.
  *
- * KNOWN LIMITATION, documented rather than silently dropped: chess.js's
- * `history()` (what parsePgnSafe's `moves` array is built from) returns
- * only the PGN's MAIN line -- variations present in the pasted text are
- * parsed (so a malformed/over-nested one is still safely rejected) but not
- * recovered into branches here. A full multi-variation-aware import is
- * W1b's own scope (the real "import a .pgn file or pack.json" UI); this
- * pure op gives a correct single-line import today, which is what this
- * module's own round-trip test (export a single-line repertoire, re-import
- * it, compare) exercises.
+ * WHY THIS ISN'T "a second parser" (the standing instruction this task
+ * was given): chess.js exposes no public way to read back the variation
+ * structure it just legality-checked (`chess.history()`/`chess.pgn()`
+ * both silently drop it -- verified directly against this project's
+ * pinned chess.js 1.4.0). Recovering that structure without re-deriving
+ * chess rules by hand works like this instead: `findTopLevelParenSpans`
+ * (pgnWrapper.js) is a purely STRUCTURAL span-finder -- the exact same
+ * single-pass, comment-skipping technique as `scanParenDepth`, extended
+ * to also record `(...)` boundaries -- with zero opinion about what a
+ * legal move is. For each span found, this function reconstructs a
+ * SYNTHETIC PGN fragment (real SAN tokens already proven legal, from the
+ * true game start, plus the span's own raw text) and re-parses THAT
+ * through `parsePgnSafe` again -- so every actual move-legality decision,
+ * for the main line and for every variation at every depth, is still made
+ * by chess.js exactly once via `parsePgnSafe`, never by a hand-rolled
+ * substitute. `findTopLevelParenSpans` is called recursively on each
+ * variation's own inner text to recover nested variations the same way.
+ *
+ * SECURITY: bounded by `MAX_IMPORT_VARIATIONS` (see that constant's doc
+ * comment) -- each variation span triggers up to two re-parses of the
+ * text preceding it, an O(variations x document size) cost that isn't
+ * itself the classic nested-quantifier ReDoS shape but is still
+ * unbounded work if the SPAN COUNT alone isn't capped (e.g. thousands of
+ * sibling top-level variations packed near the end of a large document).
+ * See test/repertoireModel.test.js's "does not hang" test for the timed
+ * assertion this reasoning is checked against, matching the same
+ * "refuses or completes in under 2s, assert it, don't hope" discipline
+ * the monetization spec's own section 1.7 #1 requires for the PGN import surface.
+ *
+ * A variation this function cannot cleanly re-attach (a genuinely
+ * malformed slice -- should not happen given the whole document already
+ * passed `parsePgnSafe` once, but handled defensively rather than
+ * assumed) is skipped rather than failing the whole import; the returned
+ * `skippedVariations` count makes that honest rather than silent.
+ *
+ * MULTI-GAME DOCUMENTS: `toPgn`'s own doc comment explains why a `side:
+ * 'black'` repertoire with more than one first move prepared against
+ * exports as SEVERAL games joined in one file, not one game with a ply-0
+ * variation (pgnFromTree's public shape can't express a branch at the
+ * very root). Reading that shape back therefore needs to happen one game
+ * at a time -- `splitPgnGames` (purely structural, same header-line-vs-
+ * movetext-line technique as `splitPgnHeaderAndMovetext`) finds each
+ * game's boundaries, `importSingleGamePgn` runs the single-game algorithm
+ * above on each one, and the resulting per-game trees are UNION-merged
+ * into one combined root (`unionMergeChildren`, the same op `mergeTree`
+ * uses) -- which is exactly correct here: each game contributes exactly
+ * one distinct root branch (a different first move), so merging them
+ * back at the root reconstructs the original multi-branch tree. An
+ * ordinary single-game PGN (the overwhelmingly common case -- anything
+ * from Lichess Study, ChessBase, or this tool's own `side: 'white'`
+ * export) is just `splitPgnGames` returning one game and behaving
+ * identically to the pre-multi-game version of this function.
  *
  * @param {string} pgnText
- * @returns {{ok:true, root:object, moveCount:number} | {ok:false, message:string}}
+ * @returns {{ok:true, root:object, moveCount:number, skippedVariations:number} | {ok:false, message:string}}
  */
 function fromPgn(pgnText) {
-  const parsed = parsePgnSafe(pgnText);
-  if (!parsed.ok) return { ok: false, message: parsed.message };
+  if (typeof pgnText !== 'string' || pgnText.trim().length === 0) {
+    return { ok: false, message: 'Paste a PGN to import.' };
+  }
+  if (byteLength(pgnText) > MAX_IMPORT_PGN_BYTES) {
+    return { ok: false, message: `That PGN is too large (limit ${MAX_IMPORT_PGN_BYTES / 1024} KB).` };
+  }
+
+  const games = splitPgnGames(pgnText);
+  if (games.length === 0) {
+    return { ok: false, message: 'Paste a PGN to import.' };
+  }
+  if (games.length > MAX_IMPORT_GAMES) {
+    return { ok: false, message: `That PGN has more games than can be imported at once (limit ${MAX_IMPORT_GAMES}).` };
+  }
+
+  const root = emptyNode();
+  const counterRef = { count: 0, skipped: 0 };
+  for (const gameText of games) {
+    const single = importSingleGamePgn(gameText, counterRef);
+    if (!single.ok) return single;
+    unionMergeChildren(root, single.root);
+  }
+
+  if (!isValidNode(root)) {
+    return { ok: false, message: 'That PGN produced a repertoire tree too large or deep to import.' };
+  }
+
+  return { ok: true, root, moveCount: countNodes(root), skippedVariations: counterRef.skipped };
+}
+
+/**
+ * Splits a (possibly multi-game) PGN document into one text string per
+ * game -- purely structural (a new header block starting after movetext
+ * has already been seen means a new game began), never a legality
+ * decision; every resulting game string still goes through
+ * `parsePgnSafe` individually in `importSingleGamePgn`. Same anchored,
+ * no-nested-quantifier line scan as `splitPgnHeaderAndMovetext`.
+ */
+function splitPgnGames(pgnText) {
+  const lines = pgnText.split('\n');
+  const games = [];
+  let current = [];
+  let sawMovetext = false;
+  for (const line of lines) {
+    const isHeaderLine = /^\s*\[.*\]\s*$/.test(line);
+    if (isHeaderLine && sawMovetext) {
+      games.push(current.join('\n'));
+      current = [];
+      sawMovetext = false;
+    }
+    current.push(line);
+    if (!isHeaderLine && line.trim().length > 0) sawMovetext = true;
+  }
+  if (current.some((l) => l.trim().length > 0)) games.push(current.join('\n'));
+  return games;
+}
+
+/** The single-game import algorithm fromPgn's doc comment describes, extracted so fromPgn can run it once per game in a multi-game document. `counterRef` is shared across every game in the same import, so MAX_IMPORT_VARIATIONS bounds the WHOLE document's total variation-processing cost, not just one game's. */
+function importSingleGamePgn(pgnText, counterRef) {
+  const topResult = parsePgnSafe(pgnText);
+  if (!topResult.ok) return { ok: false, message: topResult.message };
 
   const root = emptyNode();
   let node = root;
-  for (const move of parsed.moves) {
+  for (const move of topResult.moves) {
     if (typeof move.uci !== 'string' || !UCI_RE.test(move.uci)) {
       return { ok: false, message: 'That PGN contains a move this importer could not read as a standard move.' };
     }
@@ -368,7 +513,251 @@ function fromPgn(pgnText) {
     node.children.push(child);
     node = child;
   }
-  return { ok: true, root, moveCount: parsed.moves.length };
+
+  const { movetext } = splitPgnHeaderAndMovetext(pgnText);
+  attachVariations(root, movetext, [], counterRef);
+
+  return { ok: true, root };
+}
+
+/** Builds a parseable synthetic PGN document from real, already-legal SAN tokens plus one raw text tail, for re-parsing through parsePgnSafe (see fromPgn's doc comment). Never called with input that hasn't already passed a full parsePgnSafe check upstream. */
+function reparseFragment(sanTokensSoFar, rawTail) {
+  const movetext = [...sanTokensSoFar, rawTail].join(' ').trim();
+  if (movetext.length === 0) return { ok: false, moves: [] };
+  return parsePgnSafe(`${movetext} *`);
+}
+
+/**
+ * Recursively finds and re-attaches every variation in `segmentText` (see
+ * fromPgn's doc comment for the full algorithm). `prefixSan` is the real
+ * SAN move sequence, from the true game start, needed to replay to the
+ * position immediately BEFORE `segmentText` begins. Mutates `root` in
+ * place; `counterRef` is a shared { count, skipped } object bounding total
+ * work across the whole (recursive) import via MAX_IMPORT_VARIATIONS.
+ */
+function attachVariations(root, segmentText, prefixSan, counterRef) {
+  const spans = findTopLevelParenSpans(segmentText);
+  for (const [start, end] of spans) {
+    if (counterRef.count >= MAX_IMPORT_VARIATIONS) {
+      counterRef.skipped += 1;
+      continue;
+    }
+    counterRef.count += 1;
+
+    const beforeResult = reparseFragment(prefixSan, segmentText.slice(0, start));
+    if (!beforeResult.ok || beforeResult.moves.length <= prefixSan.length) {
+      counterRef.skipped += 1;
+      continue;
+    }
+    const branchSan = beforeResult.moves.slice(0, -1).map((m) => m.san);
+    const branchUci = beforeResult.moves.slice(0, -1).map((m) => m.uci);
+
+    const innerText = segmentText.slice(start + 1, end);
+    const innerResult = reparseFragment(branchSan, innerText);
+    if (!innerResult.ok || innerResult.moves.length <= branchSan.length) {
+      counterRef.skipped += 1;
+      continue;
+    }
+    const newUcis = innerResult.moves.slice(branchSan.length).map((m) => m.uci);
+
+    const parent = nodeAtPath(root, branchUci);
+    if (parent) {
+      let cursor = parent;
+      for (const uci of newUcis) {
+        let child = cursor.children.find((c) => c.uci === uci);
+        if (!child) {
+          if (cursor.children.length >= MAX_NODE_CHILDREN) break;
+          child = { uci, children: [] };
+          cursor.children.push(child);
+        }
+        cursor = child;
+      }
+    }
+
+    attachVariations(root, innerText, branchSan, counterRef);
+  }
+}
+
+/**
+ * Shape-validates and imports a Repertoire Pack manifest (pack.json,
+ * src/buildPack.js's `packJsonFromResult` output -- spec 3.1 IMPORT, and
+ * the monetization spec's own section 1.7 #2 untrusted-input rules for this exact
+ * artifact: "format" must equal exactly, "positions" under a hard length
+ * cap, every numeric field range-checked, unknown format refused never
+ * coerced). `positions` is a FLATTENED depth-first-preorder walk of the
+ * pack's tree (buildPack.js's `flattenPositions`, not a tree itself) --
+ * rebuilt into a real Node tree here purely from each entry's `ply`
+ * (depth from the pack's own root, itself ply 0 -- see buildPack.js's
+ * `buildPackTree`), using a per-ply "last node seen" stack: DFS preorder
+ * guarantees a ply-P entry's parent is always whichever ply-(P-1) node was
+ * most recently pushed, with no need to trust or replay `fen`/`side`.
+ *
+ * Every uci is Explorer-form (the Lichess Opening Explorer's
+ * king-captures-own-rook castling encoding this codebase's own
+ * `applyExplorerUci` exists to normalize -- see that function's and
+ * repertoireModel's own header comments) -- normalized here by REPLAYING
+ * the whole tree through a live chess.js instance, which doubles as this
+ * import's real legality check (spec 1.7 #2's "every FEN validated by
+ * chess.js before it reaches the board": this project replays moves
+ * rather than trusting the manifest's own `fen` strings, a strictly
+ * stronger check that also gets normalization for free -- the manifest's
+ * `fen` field is never read or trusted). Any illegal move anywhere in the
+ * tree fails the WHOLE import (never a partial/coerced result -- "unknown
+ * format refused, never coerced" extends to "an internally inconsistent
+ * one is too", since a corrupt manifest is not a case this importer
+ * should try to partially salvage the way a merely-malformed PGN
+ * variation is, per this module's own DoS-bounding reasoning above).
+ *
+ * @param {string} rawText
+ * @returns {{ok:true, root:object, side:string, band:string|null, title:string, moveCount:number} | {ok:false, message:string}}
+ */
+function importPackJson(rawText) {
+  if (typeof rawText !== 'string' || rawText.trim().length === 0) {
+    return { ok: false, message: 'Paste or choose a pack file to import.' };
+  }
+  if (byteLength(rawText) > MAX_PACK_JSON_BYTES) {
+    return { ok: false, message: `That file is too large (limit ${MAX_PACK_JSON_BYTES / 1024} KB) to be a repertoire pack.` };
+  }
+  let candidate;
+  try {
+    candidate = JSON.parse(rawText);
+  } catch (err) {
+    return { ok: false, message: 'That does not look like a valid pack file (not valid JSON).' };
+  }
+  if (!isValidPackJson(candidate)) {
+    return { ok: false, message: `That file is not a recognized repertoire pack (expected format "${PACK_FORMAT}").` };
+  }
+
+  const root = treeFromPackPositions(candidate.positions);
+  if (!normalizePackTree(root)) {
+    return { ok: false, message: 'That pack file contains a move sequence this importer could not read as legal chess moves.' };
+  }
+  if (!isValidNode(root)) {
+    return { ok: false, message: 'That pack produced a repertoire tree too large or deep to import.' };
+  }
+
+  return {
+    ok: true,
+    root,
+    side: candidate.color,
+    band: VALID_BANDS.has(candidate.band) ? candidate.band : null,
+    title: typeof candidate.title === 'string' && candidate.title.trim().length > 0 ? candidate.title.trim().slice(0, MAX_NAME_LENGTH) : 'Imported pack',
+    moveCount: countNodes(root),
+  };
+}
+
+function isFiniteNumberOrNull(v) {
+  return v === null || v === undefined || (typeof v === 'number' && Number.isFinite(v));
+}
+
+/** One entry of pack.json's flat `positions` array (spec 1.7 #2: "every numeric field Number.isFinite and range-checked"). Only the fields this importer actually uses (`uci`, `ply`) are structurally required; the stats fields (n/w/d/l/score/wilson/reach) are validated when present but never required -- this importer discards them (the live band table looks up fresh data, spec 3.1), so a manifest missing them is still a usable import. */
+function isValidPackPosition(p) {
+  if (!p || typeof p !== 'object') return false;
+  if (typeof p.uci !== 'string' || !UCI_RE.test(p.uci)) return false;
+  if (!Number.isInteger(p.ply) || p.ply < 0 || p.ply > MAX_PACK_PLY) return false;
+  if (!isFiniteNumberOrNull(p.n) || (p.n != null && p.n < 0)) return false;
+  if (!isFiniteNumberOrNull(p.score) || (p.score != null && (p.score < 0 || p.score > 1))) return false;
+  if (!isFiniteNumberOrNull(p.reach) || (p.reach != null && (p.reach < 0 || p.reach > 1))) return false;
+  return true;
+}
+
+function isValidPackJson(candidate) {
+  return Boolean(candidate)
+    && typeof candidate === 'object'
+    && candidate.format === PACK_FORMAT
+    && (candidate.color === 'white' || candidate.color === 'black')
+    && typeof candidate.band === 'string'
+    && Array.isArray(candidate.positions)
+    && candidate.positions.length > 0
+    && candidate.positions.length <= MAX_PACK_POSITIONS
+    && candidate.positions.every(isValidPackPosition);
+}
+
+/** Rebuilds a Node tree from pack.json's flat, depth-first-preorder `positions` array -- see importPackJson's doc comment for the "last node seen per ply" reconstruction this relies on. Uci values are still Explorer-form at this point; normalizePackTree() below normalizes them. */
+function treeFromPackPositions(positions) {
+  const root = emptyNode();
+  const lastAtPly = []; // lastAtPly[k] = the most recently created node at ply k
+  for (const pos of positions) {
+    const parent = pos.ply === 0 ? root : lastAtPly[pos.ply - 1];
+    if (!parent) continue; // a ply-P entry with no ply-(P-1) predecessor yet -- malformed ordering, skip defensively rather than mis-attach it
+    const node = { uci: pos.uci, children: [] };
+    parent.children.push(node);
+    lastAtPly[pos.ply] = node;
+  }
+  return root;
+}
+
+/** Replays `root`'s whole tree through a fresh chess.js instance via applyExplorerUci, normalizing every node's uci in place (Explorer-form -> this project's standard form) and doubling as the real legality check. Returns false (leaving the tree partially normalized -- callers must discard it, never persist) the moment any move is illegal. */
+function normalizePackTree(root) {
+  const chess = new Chess();
+  function walk(node) {
+    for (const child of node.children) {
+      let moveResult;
+      try {
+        moveResult = applyExplorerUci(chess, child.uci);
+      } catch (err) {
+        return false;
+      }
+      child.uci = `${moveResult.from}${moveResult.to}${moveResult.promotion || ''}`;
+      const childOk = walk(child);
+      chess.undo();
+      if (!childOk) return false;
+    }
+    return true;
+  }
+  return walk(root);
+}
+
+/**
+ * Multi-repertoire management (task title's other half): merges an
+ * already-imported Node tree (`sourceRoot` -- from fromPgn/importPackJson,
+ * already normalized/validated) into an EXISTING repertoire's tree, in
+ * place. Pure set-union on uci children -- a uci already present at a
+ * given position is left untouched (its own subtree, and any `note`, are
+ * never overwritten by an import); a new uci is appended as an additional
+ * branch, respecting MAX_NODE_CHILDREN the same way a manual addMove()
+ * would. Deliberately does NOT apply addMove()'s "own ply replaces"
+ * semantics -- an import is describing existing prepared lines (both
+ * "your" moves and opponent replies already resolved by whoever built the
+ * source), not a single new choice the live board just made, so a union
+ * merge is the correct, non-destructive operation. Returns the number of
+ * newly added nodes so the caller can report something honest ("12 new
+ * moves added" / "nothing new -- already in this repertoire").
+ *
+ * @param {object} targetRepertoire mutated in place; `updated` bumped iff anything was actually added.
+ * @param {object} sourceRoot
+ * @returns {number} nodes added
+ */
+function mergeTree(targetRepertoire, sourceRoot) {
+  const added = unionMergeChildren(targetRepertoire.root, sourceRoot);
+  if (added > 0) targetRepertoire.updated = new Date().toISOString();
+  return added;
+}
+
+/**
+ * The actual recursive set-union walk `mergeTree` (merging an import into
+ * an existing saved repertoire) and `fromPgn` (recombining a multi-game
+ * PGN document's separately-imported games back into one tree, since each
+ * game is really just one root branch of the same original repertoire --
+ * see fromPgn's own doc comment) both need. A uci already present at a
+ * given position is left untouched; a new one is appended as an
+ * additional branch, respecting MAX_NODE_CHILDREN.
+ *
+ * @returns {number} nodes newly added to `targetNode`'s subtree.
+ */
+function unionMergeChildren(targetNode, sourceNode) {
+  let added = 0;
+  for (const sourceChild of sourceNode.children) {
+    let targetChild = targetNode.children.find((c) => c.uci === sourceChild.uci);
+    if (!targetChild) {
+      if (targetNode.children.length >= MAX_NODE_CHILDREN) continue;
+      targetChild = { uci: sourceChild.uci, children: [] };
+      targetNode.children.push(targetChild);
+      added += 1;
+    }
+    added += unionMergeChildren(targetChild, sourceChild);
+  }
+  return added;
 }
 
 /**
@@ -454,6 +843,10 @@ module.exports = {
   MAX_NAME_LENGTH,
   STORAGE_KEY,
   UCI_RE,
+  PACK_FORMAT,
+  MAX_PACK_POSITIONS,
+  MAX_PACK_JSON_BYTES,
+  MAX_IMPORT_VARIATIONS,
   createRepertoire,
   emptyNode,
   nodeAtPath,
@@ -466,8 +859,11 @@ module.exports = {
   size,
   toPgn,
   fromPgn,
+  importPackJson,
+  mergeTree,
   isValidNode,
   isValidRepertoire,
+  isValidPackJson,
   parseRepertoireList,
   sanitizeFilename,
   sanitizeName,
