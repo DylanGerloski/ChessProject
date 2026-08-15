@@ -93,9 +93,11 @@ function loadAggregatesCached(dir) {
  *   call site to this module means passing `band` instead of `ratings`.
  * @param {string} [args.pool] defaults to DEFAULT_POOL ('blitz').
  * @param {string} [args.familySlug] forwarded to aggregateSource.js's
- *   explorerShapedResponse -- required for any position deeper than ply 6
- *   (root.json only covers ply <= 6); pass ecoFamilies.js's
- *   slugifyFamilyName(openingName) or an already-known family slug.
+ *   explorerShapedResponse -- required for any position deeper than
+ *   ROOT_MAX_PLY (root.json only covers ply <= ROOT_MAX_PLY, 3 as of the
+ *   2026-08-15 shard-size fix, src/ingest/aggregate.js); pass
+ *   ecoFamilies.js's slugifyFamilyName(openingName) or an already-known
+ *   family slug.
  * @param {number} [args.moves] max candidate moves returned, matching
  *   fetchExplorerMoves' own `moves` param -- applied by slicing the
  *   aggregate's already-sorted (most-played-first) move list, since the

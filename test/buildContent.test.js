@@ -32,12 +32,12 @@ function withTempDist(fn) {
     });
 }
 
-test('buildContentPages writes 10 opening pages plus the openings hub, 7 guides, the guides hub, and the FAQ -- all with a unique title/description and one H1', () =>
+test('buildContentPages writes 10 opening pages plus the openings hub, 8 guides, the guides hub, and the FAQ -- all with a unique title/description and one H1', () =>
   withTempDist(async (outDir) => {
     const { fetchImpl } = makeSmartExplorerFetch();
     const { written } = await buildContentPages({ fetchImpl, outDir });
 
-    assert.equal(written.length, 20); // 10 openings + 1 hub + 7 guides + 1 guides hub + 1 FAQ
+    assert.equal(written.length, 21); // 10 openings + 1 hub + 8 guides + 1 guides hub + 1 FAQ
 
     const titles = new Set();
     const descriptions = new Set();
@@ -151,7 +151,7 @@ test('renderOpeningPage: omitting drillFile is byte-identical to no drill CTA; p
   assert.match(withDrill, /Open the Italian Game drill &rarr;/);
 });
 
-test('phase 2: the guides hub links to all 7 guide articles, and every guide has exactly one H1 and real data pulled from entries', () =>
+test('phase 2: the guides hub links to all 8 guide articles, and every guide has exactly one H1 and real data pulled from entries', () =>
   withTempDist(async (outDir) => {
     const { fetchImpl } = makeSmartExplorerFetch();
     const { written } = await buildContentPages({ fetchImpl, outDir });
@@ -165,6 +165,7 @@ test('phase 2: the guides hub links to all 7 guide articles, and every guide has
       'most-common-opening-mistakes-1600-1800.html',
       'should-you-study-openings-under-1500.html',
       'scandinavian-defense-at-club-level.html',
+      'how-to-build-your-opening-repertoire.html',
       'opening-principles-by-win-rate.html',
     ];
     for (const file of guideFiles) {
@@ -182,6 +183,35 @@ test('phase 2: the guides hub links to all 7 guide articles, and every guide has
     const rankingPage = written.find((p) => p.file === 'best-chess-openings-for-beginners.html');
     const namedCount = OPENINGS.filter((o) => rankingPage.html.includes(o.name)).length;
     assert.ok(namedCount >= 5, 'the beginner-ranking guide should reference several real opening names pulled from entries');
+  })
+);
+
+test('the repertoire how-to guide computes its worked examples from entries and degrades gracefully with no data', () =>
+  withTempDist(async (outDir) => {
+    const { fetchImpl } = makeSmartExplorerFetch();
+    const { written } = await buildContentPages({ fetchImpl, outDir });
+    const page = written.find((p) => p.file === 'how-to-build-your-opening-repertoire.html');
+    assert.ok(page, 'how-to-build-your-opening-repertoire.html should be written');
+
+    // The shortlist table names real tracked openings pulled from entries,
+    // never placeholders.
+    const namedCount = OPENINGS.filter((o) => page.html.includes(o.name)).length;
+    assert.ok(namedCount >= 5, 'the shortlist should name several real opening names pulled from entries');
+
+    // The sample-size section shows real computed +/- intervals, and the
+    // article is structured as its five numbered steps.
+    assert.match(page.html, /&plusmn;/);
+    const stepMatches = page.html.match(/<h2>Step \d:/g) || [];
+    assert.equal(stepMatches.length, 5);
+
+    // Degenerate build (no entries at all): every worked example falls back
+    // to an honest empty-note instead of crashing or printing NaN/undefined.
+    const guide = require('../src/content/how-to-build-your-opening-repertoire');
+    const { escapeHtml, formatPct, wrapTable } = require('../src/render');
+    const { formatSanLine, formatGamesAbbrev } = require('../src/renderContent');
+    const emptyHtml = guide.render({ entries: [], escapeHtml, formatPct, wrapTable, formatSanLine, formatGamesAbbrev });
+    assert.match(emptyHtml, /empty-note/);
+    assert.doesNotMatch(emptyHtml, /NaN|undefined/);
   })
 );
 

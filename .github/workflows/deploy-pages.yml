@@ -3,6 +3,8 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [master]
+  pull_request:
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -18,8 +20,8 @@ concurrency:
   cancel-in-progress: true
 
 # build -> quality -> deploy, so a failing quality gate blocks the deploy.
-# There are no PRs in this repo's flow, so a gate that only ran on PRs would
-# never run at all.
+# build and quality also run on pull requests (as PR status checks), but
+# deploy is gated to push events only -- see the deploy job's `if:` below.
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -123,6 +125,7 @@ jobs:
 
   deploy:
     needs: quality
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
