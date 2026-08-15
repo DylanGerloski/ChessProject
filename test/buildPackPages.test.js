@@ -77,9 +77,10 @@ test('buildOnePackBundle produces a bundle whose line/position counts match pack
   assert.equal(bundle.positionCount, require('../src/buildPack').countPositions(bundle.tree));
   assert.ok(bundle.samplePgn.includes('(free sample)'));
   assert.ok(bundle.samplePgn.includes('1. e4'));
-  // STORE.packs['white-1400-1600'] is still the shipped sentinel -- see
-  // src/render.js's STORE constant -- so this bundle must self-report noindex.
-  assert.equal(bundle.noindex, true);
+  // STORE.packs['white-1400-1600'] now carries a real, non-placeholder
+  // Gumroad url -- see src/render.js's STORE constant -- so this bundle
+  // must self-report indexable, not noindex.
+  assert.equal(bundle.noindex, false);
 });
 
 test('buildPackPages writes the index + one detail page + one sample.pgn per catalogue pack, all under repertoire-packs/', async () => {
@@ -109,10 +110,10 @@ test('buildPackPages writes the index + one detail page + one sample.pgn per cat
       assert.ok(sampleContent.includes('(free sample)'));
     }
 
-    // Every written .html file is noindex right now (STORE still carries
-    // sentinel urls) and none renders the literal sentinel string.
+    // STORE now carries real Gumroad urls, so every written .html file is
+    // indexable (not noindex), and none renders the literal sentinel string.
     for (const w of written) {
-      assert.equal(w.noindex, true);
+      assert.equal(w.noindex, false);
       assert.ok(!w.html.includes('PLACEHOLDER'));
     }
   } finally {

@@ -56,17 +56,13 @@ const GATED_PAGES = [
   'italian-game-variations.html', // representative family/variations hub
   'methodology.html', // methodology page -- not yet built; expected to fail this gate until it ships
   // Repertoire Pack sales pages (design-standards.md Distinctiveness Gate
-  // item 6: "both new page types"). Both currently carry noindex (STORE in
-  // src/render.js still ships sentinel, not-yet-real, merchant urls -- see
-  // isPlaceholderStoreUrl()) until a human picks a merchant and real STORE
-  // urls land, so `seo` is skipped here specifically (Lighthouse's
-  // "is-crawlable" audit -- everything else on these two pages already
-  // scores >=90) rather than exempting the whole page from this gate.
-  // Remove this skipCategories override once STORE carries real urls --
-  // at that point noindex clears and seo should score >=90 like every
-  // other page, so a real regression would show up again immediately.
-  { page: 'repertoire-packs.html', skipCategories: ['seo'] },
-  { page: 'repertoire-packs/white-1400-1600.html', skipCategories: ['seo'] }, // a representative pack detail page (the second new page type)
+  // item 6: "both new page types"). STORE (src/render.js) now carries real
+  // Gumroad merchant urls, so isPlaceholderStoreUrl() is false and these
+  // pages are no longer noindexed -- the temporary seo skipCategories
+  // override that used to live here has been removed; these are gated on
+  // `seo` like every other page in this list now.
+  'repertoire-packs.html',
+  'repertoire-packs/white-1400-1600.html', // a representative pack detail page (the second new page type)
 ];
 
 function scoreOf(categories, key) {
