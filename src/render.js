@@ -216,6 +216,13 @@ const DESIGN_TOKENS = {
   '--type-page-title-tracking': '-0.02em',
   '--type-section': `${'var(--weight-bold)'} ${'var(--text-lg)'}/${'var(--leading-snug)'} var(--font-serif)`,
   '--type-section-tracking': '0em',
+  // A second, larger h2 tier for the 2-3 sections per page that carry that
+  // page's actual job, using the --text-xl step that previously had no
+  // non-mobile consumer. Same weight/family/leading as --type-section --
+  // only the size step changes -- so it reads as "the same kind of
+  // heading, emphasized" rather than a new heading style.
+  '--type-section-lead': `${'var(--weight-bold)'} ${'var(--text-xl)'}/${'var(--leading-snug)'} var(--font-serif)`,
+  '--type-section-lead-tracking': '0em',
   '--type-subsection': `${'var(--weight-bold)'} ${'var(--text-md)'}/${'var(--leading-snug)'} var(--font-serif)`,
   '--type-subsection-tracking': '0em',
   '--type-lede': `${'var(--weight-regular)'} ${'var(--text-md)'}/${'var(--leading-relaxed)'} var(--font-sans)`,
@@ -251,6 +258,21 @@ const DESIGN_TOKENS = {
 
   '--border-hairline': '1px',
   '--border-control': '2px',
+
+  // Data-visualization sub-scale: every value below reuses an existing ramp
+  // index or space/color role, per design-standards.md ("a new token
+  // duplicating an existing value under a different name is itself a QA
+  // failure") -- these are new ROLES (chart heights, chart-specific color
+  // assignments), not new underlying values.
+  '--chart-h-spark': '24px',
+  '--chart-h-inline': '96px',
+  '--chart-h-hero': '220px',
+  '--chart-grid': 'var(--color-ink-2)',
+  '--chart-band': 'var(--color-ink-1)',
+  '--chart-mark': 'var(--color-accent-5)',
+  '--chart-mark-muted': 'var(--color-ink-3)',
+  '--chart-domain-lo': '45',
+  '--chart-domain-hi': '57',
 
   // Focus geometry: the portfolio's one shared interaction signature
   // (design-standards.md). --focus-ring-color aliases the theme-role
@@ -456,7 +478,14 @@ ${designTokensCss(THEME_ROLES.dark)}
     overflow: hidden;
   }
 
-  html { background: var(--color-bg); }
+  /* overflow-x: clip on the ROOT (not on .page -- a clip on a 880px-wide
+     ancestor would cut off .zone-full-bleed's escape at that same 880px,
+     defeating the whole point). 100vw is very slightly wider than the
+     actual viewport in browsers that reserve room for a scrollbar, which
+     without this would add a page-level horizontal scrollbar; clipping at
+     the root only trims that few-px overshoot, it does not constrain
+     .zone-full-bleed's intentional bleed to the real viewport edge. */
+  html { background: var(--color-bg); overflow-x: clip; }
 
   body {
     font: var(--type-body);
@@ -464,6 +493,13 @@ ${designTokensCss(THEME_ROLES.dark)}
     letter-spacing: var(--type-body-tracking);
     background: var(--color-bg);
     color: var(--color-text);
+  }
+
+  /* The width cap lives on this inner wrapper, not on body itself, so a
+     .zone-full-bleed descendant of .page can escape to the true viewport
+     edge (100vw / calc(50% - 50vw), see below) instead of only recovering
+     body's own horizontal padding. */
+  .page {
     max-width: var(--width-page);
     margin: 0 auto;
     padding: var(--space-5) var(--space-4) var(--space-7);
@@ -472,7 +508,7 @@ ${designTokensCss(THEME_ROLES.dark)}
   /* Opt-in wide container for the three data-dense page types (repertoire
      band pages, the drill, player lookup) — added at those specific call
      sites only, never as the default. See design-standards.md 4.5. */
-  body.layout--wide { max-width: var(--width-wide); }
+  .page--wide { max-width: var(--width-wide); }
 
   main { display: block; }
 
@@ -583,11 +619,29 @@ ${designTokensCss(THEME_ROLES.dark)}
   h2 { font: var(--type-section); font-family: var(--font-serif); letter-spacing: var(--type-section-tracking); margin: var(--space-6) 0 var(--space-3); }
   h3 { font: var(--type-subsection); font-family: var(--font-serif); letter-spacing: var(--type-subsection-tracking); margin: var(--space-5) 0 var(--space-2); }
 
+  /* A second h2 tier for the 2-3 sections per page that
+     carry that page's actual job -- applied deliberately per page (never
+     automatically) by adding class="section-lead" to that h2. Larger size
+     (--type-section-lead, the previously-unused --text-xl step) plus a
+     structurally different opener: a full-content-width hairline rule with
+     more space before it than a plain h2 gets, so the "gap between sections
+     >= 2x the largest gap inside either section" rule
+     (docs/DESIGN_PLAYBOOK.md) is visible, not nominal. */
+  h2.section-lead {
+    font: var(--type-section-lead);
+    font-family: var(--font-serif);
+    letter-spacing: var(--type-section-lead-tracking);
+    padding-top: var(--space-6);
+    margin-top: var(--space-8);
+    border-top: 1px solid var(--color-border);
+  }
+
   /* Vertical rhythm (design-standards.md 4.5): section spacing opens up at
      tablet width and above; stays tighter on mobile (the --space-6 default
      set on h2 just above). */
   @media (min-width: 768px) {
     h2 { margin-top: var(--space-8); }
+    h2.section-lead { padding-top: var(--space-8); margin-top: var(--space-8); }
   }
 
   /* Progressive enhancement, zero cost where unsupported: avoids
@@ -712,7 +766,7 @@ ${designTokensCss(THEME_ROLES.dark)}
     border-radius: var(--radius-md);
     background: var(--color-surface);
     color: var(--color-text);
-    transition: border-color 120ms ease, box-shadow 120ms ease;
+    transition: border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
   }
 
   .lookup-form input:hover,
@@ -735,7 +789,7 @@ ${designTokensCss(THEME_ROLES.dark)}
     background: var(--color-accent-dark);
     color: var(--color-accent-contrast);
     cursor: pointer;
-    transition: background-color 120ms ease, transform 120ms ease;
+    transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
   }
 
   .lookup-form button:hover { background: var(--color-accent); }
@@ -1050,6 +1104,13 @@ ${designTokensCss(THEME_ROLES.dark)}
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   }
 
+  /* A single-card section (e.g. one CTA card with nothing to sit beside it)
+     stays a single explicit column spanning the full content width, instead
+     of rendering at auto-fill's ~264px minimum with a large empty track
+     beside it in a wide viewport. */
+  .card-grid--single { grid-template-columns: 1fr; }
+  .card-grid--single .card { max-width: var(--measure); }
+
   .card {
     position: relative;
     background: var(--color-surface);
@@ -1057,7 +1118,7 @@ ${designTokensCss(THEME_ROLES.dark)}
     border-radius: var(--radius-md);
     padding: var(--space-4);
     box-shadow: var(--shadow-sm);
-    transition: box-shadow 120ms ease, transform 120ms ease;
+    transition: box-shadow var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
   }
   .card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
   .card h3 { margin: 0 0 var(--space-2); font-size: var(--text-base); }
@@ -1119,7 +1180,7 @@ ${designTokensCss(THEME_ROLES.dark)}
     text-decoration: none;
     font-weight: var(--weight-bold);
     font-size: var(--text-sm);
-    transition: background-color 120ms ease, transform 120ms ease;
+    transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-fast) var(--motion-ease-standard);
   }
   .band-pill:hover { background: var(--color-accent); color: var(--color-accent-contrast); transform: translateY(-1px); }
   .band-pill-color { font-weight: var(--weight-regular); opacity: 0.85; }
@@ -1311,7 +1372,7 @@ ${designTokensCss(THEME_ROLES.dark)}
   .explorer-noscript { border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); padding: var(--space-4); }
 
   @media (max-width: 640px) {
-    body { padding: var(--space-4) var(--space-3) var(--space-6); }
+    .page { padding: var(--space-4) var(--space-3) var(--space-6); }
     h1.page-title { font-size: var(--text-xl); }
     .table-hint { display: block; }
     .wdl-bar { width: 72px; }
@@ -1324,6 +1385,12 @@ ${designTokensCss(THEME_ROLES.dark)}
     .lookup-form input, .lookup-form select { flex: 1 1 auto; width: 100%; }
     .lookup-form label { width: 100%; }
     .card-grid { grid-template-columns: 1fr; }
+    /* An explicit 2-up grid instead of flex-wrap, so the pill count (8: 4
+       bands x 2 colors) ends in one full final row instead of a ragged
+       six-full-rows-then-two-then-one shape -- design-standards.md forbids
+       a ragged final row in a card/grid layout. */
+    .band-picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
+    .band-pill { justify-content: center; }
   }
 
   /* Grid zone classes (design-standards.md: 12/6/4 column grid at
@@ -1335,7 +1402,76 @@ ${designTokensCss(THEME_ROLES.dark)}
      above for any block that needs the reading measure outside <main>. */
   .zone-measure { max-width: var(--measure); }
   .zone-content { max-width: var(--grid-max); margin: 0 auto; }
-  .zone-full-bleed { max-width: none; margin-left: calc(-1 * var(--space-4)); margin-right: calc(-1 * var(--space-4)); }
+
+  /* True viewport-edge bleed, not just a recovery of .page's own padding.
+     100vw/calc(50% - 50vw) is measured from the viewport regardless of
+     .page's max-width, so this now actually reaches the screen edge
+     instead of stopping at .page's own inner padding. html's
+     overflow-x: clip (above) contains this element's sub-pixel
+     overshoot without constraining the bleed itself. */
+  .zone-full-bleed {
+    max-width: none;
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+  }
+
+  /* Homepage above-the-fold data strip (buildStatic.js's dataStripHtml):
+     a full-bleed band immediately under the h1, so the page opens with a
+     real number instead of only a claim about one. The outer element does
+     the full-bleed escape; .data-strip-inner re-applies the page's own
+     max-width/centering so the four columns line up with everything below
+     them rather than spanning the raw viewport edge to edge. */
+  .data-strip {
+    background: var(--color-surface-alt);
+    border-top: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+    /* margin-top/-bottom only -- NOT the margin shorthand, which would
+       also set margin-left/-right to 0 and, at equal specificity and later
+       source order, silently overwrite .zone-full-bleed's own
+       margin-left/-right: calc(50% - 50vw) that this element depends on to
+       actually reach the viewport edge. */
+    margin-top: var(--space-6);
+    margin-bottom: var(--space-6);
+  }
+  .data-strip-inner {
+    max-width: var(--grid-max);
+    margin: 0 auto;
+    padding: var(--space-5) var(--space-4);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-5);
+  }
+  /* min-width: 0 overrides a grid item's default min-width: auto, which
+     otherwise sizes the column to its content's max-content width (e.g. an
+     unbreakable "X,XXX,XXX games" run) instead of shrinking to its 1fr
+     share -- the standard cause of a grid growing past its own container. */
+  .data-strip-col { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+  .data-strip-band {
+    font: var(--type-label);
+    font-family: var(--font-sans);
+    letter-spacing: var(--type-label-tracking);
+    color: var(--color-muted);
+    text-transform: uppercase;
+  }
+  .data-strip-opening { font-family: var(--font-serif); font-weight: var(--weight-bold); color: var(--color-accent-dark); font-size: var(--text-md); }
+  .data-strip-score { font-size: var(--text-sm); font-weight: var(--weight-bold); }
+  .data-strip-meta { font-weight: var(--weight-regular); color: var(--color-muted); }
+  .data-strip-empty { color: var(--color-muted); font-size: var(--text-sm); }
+  .data-strip-bar {
+    width: 100%;
+    height: var(--chart-h-spark);
+    margin-top: var(--space-1);
+  }
+  .data-strip-bar-track { fill: var(--chart-band); }
+  .data-strip-bar-fill { fill: var(--chart-mark); }
+
+  @media (max-width: 1023px) {
+    .data-strip-inner { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 639px) {
+    .data-strip-inner { grid-template-columns: 1fr; gap: var(--space-3); padding: var(--space-4) var(--space-3); }
+  }
 
   /* AdSense in dark mode: this site runs Google
      Auto Ads (renderDocumentHead's adsbygoogle.js script tag, no manually
@@ -1866,7 +2002,8 @@ function renderPlayerPage({ username, ratingRows, gameSummary, nav = { player: '
   return `<!DOCTYPE html>
 <html lang="en">
 ${renderDocumentHead(`${username} | Repertoire Builder`)}
-<body class="layout--wide">
+<body>
+<div class="page page--wide">
   ${renderHeader(nav, 'player')}
   <main>
     <h1 class="page-title">${escapeHtml(username)}</h1>
@@ -1879,6 +2016,7 @@ ${renderDocumentHead(`${username} | Repertoire Builder`)}
     ${renderGamesTable(gameSummary)}
   </main>
   ${renderFooter('Data source: <a href="https://lichess.org/api">lichess.org/api</a>.')}
+</div>
 </body>
 </html>
 `;
@@ -1960,7 +2098,8 @@ function renderRepertoirePage({ ratingBand, color, opening, totals, tree, nav = 
   return `<!DOCTYPE html>
 <html lang="en">
 ${renderDocumentHead({ title, description, canonical })}
-<body class="layout--wide">
+<body>
+<div class="page page--wide">
   ${renderHeader(nav, 'repertoire')}
   <main>
     ${renderPageHead({
@@ -1975,6 +2114,7 @@ ${renderDocumentHead({ title, description, canonical })}
     ${renderRepertoireTree(tree)}
   </main>
   ${renderFooter('Data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a> (explorer.lichess.ovh, keyless, no account required).', legalLinks)}
+</div>
 </body>
 </html>
 `;
@@ -2030,7 +2170,8 @@ function renderRepertoireExplorerPage({ combos, defaultBand, defaultColor, bandP
   return `<!DOCTYPE html>
 <html lang="en">
 ${renderDocumentHead({ title, description, canonical })}
-<body class="layout--wide">
+<body>
+<div class="page page--wide">
   ${renderHeader(nav, 'repertoire')}
   <main>
     ${renderPageHead({
@@ -2049,6 +2190,7 @@ ${renderDocumentHead({ title, description, canonical })}
   ${renderFooter('Data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a> (explorer.lichess.ovh, keyless, no account required).', legalLinks)}
   <script type="application/json" id="repertoire-data">${JSON.stringify(payload)}</script>
   <script src="repertoire.js" defer></script>
+</div>
 </body>
 </html>
 `;

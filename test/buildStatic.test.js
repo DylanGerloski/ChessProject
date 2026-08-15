@@ -482,13 +482,13 @@ test('playerLookupPage references the bundled script and has no server-only rout
 
 test('playerLookupPage opts into the wide layout container (B3: player lookup is a data-dense page type)', () => {
   const html = playerLookupPage();
-  assert.match(html, /<body class="layout--wide">/);
+  assert.match(html, /<div class="page page--wide">/);
 });
 
 test('indexPage does NOT opt into the wide layout container (B3: only the three data-dense page types do)', () => {
   const html = indexPage([]);
-  assert.match(html, /<body>/);
-  assert.doesNotMatch(html, /<body class="layout--wide">/);
+  assert.match(html, /<div class="page">/);
+  assert.doesNotMatch(html, /<div class="page page--wide">/);
 });
 
 test('indexPage (G1, R7): the rating-band picker is a single role=group pill control (the primary action); the drill card and opening cards are demoted outline cards, with no link targets added/removed/reordered', () => {

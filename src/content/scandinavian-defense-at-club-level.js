@@ -38,7 +38,7 @@ function render(ctx) {
     .join('');
 
   return `
-    <p>1...d5 in reply to 1.e4 &mdash; the Scandinavian Defense &mdash; is a recurring target in beginner-advice threads: &ldquo;gives up the center too early,&rdquo; &ldquo;loses time moving the queen twice.&rdquo; Whatever the theoretical merits, here&rsquo;s what actually happens in the games this site tracked.</p>
+    <p>1...d5 in reply to 1.e4, the Scandinavian Defense, is a recurring target in beginner-advice threads: &ldquo;gives up the center too early,&rdquo; &ldquo;loses time moving the queen twice.&rdquo; Whatever the theoretical merits, here&rsquo;s what actually happens in the games this site tracked.</p>
 
     <h2>Score by rating band</h2>
     ${wrapTable(`<table><caption class="sr-only">Scandinavian Defense score for Black by rating band</caption><thead><tr><th scope="col">Rating band</th><th scope="col">Games</th><th scope="col">Score for Black</th></tr></thead><tbody>${bandRows}</tbody></table>`, 'Scandinavian Defense score for Black by rating band')}
@@ -52,7 +52,7 @@ function render(ctx) {
     ${tryRows ? wrapTable(`<table><caption class="sr-only">Most common White replies against the Scandinavian Defense</caption><thead><tr><th scope="col">Move</th><th scope="col">Games</th><th scope="col">Played</th></tr></thead><tbody>${tryRows}</tbody></table>`, 'Most common White replies against the Scandinavian Defense') : '<p class="empty-note">No reply data was available for this build.</p>'}
 
     <h2>Reading this honestly</h2>
-    <p>A defense scoring competitively at club level doesn&rsquo;t settle the theoretical debate about its soundness at the very top &mdash; master-level theory and club-level practice are different questions, and this site&rsquo;s masters-database data (see the opening page below) is worth checking too. What this page does show is that &ldquo;unsound&rdquo; as often used in beginner forums usually means &ldquo;objectively imperfect,&rdquo; not &ldquo;loses in practice at your rating.&rdquo;</p>
+    <p>A defense scoring competitively at club level doesn&rsquo;t settle the theoretical debate about its soundness at the very top. Master-level theory and club-level practice are different questions, and this site&rsquo;s masters-database data (see the opening page below) is worth checking too. What this page does show is that &ldquo;unsound&rdquo; as often used in beginner forums usually means &ldquo;objectively imperfect&rdquo; rather than &ldquo;loses in practice at your rating.&rdquo;</p>
 
     <h2>Go deeper</h2>
     <p>See the full <a href="scandinavian-defense.html">Scandinavian Defense page &rarr;</a> for master games, recent club games, and common mistakes in this exact line.</p>

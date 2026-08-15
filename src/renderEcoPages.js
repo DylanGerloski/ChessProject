@@ -219,6 +219,7 @@ function renderFamilyHubPage({ familyEntry, bandStats, nav, t0CrossLink = null, 
 <html lang="en">
 ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd })}
 <body>
+<div class="page">
   ${renderHeader(nav, 'eco')}
   <main>
     ${renderPageHead({
@@ -256,6 +257,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd 
        <a href="${ECO_EXPLORER_FILE}">Search and play every line in the interactive explorer &rarr;</a></p>${relatedHtml}
   </main>
   ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a> (main line only, retrieved ${BUILD_DATE}) and the CC0-licensed <a href="https://github.com/lichess-org/chess-openings">lichess.org opening database</a> (all variations). ${pieceAttributionHtml()}`, ECO_LEGAL_LINKS)}
+</div>
 </body>
 </html>
 `;
@@ -312,6 +314,7 @@ function renderEcoVolumeIndexPage({ volume, codeRows, nav }) {
 <html lang="en">
 ${renderDocumentHead({ title, description, canonical, jsonLd })}
 <body>
+<div class="page">
   ${renderHeader(nav, 'eco')}
   <main>
     ${renderBreadcrumb(breadcrumbItems)}
@@ -332,6 +335,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd })}
        &middot; <a href="${ECO_INDEX_FILE}">All ECO families &rarr;</a></p>
   </main>
   ${renderFooter(`ECO classification data from the CC0-licensed <a href="https://github.com/lichess-org/chess-openings">lichess.org opening database</a>.`, ECO_LEGAL_LINKS)}
+</div>
 </body>
 </html>
 `;
@@ -417,6 +421,7 @@ function renderEcoIndexPage({ pageFamilies, pageNum, totalPages, stats, nav }) {
 <html lang="en">
 ${renderDocumentHead({ title, description, canonical, jsonLd })}
 <body>
+<div class="page">
   ${renderHeader(nav, 'eco')}
   <main>
     ${renderBreadcrumb(breadcrumbItems)}
@@ -432,6 +437,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd })}
     ${pagination}
   </main>
   ${renderFooter(`ECO classification data from the CC0-licensed <a href="https://github.com/lichess-org/chess-openings">lichess.org opening database</a>.`, ECO_LEGAL_LINKS)}
+</div>
 </body>
 </html>
 `;

@@ -33,6 +33,7 @@ function indexPage() {
 <html lang="en">
 ${renderDocumentHead(SITE_NAME)}
 <body>
+<div class="page">
   ${renderHeader(SERVER_NAV, 'player')}
   <main>
     <h1 class="page-title">${escapeHtml(SITE_NAME)}</h1>
@@ -44,6 +45,7 @@ ${renderDocumentHead(SITE_NAME)}
     <p><a href="/repertoire">Or try the rating-band opening-repertoire explorer &rarr;</a></p>
   </main>
   ${renderFooter('Local dev server &mdash; data source: <a href="https://lichess.org/api">lichess.org/api</a>.')}
+</div>
 </body>
 </html>`;
 }
@@ -56,6 +58,7 @@ function repertoireFormPage() {
 <html lang="en">
 ${renderDocumentHead(`Opening repertoire explorer - ${SITE_NAME}`)}
 <body>
+<div class="page">
   ${renderHeader(SERVER_NAV, 'repertoire')}
   <main>
     <h1 class="page-title">Rating-band opening-repertoire explorer</h1>
@@ -75,6 +78,7 @@ ${renderDocumentHead(`Opening repertoire explorer - ${SITE_NAME}`)}
     </form>
   </main>
   ${renderFooter('Local dev server &mdash; data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a>.')}
+</div>
 </body>
 </html>`;
 }
