@@ -8,12 +8,21 @@
  * scripts/ingestDump.js) and the built dist/ output. Hand-rolled, no
  * dependency, same pattern as scripts/checkLinks.js.
  *
- * IMPORTANT, read before assuming a red run is a bug in this script:
- * checks 1a/2/4/6a (below) require data/aggregates/manifest.json to exist
- * and WILL fail if it's missing -- that is the correct, intended behavior
- * of a gate that blocks deploy on missing/bad data, not a defect in this
- * script. Run `node scripts/ingestDump.js --source <path>` first (a local
- * fixture or a real ingest output directory) to produce one.
+ * IMPORTANT, read before assuming a green run means the data is trustworthy:
+ * checks 1a/2/4/6a (below) require data/aggregates/manifest.json to exist.
+ * A GENUINELY MISSING manifest (the ingestion pipeline under src/ingest/ +
+ * scripts/ingestDump.js simply hasn't run yet) is reported loudly as a WARN,
+ * not a FAIL -- deploy-pages.yml's build does not read data/aggregates/ at
+ * all today (every page is still built from live Lichess Opening Explorer
+ * API calls; see that workflow's own header comment), so gating deploy on a
+ * directory nothing in the current build path consumes was blocking every
+ * single deploy for no data-safety benefit. Once the manifest DOES exist but
+ * is broken -- unparseable JSON, stale past MANIFEST_MAX_AGE_DAYS, or a
+ * shard it lists is missing/size-mismatched on disk -- that is still a hard
+ * FAIL, unchanged: this script's job is to catch bad data, not to wave
+ * through anything that merely runs. Run `node scripts/ingestDump.js
+ * --source <path>` first (a local fixture or a real ingest output
+ * directory) to produce a manifest and exercise the full check set.
  *
  * Check 2 (sample-size monotonicity) additionally carries a disclosed,
  * currently-permanent "known-gap" limitation rather than a pass/fail verdict
@@ -216,13 +225,22 @@ function checkNoEmptyTables(distDir) {
 function loadManifest(aggregatesDir) {
   const manifestPath = path.join(aggregatesDir, 'manifest.json');
   if (!fs.existsSync(manifestPath)) {
-    return { manifest: null, problems: [`${manifestPath} not found (expected until the ingestion pipeline ships real data)`] };
+    // Genuinely absent (ingestion hasn't produced one yet) is distinct from
+    // "present but broken" below -- see this file's header comment. The
+    // `missing-manifest:` prefix is what main() (and runAll's fallback
+    // branch, below) use to classify this as a non-gating WARN rather than
+    // a FAIL, unlike every other problem this function can return.
+    return {
+      manifest: null,
+      missing: true,
+      problems: [`missing-manifest: ${manifestPath} not found -- expected until the ingestion pipeline ships real data; the current build does not consume data/aggregates/ at all yet (see deploy-pages.yml), so this does not block deploy`],
+    };
   }
   let manifest;
   try {
     manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   } catch (err) {
-    return { manifest: null, problems: [`${manifestPath} is not valid JSON: ${err.message}`] };
+    return { manifest: null, missing: false, problems: [`${manifestPath} is not valid JSON: ${err.message}`] };
   }
   const problems = [];
   if (!manifest.retrievedAt) {
@@ -247,7 +265,7 @@ function loadManifest(aggregatesDir) {
       problems.push(`${manifestPath}: shard "${shard.file}" is ${actualBytes} bytes on disk, manifest says ${shard.bytes}`);
     }
   }
-  return { manifest, problems };
+  return { manifest, missing: false, problems };
 }
 
 // --- check 5: every rendered rate has a sample size alongside it -----------------
@@ -437,7 +455,7 @@ function runAll({ distDir, aggregatesDir, skipDist = false }) {
   const results = [];
 
   // Aggregate-shard-level checks (1a, 2, 4, 6a) -- depend on the ingestion pipeline's output.
-  const { manifest, problems: manifestProblems } = loadManifest(aggregatesDir);
+  const { manifest, missing, problems: manifestProblems } = loadManifest(aggregatesDir);
   results.push({ name: '4. manifest present/fresh/consistent', problems: manifestProblems });
 
   if (manifest) {
@@ -457,9 +475,16 @@ function runAll({ distDir, aggregatesDir, skipDist = false }) {
     results.push({ name: '2. sample-size monotonicity (transposition-aware)', problems: monoProblems });
     results.push({ name: '6a. shard file size limits', problems: checkShardSizeLimits(aggregatesDir, manifest) });
   } else {
-    results.push({ name: '1a. shard record integrity (exact)', problems: ['skipped: no manifest'] });
-    results.push({ name: '2. sample-size monotonicity (transposition-aware)', problems: ['skipped: no manifest'] });
-    results.push({ name: '6a. shard file size limits', problems: ['skipped: no manifest'] });
+    // `missing` distinguishes "manifest.json genuinely doesn't exist yet"
+    // (non-gating -- see loadManifest's comment) from "it exists but failed
+    // to parse" (still a genuine problem, so still a gating `skipped:`,
+    // unchanged from prior behavior).
+    const reason = missing
+      ? 'missing-manifest: no manifest (ingestion has not produced data/aggregates/manifest.json yet, and the build does not consume it today)'
+      : 'skipped: no manifest';
+    results.push({ name: '1a. shard record integrity (exact)', problems: [reason] });
+    results.push({ name: '2. sample-size monotonicity (transposition-aware)', problems: [reason] });
+    results.push({ name: '6a. shard file size limits', problems: [reason] });
   }
 
   // dist/-level checks (1b, 3, 5, 6b, 7) -- runnable today.
@@ -481,6 +506,49 @@ function runAll({ distDir, aggregatesDir, skipDist = false }) {
   return results;
 }
 
+// Prefixes that mark a problem string as non-gating -- reported loudly
+// (WARN) but never flip the overall exit code to failure. `known-gap:` is a
+// documented, currently-unfixable-by-rerunning schema limitation (see
+// loadAggregateShards' header comment); `missing-manifest:` is "the
+// ingestion pipeline hasn't produced a manifest yet, and the build doesn't
+// consume one today" (see loadManifest's header comment). Both are distinct
+// from a plain `skipped:` problem, which stays gating (a real, fixable-right-
+// now precondition wasn't met -- e.g. "run npm run build:static first").
+const NON_GATING_PREFIXES = ['known-gap:', 'missing-manifest:'];
+
+function isNonGating(problem) {
+  return NON_GATING_PREFIXES.some((prefix) => problem.startsWith(prefix));
+}
+
+/**
+ * Pure classification of runAll's output into pass/warn/fail per check, plus
+ * the overall exit code -- split out from main() so tests can assert exit-
+ * code behavior directly without spawning a subprocess or parsing stdout.
+ */
+function summarizeResults(results) {
+  let anyFail = false;
+  const lines = [];
+  for (const { name, problems } of results) {
+    const real = problems.filter((p) => !p.startsWith('skipped:') && !isNonGating(p));
+    const skipped = problems.filter((p) => p.startsWith('skipped:'));
+    const nonGating = problems.filter(isNonGating);
+    if (real.length > 0) {
+      anyFail = true;
+      lines.push({ level: 'error', text: `FAIL  ${name} (${real.length} problem(s))` });
+      for (const p of real) lines.push({ level: 'error', text: `        ${p}` });
+    } else if (skipped.length > 0) {
+      anyFail = true; // a skip is still a red gate -- see header comment
+      lines.push({ level: 'error', text: `FAIL  ${name}: ${skipped[0]}` });
+    } else if (nonGating.length > 0) {
+      // Reported loudly but does NOT fail the gate -- see NON_GATING_PREFIXES above.
+      lines.push({ level: 'warn', text: `WARN  ${name}: ${nonGating[0]}` });
+    } else {
+      lines.push({ level: 'log', text: `PASS  ${name}` });
+    }
+  }
+  return { anyFail, lines };
+}
+
 function main() {
   const args = process.argv.slice(2);
   let distDir = 'dist';
@@ -499,29 +567,8 @@ function main() {
   aggregatesDir = path.resolve(aggregatesDir);
 
   const results = runAll({ distDir, aggregatesDir, skipDist });
-
-  let anyFail = false;
-  for (const { name, problems } of results) {
-    const real = problems.filter((p) => !p.startsWith('skipped:') && !p.startsWith('known-gap:'));
-    const skipped = problems.filter((p) => p.startsWith('skipped:'));
-    const knownGaps = problems.filter((p) => p.startsWith('known-gap:'));
-    if (real.length > 0) {
-      anyFail = true;
-      console.error(`FAIL  ${name} (${real.length} problem(s))`);
-      for (const p of real) console.error(`        ${p}`);
-    } else if (skipped.length > 0) {
-      anyFail = true; // a skip is still a red gate -- see header comment
-      console.error(`FAIL  ${name}: ${skipped[0]}`);
-    } else if (knownGaps.length > 0) {
-      // A documented, currently-unfixable-by-rerunning limitation (see
-      // loadAggregateShards' header comment) -- reported loudly but does
-      // NOT fail the gate, unlike a "skipped:" problem that a later step in
-      // the same pipeline (e.g. building dist/) could resolve.
-      console.warn(`WARN  ${name}: ${knownGaps[0]}`);
-    } else {
-      console.log(`PASS  ${name}`);
-    }
-  }
+  const { anyFail, lines } = summarizeResults(results);
+  for (const { level, text } of lines) console[level](text);
 
   process.exitCode = anyFail ? 1 : 0;
   console.log(anyFail ? '\nverifyAggregates: one or more checks failed.' : '\nverifyAggregates: all checks passed.');
@@ -550,4 +597,7 @@ module.exports = {
   checkPublicHygiene,
   loadAggregateShards,
   runAll,
+  summarizeResults,
+  isNonGating,
+  NON_GATING_PREFIXES,
 };

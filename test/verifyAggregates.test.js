@@ -20,6 +20,7 @@ const {
   checkPublicHygiene,
   loadAggregateShards,
   runAll,
+  summarizeResults,
   MAX_SHARD_BYTES,
 } = require('../scripts/verifyAggregates');
 
@@ -154,12 +155,24 @@ test('checkNoEmptyTables does not flag a deliberate empty state using .empty-not
 
 // --- loadManifest ------------------------------------------------------------------
 
-test('loadManifest reports a clear problem when manifest.json is missing', () => {
+test('loadManifest reports a clear, non-gating problem when manifest.json is missing', () => {
   const dir = mkTmpDir('manifest-missing-');
-  const { manifest, problems } = loadManifest(dir);
+  const { manifest, missing, problems } = loadManifest(dir);
   assert.equal(manifest, null);
+  assert.equal(missing, true);
   assert.equal(problems.length, 1);
   assert.match(problems[0], /not found/);
+  assert.match(problems[0], /^missing-manifest:/, 'a genuinely-absent manifest must be tagged non-gating');
+});
+
+test('loadManifest tags a present-but-unparseable manifest as missing:false (still gating)', () => {
+  const dir = mkTmpDir('manifest-badjson-');
+  writeFile(dir, 'manifest.json', '{not valid json');
+  const { manifest, missing, problems } = loadManifest(dir);
+  assert.equal(manifest, null);
+  assert.equal(missing, false);
+  assert.equal(problems.length, 1);
+  assert.doesNotMatch(problems[0], /^missing-manifest:/);
 });
 
 test('loadManifest accepts a fresh, internally-consistent manifest', () => {
@@ -339,4 +352,49 @@ test('runAll with skipDist:true omits the 5 dist-level checks entirely rather th
   // Aggregate-side checks still ran and found no real problems.
   const real = results.flatMap((r) => r.problems).filter((p) => !p.startsWith('skipped:') && !p.startsWith('known-gap:'));
   assert.deepEqual(real, []);
+});
+
+// --- summarizeResults / exit-code behavior: the CI-gate fix this file locks in ----
+//
+// Before this fix, a genuinely-missing manifest.json (the normal state until
+// the ingestion pipeline in src/ingest/ + scripts/ingestDump.js has run)
+// made the whole gate exit 1 and block deploy-pages.yml's `build` job --
+// even though the build doesn't read data/aggregates/ at all today. These
+// two tests are the regression lock: no manifest must exit 0 (WARN only),
+// while a manifest that exists but is actually broken must still exit 1.
+
+test('summarizeResults: no manifest at all -> exit code 0 (WARN, not FAIL)', () => {
+  const dir = mkTmpDir('exitcode-no-manifest-');
+  // skipDist:true keeps this test focused on the manifest-gating behavior
+  // alone, independent of whether a dist/ directory happens to exist.
+  const results = runAll({ distDir: path.join(dir, 'nonexistent-dist'), aggregatesDir: dir, skipDist: true });
+  const { anyFail, lines } = summarizeResults(results);
+  assert.equal(anyFail, false, 'a genuinely-missing manifest must not fail the gate');
+  assert.ok(lines.some((l) => l.level === 'warn' && /missing-manifest/.test(l.text)), 'the missing manifest must still be reported, as a WARN');
+  assert.ok(!lines.some((l) => l.level === 'error'), 'no line should be reported as an error');
+});
+
+test('summarizeResults: manifest present but unparseable JSON -> exit code 1 (still FAIL)', () => {
+  const dir = mkTmpDir('exitcode-badjson-');
+  writeFile(dir, 'manifest.json', '{not valid json');
+  const results = runAll({ distDir: path.join(dir, 'nonexistent-dist'), aggregatesDir: dir, skipDist: true });
+  const { anyFail } = summarizeResults(results);
+  assert.equal(anyFail, true, 'a present-but-broken manifest must still fail the gate');
+});
+
+test('summarizeResults: manifest present but stale past the freshness limit -> exit code 1 (still FAIL)', () => {
+  const dir = mkTmpDir('exitcode-stale-');
+  const old = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString();
+  writeFile(dir, 'manifest.json', JSON.stringify({ retrievedAt: old, shards: [] }));
+  const results = runAll({ distDir: path.join(dir, 'nonexistent-dist'), aggregatesDir: dir, skipDist: true });
+  const { anyFail } = summarizeResults(results);
+  assert.equal(anyFail, true, 'a stale manifest must still fail the gate');
+});
+
+test('summarizeResults: manifest lists a shard missing on disk -> exit code 1 (still FAIL)', () => {
+  const dir = mkTmpDir('exitcode-missing-shard-');
+  writeFile(dir, 'manifest.json', JSON.stringify({ retrievedAt: new Date().toISOString(), shards: [{ file: 'f/ghost.json', bytes: 10 }] }));
+  const results = runAll({ distDir: path.join(dir, 'nonexistent-dist'), aggregatesDir: dir, skipDist: true });
+  const { anyFail } = summarizeResults(results);
+  assert.equal(anyFail, true, 'a manifest referencing a missing shard must still fail the gate');
 });
