@@ -27,7 +27,7 @@ const meta = {
 const CATEGORIES = [
   { key: 'king-safety', label: 'King safety', rule: 'the move is castling (O-O or O-O-O)' },
   { key: 'development', label: 'Development', rule: 'the move is a knight or bishop move (SAN starts with N or B) — develops a minor piece off the back rank' },
-  { key: 'center-control', label: 'Center control', rule: 'the move is a pawn push straight to a central file — c, d, or e (SAN is exactly a c/d/e file letter plus a rank, e.g. "d4" or "e5"; pawn captures and flank pawn moves like a3/h6/g6 don\'t count — see "What this doesn\'t classify" below)' },
+  { key: 'center-control', label: 'Center control', rule: 'the move is a pawn push straight to a central file: c, d, or e (SAN is exactly a c/d/e file letter plus a rank, e.g. "d4" or "e5"; pawn captures and flank pawn moves like a3/h6/g6 don\'t count — see "What this doesn\'t classify" below)' },
 ];
 
 /**
@@ -125,11 +125,11 @@ function render(ctx) {
     <p>&ldquo;Develop your pieces, fight for the center, get your king safe&rdquo; is standard opening advice, usually stated as general wisdom rather than something anyone checks. This page checks a version of it this site&rsquo;s own data can actually answer: among the real replies players make at ${escapeHtml(entries[0] ? entries[0].model.defaultBand : '1600-1800')} against the ${entries.length} openings this site tracks, do moves that match one of the three classic principle patterns score differently than moves that don&rsquo;t?</p>
 
     <h2>How this page defines each principle</h2>
-    <p>Every move below comes from real Lichess Opening Explorer data already fetched for this site&rsquo;s own opening pages &mdash; nothing here is a hand-typed statistic or an engine judgment about any specific position. Classification is by notation pattern alone, disclosed in full:</p>
+    <p>Every move below comes from real Lichess Opening Explorer data already fetched for this site&rsquo;s own opening pages. Nothing here is a hand-typed statistic or an engine judgment about any specific position. Classification is by notation pattern alone, disclosed in full:</p>
     <ul>
       ${CATEGORIES.map((c) => `<li><strong>${escapeHtml(c.label)}</strong>: ${escapeHtml(c.rule)}.</li>`).join('')}
     </ul>
-    <p class="empty-note">What this doesn&rsquo;t classify: queen moves, rook moves, king moves other than castling, piece captures, and flank pawn moves (a-file, b-file, f-file, g-file, h-file) all fall outside these three patterns and are left unclassified rather than guessed at &mdash; a real limitation of a notation-only rule, not a claim that those moves don&rsquo;t matter.</p>
+    <p class="empty-note">What this doesn&rsquo;t classify: queen moves, rook moves, king moves other than castling, piece captures, and flank pawn moves (a-file, b-file, f-file, g-file, h-file) all fall outside these three patterns and are left unclassified rather than guessed at. That&rsquo;s a real limitation of a notation-only rule; it says nothing about whether those moves actually matter.</p>
 
     <h2>How principle-matching moves actually score</h2>
     <p>Across every classified reply move found in this build, aggregated by category (score is for the side making the move, weighted by games):</p>
@@ -140,19 +140,19 @@ function render(ctx) {
     <h2>The moves themselves, best-scoring first</h2>
     ${sampleRows
       ? wrapTable(`<table><caption class="sr-only">Individual classified moves, best-scoring first</caption><thead><tr><th scope="col">Opening</th><th scope="col">Move</th><th scope="col">Category</th><th scope="col">Played</th><th scope="col">Score</th></tr></thead><tbody>${sampleRows}</tbody></table>`, 'Individual classified moves, best-scoring first')
-      : '<p class="empty-note">No qualifying moves were found across the tracked openings in this build &mdash; that itself is a real result, not a placeholder.</p>'}
+      : '<p class="empty-note">No qualifying moves were found across the tracked openings in this build. This is the real, honest result for this build&rsquo;s own data.</p>'}
 
     <h2>Does it show up across rating bands?</h2>
-    <p>The per-move classification above only has this level of detail at ${escapeHtml(entries[0] ? entries[0].model.defaultBand : '1600-1800')} &mdash; this build only fetches per-move reply data for that one band (the same limitation <a href="most-common-opening-mistakes-1600-1800.html">the common-mistakes page</a> discloses). As a proxy for whether that matters by rating, here&rsquo;s how much each opening&rsquo;s own score for the featured side moves between its lowest- and highest-scoring tracked band, next to how many principle-pattern replies were found against it:</p>
+    <p>The per-move classification above only has this level of detail at ${escapeHtml(entries[0] ? entries[0].model.defaultBand : '1600-1800')}. This build only fetches per-move reply data for that one band (the same limitation <a href="most-common-opening-mistakes-1600-1800.html">the common-mistakes page</a> discloses). As a proxy for whether that matters by rating, here&rsquo;s how much each opening&rsquo;s own score for the featured side moves between its lowest- and highest-scoring tracked band, next to how many principle-pattern replies were found against it:</p>
     ${bandTableRows
       ? wrapTable(`<table><caption class="sr-only">Score range across rating bands, with principle-pattern reply counts</caption><thead><tr><th scope="col">Opening</th><th scope="col">Principle-pattern replies found</th><th scope="col">Lowest band</th><th scope="col">Highest band</th><th scope="col">Range</th></tr></thead><tbody>${bandTableRows}</tbody></table>`, 'Score range across rating bands, with principle-pattern reply counts')
       : '<p class="empty-note">Not enough band data was available in this build to compute a range.</p>'}
 ${avgWith != null && avgWithout != null
-      ? `    <p>Among the ${withMatches.length} openings with at least one principle-pattern reply found, the average score range across rating bands is <strong>${avgWith} points</strong>; among the ${withoutMatches.length} with none found, it&rsquo;s <strong>${avgWithout} points</strong>. That&rsquo;s a real comparison from this build&rsquo;s own numbers, not a claim that principle adherence causes the difference &mdash; a sample this size (${bandRows.length} openings total) can show a pattern without proving what drives it.</p>`
+      ? `    <p>Among the ${withMatches.length} openings with at least one principle-pattern reply found, the average score range across rating bands is <strong>${avgWith} points</strong>; among the ${withoutMatches.length} with none found, it&rsquo;s <strong>${avgWithout} points</strong>. That&rsquo;s a real comparison from this build&rsquo;s own numbers. A sample this size (${bandRows.length} openings total) can show a pattern; it can&rsquo;t establish that principle adherence causes it.</p>`
       : ''}
 
     <h2>What this doesn&rsquo;t show</h2>
-    <p>This measures whether a move&rsquo;s notation shape correlates with its own score, and whether that shows up in how much an opening&rsquo;s overall score varies by rating &mdash; it doesn&rsquo;t measure whether a specific position is objectively sound, and it can&rsquo;t tell you what a strong player would actually recommend in any one of these lines. A move matching &ldquo;development&rdquo; here is still just a knight or bishop move by shape, not a verified good one.</p>
+    <p>This measures whether a move&rsquo;s notation shape correlates with its own score, and whether that shows up in how much an opening&rsquo;s overall score varies by rating. It doesn&rsquo;t measure whether a specific position is objectively sound, and it can&rsquo;t tell you what a strong player would actually recommend in any one of these lines. A move matching &ldquo;development&rdquo; here is only classified by shape &mdash; whether it&rsquo;s actually good in that specific position is a separate question this page doesn&rsquo;t evaluate.</p>
 
     <h2>Go deeper</h2>
     <p>See <a href="most-common-opening-mistakes-1600-1800.html">the most common opening mistakes across all tracked openings &rarr;</a>, or the <a href="openings.html">full openings comparison &rarr;</a> for every band at once.</p>
