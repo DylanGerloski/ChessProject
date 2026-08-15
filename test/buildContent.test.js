@@ -32,12 +32,12 @@ function withTempDist(fn) {
     });
 }
 
-test('buildContentPages writes 10 opening pages plus the openings hub, 6 guides, the guides hub, and the FAQ -- all with a unique title/description and one H1', () =>
+test('buildContentPages writes 10 opening pages plus the openings hub, 7 guides, the guides hub, and the FAQ -- all with a unique title/description and one H1', () =>
   withTempDist(async (outDir) => {
     const { fetchImpl } = makeSmartExplorerFetch();
     const { written } = await buildContentPages({ fetchImpl, outDir });
 
-    assert.equal(written.length, 19); // 10 openings + 1 hub + 6 guides + 1 guides hub + 1 FAQ
+    assert.equal(written.length, 20); // 10 openings + 1 hub + 7 guides + 1 guides hub + 1 FAQ
 
     const titles = new Set();
     const descriptions = new Set();
@@ -151,7 +151,7 @@ test('renderOpeningPage: omitting drillFile is byte-identical to no drill CTA; p
   assert.match(withDrill, /Open the Italian Game drill &rarr;/);
 });
 
-test('phase 2: the guides hub links to all 6 guide articles, and every guide has exactly one H1 and real data pulled from entries', () =>
+test('phase 2: the guides hub links to all 7 guide articles, and every guide has exactly one H1 and real data pulled from entries', () =>
   withTempDist(async (outDir) => {
     const { fetchImpl } = makeSmartExplorerFetch();
     const { written } = await buildContentPages({ fetchImpl, outDir });
@@ -165,6 +165,7 @@ test('phase 2: the guides hub links to all 6 guide articles, and every guide has
       'most-common-opening-mistakes-1600-1800.html',
       'should-you-study-openings-under-1500.html',
       'scandinavian-defense-at-club-level.html',
+      'opening-principles-by-win-rate.html',
     ];
     for (const file of guideFiles) {
       assert.match(hub.html, new RegExp(`href="${file}"`), `guides hub should link to ${file}`);

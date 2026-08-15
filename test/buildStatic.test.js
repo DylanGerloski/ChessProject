@@ -213,8 +213,8 @@ test('buildStatic also writes the 10 opening pages plus the openings hub, and th
     const { fetchImpl } = fakeExplorerFetch();
     const { outDir, contentWritten } = await buildStatic({ fetchImpl, useCache: false });
 
-    // 10 openings + openings hub + 6 guides + guides hub + FAQ (phase 2).
-    assert.equal(contentWritten.length, 19);
+    // 10 openings + openings hub + 7 guides + guides hub + FAQ (phase 2).
+    assert.equal(contentWritten.length, 20);
     for (const { file } of contentWritten) {
       assert.ok(fs.existsSync(path.join(outDir, file)), `expected ${file} to exist on disk`);
     }
@@ -242,7 +242,7 @@ test('buildStatic also writes feed.xml (one <item> per content page) and links i
   })
 );
 
-test('buildStatic also writes the guides hub, all 6 guide articles, and the FAQ page, all reachable from nav', () =>
+test('buildStatic also writes the guides hub, all 7 guide articles, and the FAQ page, all reachable from nav', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();
     const { outDir } = await buildStatic({ fetchImpl, useCache: false });
@@ -256,6 +256,7 @@ test('buildStatic also writes the guides hub, all 6 guide articles, and the FAQ 
       'most-common-opening-mistakes-1600-1800.html',
       'should-you-study-openings-under-1500.html',
       'scandinavian-defense-at-club-level.html',
+      'opening-principles-by-win-rate.html',
     ]) {
       assert.ok(fs.existsSync(path.join(outDir, file)), `expected ${file} to exist on disk`);
     }
@@ -545,7 +546,7 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     assert.ok(ecoExplorerResult.reverseLookupCount > 0);
 
     // index + player + drill + 404 + repertoire.html + 8 redirect stubs
-    // + 10 openings + hub + 6 guides + hub + FAQ + privacy/about/contact/methodology
+    // + 10 openings + hub + 7 guides + hub + FAQ + privacy/about/contact/methodology
     // + (Phase 7d) 64 T1 family hubs + 5 T2 volume pages + 2 T2 browse-index pages
     // + (Phase 7e) 1 ECO explorer page.
     // pageFilenames includes 404.html and the 8 redirect stubs (for the

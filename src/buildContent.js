@@ -49,7 +49,7 @@ const { BUILD_DATE } = require('./site');
 // the second would require asserting named-trap chess analysis ("this loses
 // a piece") without every claim being either site-data-backed or sourced to
 // an authoritative external reference, which needs a level of chess-domain
-// verification this build isn't equipped to do responsibly. The remaining 6
+// verification this build isn't equipped to do responsibly. The remaining 7
 // are all built entirely from ctx.entries (this build's own already-fetched
 // opening data) -- no hand-typed statistics.
 const GUIDES = [
@@ -59,6 +59,7 @@ const GUIDES = [
   require('./content/most-common-opening-mistakes-1600-1800'),
   require('./content/should-you-study-openings-under-1500'),
   require('./content/scandinavian-defense-at-club-level'),
+  require('./content/opening-principles-by-win-rate'),
 ];
 
 const DEFAULT_BAND = '1600-1800';
