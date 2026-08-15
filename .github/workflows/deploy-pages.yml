@@ -43,12 +43,71 @@ jobs:
       - name: Run test suite
         run: npm test
 
-      # NOTE: LICHESS_API_TOKEN stays required here for now -- every
-      # content-bearing page is still built from live Opening Explorer calls
-      # at build time. Removing this token (and asserting the build succeeds
-      # without it) only makes sense once a database-dump ingestion pipeline
-      # and the data-layer migration off the live API have both shipped.
-      # Until then, removing this would break every deploy.
+      # Aggregate data (data/aggregates/manifest.json + root.json + f/*.json)
+      # published by ingest-dump.yml as a GitHub Release asset -- deliberately
+      # not git-tracked past manifest.json itself (~30MB of shards; see
+      # .gitignore and scripts/verifyAggregates.js's header comment), so an
+      # ordinary checkout has the manifest but not the shards it lists.
+      # src/explorerSource.js's isAggregatesAvailable() requires BOTH
+      # manifest.json AND root.json on disk before it will read cached data
+      # at all -- without this step, that check always failed here and every
+      # builder (buildRepertoire.js, buildContent.js, buildDrill.js,
+      # buildEcoPages.js) fell back to live Opening Explorer calls for the
+      # WHOLE site, which is what was actually causing the recurring
+      # "Lichess Opening Explorer rate limit hit" build failures (this
+      # workflow's own history, and run 31906005148). Extracting the
+      # published shards here is the fix: with them on disk, only two kinds
+      # of live call remain --
+      #   1. the masters-database lookup (spec section 1.8's one narrow,
+      #      named exception: real grandmaster games, no equivalent in the
+      #      dump pipeline) -- one call per opening page, unchanged by this
+      #      step, still needs LICHESS_API_TOKEN;
+      #   2. a same-position retry for the disclosed, currently-permanent
+      #      ingest-sampling "known gap" (a position several openings share,
+      #      e.g. the Italian/Ruy Lopez/Scotch common start, that landed in
+      #      one family's shard and not a sibling's -- see
+      #      src/buildContent.js's fetchLineWithValidation) -- rare, and only
+      #      as a last resort after the aggregate lookup comes up empty.
+      # So LICHESS_API_TOKEN stays required for now, but is no longer on the
+      # hot path for the bulk of the site's content.
+      #
+      # AGGREGATE_DATA_TAG is a specific, hand-pinned Release tag, not
+      # "latest" -- ingest-dump.yml also publishes smoke-test releases
+      # (tag suffix "-smoke") from the same repo, and GitHub's "latest"
+      # release designation would silently pick up a smoke-test release if
+      # one is ever published after the real one. Bump this by hand to the
+      # newest verified data-<month> (non-smoke) tag after each full ingest
+      # run -- automating that discovery is future work, not in this change.
+      #
+      # RESILIENCE: if the tagged release doesn't exist (a future month
+      # whose ingest hasn't run yet, or a stale/unbumped tag), this step
+      # must not fail the job -- it falls back to the pre-existing safe
+      # behavior instead (no shards on disk -> every builder call falls back
+      # live, exactly like every deploy before this step existed).
+      - name: Download aggregate data release
+        id: aggregate_data
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AGGREGATE_DATA_TAG: data-2026-07
+        run: |
+          if gh release view "$AGGREGATE_DATA_TAG" >/dev/null 2>&1; then
+            gh release download "$AGGREGATE_DATA_TAG" \
+              --pattern "aggregates-*.tar.gz" \
+              --output aggregates.tar.gz \
+              --clobber
+            mkdir -p data/aggregates
+            tar -xzf aggregates.tar.gz -C data/aggregates
+            rm aggregates.tar.gz
+            echo "Extracted aggregate data release $AGGREGATE_DATA_TAG into data/aggregates/"
+            echo "shards_present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No release tagged $AGGREGATE_DATA_TAG found -- building from live Opening Explorer API only, same as every deploy before this step existed."
+            echo "shards_present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # LICHESS_API_TOKEN stays required -- see the comment on the step
+      # above for exactly which calls still need it now that aggregate data
+      # is wired in (masters-database lookups, plus rare known-gap retries).
       - name: Build site
         run: npm run build:static
         env:
@@ -60,17 +119,25 @@ jobs:
       - name: Validate HTML
         run: npx html-validate "dist/**/*.html"
 
-      # --skip-aggregates: this job's checkout can have
-      # data/aggregates/manifest.json (git-tracked once ingest-dump.yml has
-      # committed one back) without the shards it lists (git-ignored,
-      # published as a GitHub Release asset instead -- see .gitignore and
-      # scripts/verifyAggregates.js's header comment). This build doesn't
-      # read raw shards off disk at all today, so checking for them here
-      # would fail every deploy on a "missing shard" that isn't actually a
-      # problem -- the dist/-level checks below are the ones that matter
-      # for what this job actually ships.
+      # --skip-aggregates now only applies in the fallback branch, not
+      # unconditionally: when "Download aggregate data release" (above)
+      # actually extracted real shards, the source-side checks (1a/2/4/6a --
+      # shard record integrity, sample-size monotonicity, shard size limits,
+      # etc.) now have real data to check, same as ingest-dump.yml's own
+      # verify step, so they run for real. When that step fell back to "no
+      # release found" (its RESILIENCE comment), data/aggregates/ still only
+      # has manifest.json checked out from git with no matching shards on
+      # disk -- scripts/verifyAggregates.js's header comment explains why
+      # that specific combination (manifest present, shards absent) is a
+      # HARD FAIL from checks 1a/2/4/6a, not a WARN, so --skip-aggregates
+      # must stay in that branch, exactly as it did before this change.
       - name: Verify data-sanity gates
-        run: node scripts/verifyAggregates.js dist --skip-aggregates
+        run: |
+          if [ "${{ steps.aggregate_data.outputs.shards_present }}" = "true" ]; then
+            node scripts/verifyAggregates.js dist
+          else
+            node scripts/verifyAggregates.js dist --skip-aggregates
+          fi
 
       # WS-1 band-meta shards (dist/data/rep/, scripts/buildBandShards.js) --
       # a separate, run-by-hand dataset from data/aggregates/ above, checked

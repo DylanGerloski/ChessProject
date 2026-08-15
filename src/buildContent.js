@@ -95,7 +95,9 @@ function repertoireFragmentUrl(band, color) {
  * walk both validates the line AND fetches the default band's data.
  *
  * @throws if a configured ply never appears among the API's candidates,
- *   even after retrying with a larger `moves` window.
+ *   even after retrying with a larger `moves` window AND (once aggregate
+ *   data is in play) a live-Explorer retry of that one position -- see the
+ *   "known-gap" fallback below.
  */
 async function fetchLineWithValidation({ slug, line, ratings, speeds, fetchImpl, movesPerRequest = 12, band, familySlug, aggregatesDir = AGGREGATES_DIR }) {
   let response = null;
@@ -106,6 +108,29 @@ async function fetchLineWithValidation({ slug, line, ratings, speeds, fetchImpl,
     if (!found) {
       response = await fetchMoves({ play: playSoFar, band, ratings, speeds, moves: 15, familySlug, fetchImpl, dir: aggregatesDir });
       found = (response.moves || []).some((m) => m.uci === line[i].uci);
+    }
+    if (!found) {
+      // KNOWN GAP (disclosed in buildRepertoire.js's own header comment,
+      // "whoever wires real aggregate data into this function... must
+      // resolve this"): the dump's per-family shards are sampled per
+      // FAMILY, not per shared ancestor position, so a position several
+      // openings pass through in common (e.g. "e4 e5 Nf3 Nc6", the shared
+      // start of Italian/Ruy Lopez/Scotch) can be present in one family's
+      // shard and absent from a sibling's, even though root.json's own
+      // ply<=3 coverage doesn't reach it either (the 2026-08-15 shard-size
+      // fix shrank that from ply<=6). That is a genuine ingest-sampling gap,
+      // not a wrong configured move order, so before concluding the line in
+      // openings.js is wrong, retry this ONE lookup against the live
+      // Explorer API -- the same fallback every position had before this
+      // migration. Every position the aggregate DOES cover (the large
+      // majority) still costs zero live calls; this only spends one live
+      // call on the specific positions the current sample doesn't have.
+      const liveResponse = await fetchExplorerMoves({ play: playSoFar, ratings, speeds, moves: 15, fetchImpl });
+      const foundLive = (liveResponse.moves || []).some((m) => m.uci === line[i].uci);
+      if (foundLive) {
+        response = liveResponse;
+        found = true;
+      }
     }
     if (!found) {
       const apiMoves = (response.moves || []).map((m) => `${m.san}/${m.uci}`).join(', ') || '(no candidate moves returned)';
