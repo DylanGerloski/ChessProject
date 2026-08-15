@@ -546,9 +546,14 @@ ${designTokensCss(THEME_ROLES.dark)}
   /* Brand + theme toggle share one row so the toggle never adds a fourth
      wrapped nav row on narrow viewports -- same fix the sibling asset
      (lol-practice-system/src/web/screen.css) already made for the same
-     header shape. */
+     header shape. flex-wrap so the band control (WS-1.4, present on some
+     pages -- see .band-header-control below) drops to its own line rather
+     than overflowing on narrow viewports instead of forcing a fixed
+     breakpoint just for it; harmless when the row already fits (the common
+     brand+toggle-only case never wraps). */
   .brand-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--space-3);
   }
@@ -597,6 +602,28 @@ ${designTokensCss(THEME_ROLES.dark)}
   }
   .js .theme-toggle { display: inline-flex; }
   .theme-toggle:hover { background: var(--color-hover); border-color: var(--color-accent); }
+
+  /* Site-wide band-persistence control (WS-1 spec 3.4, task W4). Same
+     visual weight/proportions as .theme-toggle (44px tap target, hairline
+     border, transparent surface) so it reads as header chrome, not a form
+     -- deliberately NOT styled with --color-accent (design-standards.md:
+     exactly one accent-filled action per view, and this is a utility
+     control, not that page's action). */
+  .band-header-control { display: inline-flex; align-items: center; }
+  .band-header-select {
+    min-height: 44px;
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-bold);
+    padding: var(--space-2) var(--space-3);
+    border: var(--border-hairline) solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: border-color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+  .band-header-select:hover { border-color: var(--color-accent); }
 
   .site-nav { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 
@@ -1913,6 +1940,79 @@ const NAV_LABELS = {
   player: 'Opening report',
 };
 
+// WS-1 spec section 3.4 (task W4, band persistence). The four rating bands
+// this SITE-WIDE header control offers -- MUST match processRepertoire.js's
+// RATING_BANDS keys (the bands the site's data actually covers) and
+// src/browser/bandState.client.js's BANDS enum minus its 'u1200'/
+// '1200-1400' entries. Duplicated here as a plain literal, not a require(),
+// because render.js is deliberately a leaf module with zero requires (see
+// this file's own top-of-file comment -- it's bundled into the browser via
+// playerLookup.client.js, so pulling in a Node module here would break that
+// bundle); test/render.test.js asserts this list stays in sync with both of
+// those other two sources so drift is still caught by CI.
+//
+// Scope boundary (spec 3.4, stated plainly there): the WS-1 directive also
+// asks for a below-1400 band. That is NOT buildable yet -- the Opening
+// Explorer API has no sub-1400 ratings bucket to crawl, and
+// processRepertoire.js's RATING_BANDS has no such keys either (only
+// src/ingest/gameFilter.js's dump-pipeline BANDS does, and that pipeline
+// hasn't produced a dataset). Note this reads as a mild disagreement with
+// bandState.client.js's own header comment, which describes a *future*
+// header control exposing the full 6-band enum -- that comment predates
+// this spec's explicit scope boundary and is superseded by it here, per
+// Non-Negotiable 4 ("locked content that pretends to exist" is forbidden:
+// shipping an empty sub-1400 option would be exactly that).
+const HEADER_BAND_OPTIONS = ['1400-1600', '1600-1800', '1800-2000', '2000+'];
+
+// Matches src/browser/bandState.client.js's DEFAULT_STATE.band -- the
+// option this control pre-selects server-side (a static build has no way
+// to know a returning visitor's saved band before their own JS runs;
+// src/browser/bandHeaderControl.client.js re-syncs the <select> to their
+// actual saved state on load, same "server default, client corrects"
+// pattern src/browser/repertoire.client.js already uses).
+const HEADER_BAND_DEFAULT = '1600-1800';
+
+// Which `active` pages get the band control: every page WS-1 (or its
+// WS-3.2 predecessor) shows band-dependent numbers on. 'builder'/'player'/
+// 'drill' are currently placeholders (W1a/W2/W3, not yet real) but already
+// pass these exact `active` values (see src/renderRepertoireBuilder.js,
+// src/renderOpeningReport.js, src/renderDrillHub.js/renderDrill.js) --
+// this set doesn't need to change again when those land for real, keeping
+// W4 file-disjoint from that follow-on work. 'repertoire' is the existing
+// WS-3.2 page, which already has its own richer in-page band+color picker
+// (buildStatic.js's renderBandPicker) -- this header control is an
+// additional, smaller, always-visible affordance, not a replacement; both
+// read/write the same src/browser/bandState.client.js state and stay in
+// sync via its onBandStateChange() subscription.
+const BAND_CONTROL_PAGES = new Set(['builder', 'player', 'drill', 'repertoire']);
+
+/**
+ * The <select> markup for the site-wide band-persistence control (WS-1
+ * spec 3.4). Server-rendered with HEADER_BAND_DEFAULT selected;
+ * src/browser/bandHeaderControl.client.js re-syncs it to the visitor's
+ * actual saved band (fragment > localStorage > default) once its bundle
+ * loads. Band-only (not pool/color) -- see that file's own header comment
+ * for why.
+ */
+function renderBandHeaderControl() {
+  const options = HEADER_BAND_OPTIONS
+    .map((band) => `<option value="${escapeHtml(band)}"${band === HEADER_BAND_DEFAULT ? ' selected' : ''}>${escapeHtml(band)}</option>`)
+    .join('');
+  // Leading "\n      " is deliberate: the caller (renderHeader() below)
+  // concatenates this directly onto the end of the brand <a>'s line rather
+  // than giving it its own template-literal line, so an ABSENT control (the
+  // empty string this function's caller substitutes when
+  // BAND_CONTROL_PAGES doesn't include the current page) leaves no
+  // whitespace-only line behind -- same "no blank line for an omitted
+  // optional field" technique renderFooter()'s legalRow already uses (see
+  // that function's own comment for the html-validate rule this avoids).
+  return `
+      <div class="band-header-control">
+        <label class="sr-only" for="site-band-select">Rating band</label>
+        <select id="site-band-select" class="band-header-select" data-band-header-control aria-label="Rating band, remembered for your next visit">${options}</select>
+      </div>`;
+}
+
 /**
  * @param {{builder?: string, player?: string, repertoire?: string, packs?: string,
  *   openings?: string, eco?: string, drill?: string, guides?: string, faq?: string}} nav
@@ -1929,15 +2029,29 @@ function renderHeader(nav, active = null) {
     .map((key) => `<a href="${escapeHtml(nav[key])}"${active === key ? ' aria-current="page"' : ''}>${escapeHtml(NAV_LABELS[key])}</a>`)
     .join('\n      ');
 
+  const showBandControl = BAND_CONTROL_PAGES.has(active);
+  const bandControl = showBandControl ? renderBandHeaderControl() : '';
+  // Loaded only on the pages that actually render the control -- see
+  // src/buildStatic.js's buildBandHeaderControlBundle() for how
+  // dist/band-header.js is produced (same esbuild pipeline as every other
+  // browser entry point here). `defer` so it never blocks first paint;
+  // the <select> works as an inert, server-rendered default with no JS at
+  // all, same progressive-enhancement shape as every other control on
+  // this site.
+  const bandControlScript = showBandControl ? '<script src="band-header.js" defer></script>' : '';
+
   // Brand + theme toggle share one row (.brand-row) so the toggle never
   // adds a fourth wrapped nav row on narrow viewports -- same fix the
   // sibling asset already made for the same header shape (see SITE_CSS's
   // .brand-row comment). The button's server-rendered label always assumes
   // light (this asset's default); THEME_TOGGLE_SCRIPT re-syncs it to
-  // whatever theme is actually in effect on load.
+  // whatever theme is actually in effect on load. The band control (when
+  // present) sits between them -- same row, wraps onto its own line first
+  // on narrow viewports since it's the widest of the three (.brand-row's
+  // flex-wrap, see SITE_CSS).
   return `<header class="site-header">
     <div class="brand-row">
-      <a class="brand" href="${escapeHtml(nav.home || nav.repertoire || '/')}"><span class="brand-mark" aria-hidden="true">&#9822;</span>Repertoire Builder</a>
+      <a class="brand" href="${escapeHtml(nav.home || nav.repertoire || '/')}"><span class="brand-mark" aria-hidden="true">&#9822;</span>Repertoire Builder</a>${bandControl}
       <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to dark theme">
         <span aria-hidden="true">&#9789;</span>
       </button>
@@ -1945,7 +2059,7 @@ function renderHeader(nav, active = null) {
     <nav class="site-nav" aria-label="Main">
       ${links}
     </nav>
-  </header>`;
+  </header>${bandControlScript}`;
 }
 
 // Support-link URL, added once here so every page picks it up from this
@@ -2576,4 +2690,7 @@ module.exports = {
   NAV_LABELS,
   STORE,
   isPlaceholderStoreUrl,
+  HEADER_BAND_OPTIONS,
+  HEADER_BAND_DEFAULT,
+  BAND_CONTROL_PAGES,
 };

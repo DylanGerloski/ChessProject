@@ -12,6 +12,7 @@ const {
   buildPlayerLookupBundle,
   buildDrillBundle,
   buildRepertoireBundle,
+  buildBandHeaderControlBundle,
   bundleBrowserEntry,
   indexPage,
   playerLookupPage,
@@ -185,6 +186,18 @@ test('buildStatic writes the collapsed repertoire.html + repertoire.js, all 8 re
       assert.ok(fs.existsSync(path.join(outDir, page)), `expected ${page} to exist on disk`);
       if (bundle) assert.ok(fs.existsSync(path.join(outDir, bundle)), `expected ${bundle} to exist on disk`);
     }
+
+    // WS-1 spec 3.4 (task W4): one shared bundle, referenced by every page
+    // above plus repertoire.html -- see src/render.js's renderHeader().
+    assert.ok(fs.existsSync(path.join(outDir, 'band-header.js')), 'expected band-header.js to exist on disk');
+    for (const page of ['repertoire-builder.html', 'opening-report.html', 'drill.html', 'drill-reference.html', 'repertoire.html']) {
+      const html = fs.readFileSync(path.join(outDir, page), 'utf8');
+      assert.match(html, /<script src="band-header\.js" defer><\/script>/, `expected ${page} to load band-header.js`);
+      assert.match(html, /data-band-header-control/, `expected ${page} to render the band control`);
+    }
+    // A page with no band-dependent numbers must NOT carry the dead weight.
+    const indexHtml = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
+    assert.doesNotMatch(indexHtml, /band-header\.js|data-band-header-control/, 'index.html is not a band-dependent page and must not load the control');
   })
 );
 
@@ -473,6 +486,18 @@ test('buildRepertoireBundle esbuild-bundles bandState.client.js, render.js, and 
   // Real proof: run it against a DOM stub with no #repertoire-data element
   // present (the sandbox's getElementById always returns null) -- the
   // controller must bail out cleanly rather than throw.
+  assert.doesNotThrow(() => runBundleInSandbox(bundle));
+});
+
+test('buildBandHeaderControlBundle (WS-1 spec 3.4, task W4) esbuild-bundles bandState.client.js and the band-header browser controller into one self-contained IIFE that runs with no global require/module/exports (file:// invariant)', () => {
+  const bundle = buildBandHeaderControlBundle();
+  assert.match(bundle, /function readBandState/);
+  assert.match(bundle, /function writeBandState/);
+  assert.match(bundle, /function onBandStateChange/);
+  // Real proof: run it against a DOM stub with no [data-band-header-control]
+  // element present (the sandbox's querySelector always returns null) --
+  // the controller must bail out cleanly rather than throw, same invariant
+  // buildRepertoireBundle's sibling test above checks.
   assert.doesNotThrow(() => runBundleInSandbox(bundle));
 });
 
