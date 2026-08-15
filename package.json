@@ -12,7 +12,8 @@
     "check-em-dash": "node scripts/emDashDensity.js",
     "serve": "node src/server.js",
     "test": "node --test test/*.test.js",
-    "visual-qa": "node scripts/visual-qa.js"
+    "visual-qa": "node scripts/visual-qa.js",
+    "verify-acceptance-loop": "node scripts/verifyAcceptanceLoop.js"
   },
   "engines": {
     "node": ">=22"

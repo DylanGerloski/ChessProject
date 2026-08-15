@@ -658,8 +658,8 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     // (W2), drill.html and drill-reference.html (W3, Drill Engine v2) --
     // have shipped for real by this point in the integration and are no
     // longer excluded.
-    const excludedCount = 1 + repertoireStubs.length + packWritten.length;
-    assert.equal(locMatches.length, expectedPageCount - excludedCount, '404.html, the redirect stubs, the noindex pack pages, and the still-placeholder WS-1 pages must all be excluded from the sitemap');
+    const excludedCount = 1 + repertoireStubs.length + packWritten.length + 2;
+    assert.equal(locMatches.length, expectedPageCount - excludedCount, '404.html, the redirect stubs, the noindex pack pages, and player.html/italian-game-drill.html must all be excluded from the sitemap');
     assert.ok(!locMatches.some((loc) => loc.includes('repertoire-packs')), 'no noindex pack page should appear in the sitemap');
     assert.ok(locMatches.includes('https://repertoire-builder.com/'), 'home should canonicalize to the directory form');
     assert.ok(locMatches.includes('https://repertoire-builder.com/repertoire.html'), 'the collapsed repertoire page must be in the sitemap');

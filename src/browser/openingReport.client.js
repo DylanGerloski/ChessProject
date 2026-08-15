@@ -192,7 +192,7 @@ function formatSanLineFromUci(play) {
         </div>
         <div class="leak-actions">
           <a href="${escapeHtml(leak.links.drill)}">Drill this</a>
-          <a href="${escapeHtml(leak.links.builder)}">Fix it in the builder</a>
+          <a href="${escapeHtml(leak.links.builder)}">Fix it in the repertoire builder</a>
         </div>
         <div class="leak-detail" id="${detailId}" hidden>
           <p class="report-provenance">Your move: ${formatPct(leak.yourMove.score * 100)}% score over ${leak.yourMove.bandGames.toLocaleString()}
