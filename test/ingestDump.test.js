@@ -7,6 +7,8 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { parseArgs, utcDateHeaderToIso, openSource, run } = require('../scripts/ingestDump');
+const { MAX_SHARD_BYTES } = require('../src/ingest/writeShards');
+const { ROOT_MAX_PLY } = require('../src/ingest/aggregate');
 
 const FIXTURE_PATH = path.join(__dirname, 'fixtures', 'ingest', 'sample.pgn');
 
@@ -151,4 +153,38 @@ test('run(): defaults to MIN_GAMES=50 in production (unset --min-games), which f
   const manifest = JSON.parse(fs.readFileSync(path.join(outDir, 'manifest.json'), 'utf8'));
   assert.equal(manifest.minGames, 50);
   assert.ok(result.gamesUsed > 0); // games were still read/classified correctly
+});
+
+// Regression coverage for the 2026-08-15 root.json-over-budget fix: a real
+// smoke-scale run (500000 games) at the previous ROOT_MAX_PLY (6) produced a
+// root.json of 10,999,304 bytes against writeShards.js's 5 MB
+// MAX_SHARD_BYTES budget. This fixture is far too small to reproduce that
+// absolute number (see the "defaults to MIN_GAMES=50" test above -- at the
+// production MIN_GAMES=50 this fixture yields zero positions), but
+// `--min-games 1` (the worst case: no filtering at all) is the closest this
+// fixture gets to stress-testing root.json's size, and it must stay well
+// under budget at the current ROOT_MAX_PLY -- if this ever fails, either
+// ROOT_MAX_PLY crept back up without re-checking the real-scale budget, or
+// the shard format grew heavier per position and the same reconsideration
+// applies.
+test('run(): root.json stays comfortably under MAX_SHARD_BYTES at fixture scale, unfiltered', async () => {
+  const dir = tmpDir();
+  const outDir = path.join(dir, 'out');
+  await run(['--source', FIXTURE_PATH, '--out', outDir, '--min-games', '1']);
+
+  const rootBytes = fs.statSync(path.join(outDir, 'root.json')).size;
+  assert.ok(
+    rootBytes < MAX_SHARD_BYTES * 0.5,
+    `root.json is ${rootBytes} bytes at fixture scale (${ROOT_MAX_PLY}-ply root) -- ` +
+    `expected well under half of MAX_SHARD_BYTES (${MAX_SHARD_BYTES}) here, since this ` +
+    'is only a ~300-game fixture, not the 500k-game scale the real budget is sized for',
+  );
+});
+
+test('aggregate: ROOT_MAX_PLY stays at or below the value verified safe for the 500k-game smoke scale (see src/ingest/aggregate.js header comment) -- a regression guard against silently raising root.json tree depth back toward the over-budget value (6) without re-checking against a fresh smoke-test run', () => {
+  assert.ok(
+    ROOT_MAX_PLY <= 3,
+    `ROOT_MAX_PLY is ${ROOT_MAX_PLY} -- raising it above 3 needs a fresh smoke-test run ` +
+    'confirming root.json stays under MAX_SHARD_BYTES at real (500k+ game) scale first',
+  );
 });
