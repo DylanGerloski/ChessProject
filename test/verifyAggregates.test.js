@@ -398,3 +398,33 @@ test('summarizeResults: manifest lists a shard missing on disk -> exit code 1 (s
   const { anyFail } = summarizeResults(results);
   assert.equal(anyFail, true, 'a manifest referencing a missing shard must still fail the gate');
 });
+
+// --- runAll: skipAggregates mode, for deploy-pages.yml's build job --------------
+//
+// deploy-pages.yml's checkout can have data/aggregates/manifest.json
+// (git-tracked once ingest-dump.yml has committed one back) without the
+// shards it lists (git-ignored, Release-only). Before skipAggregates
+// existed, that on-disk state made checks 1a/2/4/6a hard-FAIL on every
+// listed shard as "missing on disk", even though the build never reads raw
+// shards at all -- these tests lock in the fix.
+
+test('runAll with skipAggregates:true omits the 4 source-side checks entirely rather than failing them', () => {
+  const dir = mkTmpDir('skipaggregates-');
+  // A manifest whose shards do NOT exist on disk -- exactly deploy-pages.yml's
+  // real checkout state once a manifest has landed on master.
+  writeFile(dir, 'manifest.json', JSON.stringify({ retrievedAt: new Date().toISOString(), shards: [{ file: 'root.json', bytes: 10 }, { file: 'f/ghost.json', bytes: 10 }] }));
+
+  const results = runAll({ distDir: path.join(dir, 'nonexistent-dist'), aggregatesDir: dir, skipDist: true, skipAggregates: true });
+  const names = results.map((r) => r.name);
+  for (const aggregateCheck of ['1a. shard record integrity (exact)', '2. sample-size monotonicity (transposition-aware)', '4. manifest present/fresh/consistent', '6a. shard file size limits']) {
+    assert.ok(!names.includes(aggregateCheck), `${aggregateCheck} must not appear in results when skipAggregates is true`);
+  }
+});
+
+test('summarizeResults: manifest present but shards missing on disk + skipAggregates:true -> exit code 0 (the deploy-pages.yml case)', () => {
+  const dir = mkTmpDir('exitcode-skipaggregates-');
+  writeFile(dir, 'manifest.json', JSON.stringify({ retrievedAt: new Date().toISOString(), shards: [{ file: 'root.json', bytes: 10 }, { file: 'f/ghost.json', bytes: 10 }] }));
+  const results = runAll({ distDir: path.join(dir, 'nonexistent-dist'), aggregatesDir: dir, skipDist: true, skipAggregates: true });
+  const { anyFail } = summarizeResults(results);
+  assert.equal(anyFail, false, 'a manifest with unfetched shards must not fail the gate when skipAggregates is set');
+});

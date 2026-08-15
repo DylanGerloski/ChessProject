@@ -24,17 +24,37 @@
  * --source <path>` first (a local fixture or a real ingest output
  * directory) to produce a manifest and exercise the full check set.
  *
+ * A SEPARATE case from "genuinely missing": as of the first successful
+ * ingest-dump.yml commit-back, data/aggregates/manifest.json is a real,
+ * git-tracked file on master, but its shards (root.json, f/*.json) are
+ * deliberately NOT (~30MB, published as a GitHub Release asset instead --
+ * see .gitignore's comment on data/aggregates/*). That means an ordinary
+ * `git checkout` of master -- which is exactly what deploy-pages.yml's
+ * build job does -- has a manifest with no matching shards on disk, which
+ * checks 1a/2/4/6a would otherwise report as 55 "missing shard" hard FAILs
+ * on every single build, forever, even though nothing is actually broken.
+ * `--skip-aggregates` (below) is the deploy-side fix for exactly this case:
+ * omit the source-side checks entirely in a context where the build never
+ * reads raw shards off disk anyway (same rationale as the missing-manifest
+ * WARN above, just for a different on-disk state). This is orthogonal to
+ * `--skip-dist`, which is about dist/ not existing yet, not about
+ * data/aggregates/ shards not existing by design.
+ *
  * Check 2 (sample-size monotonicity) additionally carries a disclosed,
  * currently-permanent "known-gap" limitation rather than a pass/fail verdict
  * -- see loadAggregateShards' header comment below for why, and why that's
  * reported as a WARN rather than a FAIL.
  *
- * Usage: node scripts/verifyAggregates.js [distDir] [--aggregates <dir>] [--skip-dist]
- *   distDir      default "dist"
- *   --aggregates default "data/aggregates"
- *   --skip-dist  omit the 5 dist/-level checks entirely (for a context that
- *                deliberately never builds dist/, e.g. the ingest-only
- *                workflow -- see runAll's header comment)
+ * Usage: node scripts/verifyAggregates.js [distDir] [--aggregates <dir>] [--skip-dist] [--skip-aggregates]
+ *   distDir           default "dist"
+ *   --aggregates      default "data/aggregates"
+ *   --skip-dist       omit the 5 dist/-level checks entirely (for a context
+ *                      that deliberately never builds dist/, e.g. the
+ *                      ingest-only workflow -- see runAll's header comment)
+ *   --skip-aggregates omit the 4 source-side checks entirely (for a context
+ *                      that deliberately never has raw shards on disk, e.g.
+ *                      deploy-pages.yml's build job today -- see the
+ *                      shards-vs-manifest paragraph above)
  */
 
 const fs = require('fs');
@@ -441,7 +461,7 @@ function loadAggregateShards(aggregatesDir, manifest) {
 // --- orchestration -----------------------------------------------------------------
 
 /**
- * @param {{distDir: string, aggregatesDir: string, skipDist?: boolean}} args
+ * @param {{distDir: string, aggregatesDir: string, skipDist?: boolean, skipAggregates?: boolean}} args
  *   `skipDist: true` omits the five dist/-level checks (1b, 3, 5, 6b, 7)
  *   from the result set entirely, rather than reporting each as a failing
  *   "dist not found" skip -- for the ingest-only workflow
@@ -450,41 +470,55 @@ function loadAggregateShards(aggregatesDir, manifest) {
  *   deploy-pages.yml, against the manifest this run commits back). Without
  *   this, running this script from that workflow would always fail on
  *   checks it has no way to satisfy in that context.
+ *
+ *   `skipAggregates: true` omits the four source-side checks (1a, 2, 4, 6a)
+ *   entirely, the mirror image of `skipDist` -- for deploy-pages.yml's
+ *   build job, whose checkout has data/aggregates/manifest.json (a
+ *   git-tracked file once ingest-dump.yml has committed one back) but never
+ *   the shards it lists (git-ignored, Release-only -- see this file's
+ *   header comment). Without this, that checkout would always fail 1a/2/4/6a
+ *   on every "shard missing on disk" it lists, since the build doesn't
+ *   consume raw shards off disk at all today.
  */
-function runAll({ distDir, aggregatesDir, skipDist = false }) {
+function runAll({ distDir, aggregatesDir, skipDist = false, skipAggregates = false }) {
   const results = [];
 
   // Aggregate-shard-level checks (1a, 2, 4, 6a) -- depend on the ingestion pipeline's output.
-  const { manifest, missing, problems: manifestProblems } = loadManifest(aggregatesDir);
-  results.push({ name: '4. manifest present/fresh/consistent', problems: manifestProblems });
-
-  if (manifest) {
-    const { positions, positionTotalGames, parentEdgeGames, loadProblems, skippedForMonotonicity } = loadAggregateShards(aggregatesDir, manifest);
-    results.push({ name: '1a. shard record integrity (exact)', problems: [...loadProblems, ...checkShardRecordIntegrity(positions)] });
-    const monoProblems = checkSampleSizeMonotonicity(positionTotalGames, parentEdgeGames);
-    if (skippedForMonotonicity.size > 0) {
-      // known-gap, not skipped: this is not fixable by re-running anything
-      // (no destination posKey exists anywhere in the current aggregate
-      // schema for a move edge to check against -- see loadAggregateShards'
-      // header comment), so it must not gate the run the way a genuinely
-      // fixable "run the build first" skip does.
-      monoProblems.push(
-        `known-gap: ${skippedForMonotonicity.size} move edge(s) cannot be checked for monotonicity -- the current aggregate schema stores no destination posKey per move edge (see loadAggregateShards header comment)`
-      );
-    }
-    results.push({ name: '2. sample-size monotonicity (transposition-aware)', problems: monoProblems });
-    results.push({ name: '6a. shard file size limits', problems: checkShardSizeLimits(aggregatesDir, manifest) });
+  if (skipAggregates) {
+    // Intentionally omitted, not reported as a failing skip -- see this
+    // function's header comment.
   } else {
-    // `missing` distinguishes "manifest.json genuinely doesn't exist yet"
-    // (non-gating -- see loadManifest's comment) from "it exists but failed
-    // to parse" (still a genuine problem, so still a gating `skipped:`,
-    // unchanged from prior behavior).
-    const reason = missing
-      ? 'missing-manifest: no manifest (ingestion has not produced data/aggregates/manifest.json yet, and the build does not consume it today)'
-      : 'skipped: no manifest';
-    results.push({ name: '1a. shard record integrity (exact)', problems: [reason] });
-    results.push({ name: '2. sample-size monotonicity (transposition-aware)', problems: [reason] });
-    results.push({ name: '6a. shard file size limits', problems: [reason] });
+    const { manifest, missing, problems: manifestProblems } = loadManifest(aggregatesDir);
+    results.push({ name: '4. manifest present/fresh/consistent', problems: manifestProblems });
+
+    if (manifest) {
+      const { positions, positionTotalGames, parentEdgeGames, loadProblems, skippedForMonotonicity } = loadAggregateShards(aggregatesDir, manifest);
+      results.push({ name: '1a. shard record integrity (exact)', problems: [...loadProblems, ...checkShardRecordIntegrity(positions)] });
+      const monoProblems = checkSampleSizeMonotonicity(positionTotalGames, parentEdgeGames);
+      if (skippedForMonotonicity.size > 0) {
+        // known-gap, not skipped: this is not fixable by re-running anything
+        // (no destination posKey exists anywhere in the current aggregate
+        // schema for a move edge to check against -- see loadAggregateShards'
+        // header comment), so it must not gate the run the way a genuinely
+        // fixable "run the build first" skip does.
+        monoProblems.push(
+          `known-gap: ${skippedForMonotonicity.size} move edge(s) cannot be checked for monotonicity -- the current aggregate schema stores no destination posKey per move edge (see loadAggregateShards header comment)`
+        );
+      }
+      results.push({ name: '2. sample-size monotonicity (transposition-aware)', problems: monoProblems });
+      results.push({ name: '6a. shard file size limits', problems: checkShardSizeLimits(aggregatesDir, manifest) });
+    } else {
+      // `missing` distinguishes "manifest.json genuinely doesn't exist yet"
+      // (non-gating -- see loadManifest's comment) from "it exists but failed
+      // to parse" (still a genuine problem, so still a gating `skipped:`,
+      // unchanged from prior behavior).
+      const reason = missing
+        ? 'missing-manifest: no manifest (ingestion has not produced data/aggregates/manifest.json yet, and the build does not consume it today)'
+        : 'skipped: no manifest';
+      results.push({ name: '1a. shard record integrity (exact)', problems: [reason] });
+      results.push({ name: '2. sample-size monotonicity (transposition-aware)', problems: [reason] });
+      results.push({ name: '6a. shard file size limits', problems: [reason] });
+    }
   }
 
   // dist/-level checks (1b, 3, 5, 6b, 7) -- runnable today.
@@ -554,11 +588,14 @@ function main() {
   let distDir = 'dist';
   let aggregatesDir = 'data/aggregates';
   let skipDist = false;
+  let skipAggregates = false;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--aggregates') {
       aggregatesDir = args[++i];
     } else if (args[i] === '--skip-dist') {
       skipDist = true;
+    } else if (args[i] === '--skip-aggregates') {
+      skipAggregates = true;
     } else if (!args[i].startsWith('--')) {
       distDir = args[i];
     }
@@ -566,7 +603,7 @@ function main() {
   distDir = path.resolve(distDir);
   aggregatesDir = path.resolve(aggregatesDir);
 
-  const results = runAll({ distDir, aggregatesDir, skipDist });
+  const results = runAll({ distDir, aggregatesDir, skipDist, skipAggregates });
   const { anyFail, lines } = summarizeResults(results);
   for (const { level, text } of lines) console[level](text);
 
