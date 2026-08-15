@@ -32,7 +32,7 @@
  *
  * - Content pages (phases 1-2 of the content-depth
  *   build): 10 opening pages + the openings hub (phase 1), plus an FAQ page
- *   and 6 editorial guide articles + a guides hub (phase 2), all
+ *   and 7 editorial guide articles + a guides hub (phase 2), all
  *   pre-rendered the same way via buildContentPages() (src/buildContent.js).
  *   Also token-gated the same way -- see that module's own header comment.
  *

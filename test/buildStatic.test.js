@@ -213,8 +213,8 @@ test('buildStatic also writes the 10 opening pages plus the openings hub, and th
     const { fetchImpl } = fakeExplorerFetch();
     const { outDir, contentWritten } = await buildStatic({ fetchImpl, useCache: false });
 
-    // 10 openings + openings hub + 6 guides + guides hub + FAQ (phase 2).
-    assert.equal(contentWritten.length, 19);
+    // 10 openings + openings hub + 7 guides + guides hub + FAQ (phase 2).
+    assert.equal(contentWritten.length, 20);
     for (const { file } of contentWritten) {
       assert.ok(fs.existsSync(path.join(outDir, file)), `expected ${file} to exist on disk`);
     }
@@ -242,7 +242,7 @@ test('buildStatic also writes feed.xml (one <item> per content page) and links i
   })
 );
 
-test('buildStatic also writes the guides hub, all 6 guide articles, and the FAQ page, all reachable from nav', () =>
+test('buildStatic also writes the guides hub, all 7 guide articles, and the FAQ page, all reachable from nav', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();
     const { outDir } = await buildStatic({ fetchImpl, useCache: false });
@@ -256,6 +256,7 @@ test('buildStatic also writes the guides hub, all 6 guide articles, and the FAQ 
       'most-common-opening-mistakes-1600-1800.html',
       'should-you-study-openings-under-1500.html',
       'scandinavian-defense-at-club-level.html',
+      'how-to-build-your-opening-repertoire.html',
     ]) {
       assert.ok(fs.existsSync(path.join(outDir, file)), `expected ${file} to exist on disk`);
     }

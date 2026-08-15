@@ -49,9 +49,10 @@ const { BUILD_DATE } = require('./site');
 // the second would require asserting named-trap chess analysis ("this loses
 // a piece") without every claim being either site-data-backed or sourced to
 // an authoritative external reference, which needs a level of chess-domain
-// verification this build isn't equipped to do responsibly. The remaining 6
-// are all built entirely from ctx.entries (this build's own already-fetched
-// opening data) -- no hand-typed statistics.
+// verification this build isn't equipped to do responsibly. The remaining
+// guides are all built entirely from ctx.entries (this build's own
+// already-fetched opening data) -- no hand-typed statistics. The repertoire
+// how-to guide was added later (2026-08) under the same contract.
 const GUIDES = [
   require('./content/how-to-beat-the-london-system'),
   require('./content/best-chess-openings-for-beginners'),
@@ -59,6 +60,7 @@ const GUIDES = [
   require('./content/most-common-opening-mistakes-1600-1800'),
   require('./content/should-you-study-openings-under-1500'),
   require('./content/scandinavian-defense-at-club-level'),
+  require('./content/how-to-build-your-opening-repertoire'),
 ];
 
 const DEFAULT_BAND = '1600-1800';
