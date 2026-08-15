@@ -8,6 +8,8 @@
   "scripts": {
     "build": "node src/build.js",
     "build:static": "node src/buildStatic.js",
+    "postbuild:static": "node scripts/emDashDensity.js",
+    "check-em-dash": "node scripts/emDashDensity.js",
     "serve": "node src/server.js",
     "test": "node --test test/*.test.js",
     "visual-qa": "node scripts/visual-qa.js"

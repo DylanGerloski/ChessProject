@@ -2,7 +2,9 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { SITE_CSS, DESIGN_TOKENS, renderDocumentHead, renderNewsletterSignup, renderFooter } = require('../src/render');
+const { SITE_CSS, DESIGN_TOKENS, renderDocumentHead, renderNewsletterSignup, renderFooter, renderHeader, HEADER_BAND_OPTIONS, HEADER_BAND_DEFAULT, BAND_CONTROL_PAGES } = require('../src/render');
+const { RATING_BANDS } = require('../src/processRepertoire');
+const { BANDS: BAND_STATE_BANDS, DEFAULT_STATE: BAND_STATE_DEFAULT } = require('../src/browser/bandState.client');
 
 // Regression coverage: the self-hosted Fraunces
 // heading webfont must stay scoped to headings only, self-hosted (never a
@@ -135,4 +137,53 @@ test('renderFooter: a legalLinks object WITH methodology renders the fourth link
   const inner = navMatch[1];
   assert.doesNotMatch(inner, /^[\t ]+\r?\n[\t ]*$/m, 'no line inside the nav should contain only whitespace');
   assert.match(inner, /href="methodology\.html">Methodology<\/a>/);
+});
+
+// -----------------------------------------------------------------------
+// renderHeader(): WS-1 spec section 3.4 (task W4), the site-wide band-
+// persistence control. Three things worth a regression test: (1) it only
+// appears on the pages BAND_CONTROL_PAGES names, never elsewhere -- a
+// silent expansion would put a band picker on pages with no band-
+// dependent numbers at all; (2) HEADER_BAND_OPTIONS/HEADER_BAND_DEFAULT
+// (render.js's own hardcoded copies -- this file is deliberately a leaf
+// module with zero requires, see its own top comment) never drift from
+// processRepertoire.js's RATING_BANDS keys or bandState.client.js's BANDS/
+// DEFAULT_STATE, which is what would actually break persistence if either
+// source changed and this file's literals weren't updated to match;
+// (3) the band-header.js bundle is only referenced on pages that actually
+// render the control, never as dead weight on every page.
+// -----------------------------------------------------------------------
+
+test('renderHeader: HEADER_BAND_OPTIONS never drifts from processRepertoire.js RATING_BANDS or bandState.client.js BANDS/DEFAULT_STATE', () => {
+  assert.deepEqual(HEADER_BAND_OPTIONS, Object.keys(RATING_BANDS), 'render.js HEADER_BAND_OPTIONS must match processRepertoire.js RATING_BANDS keys exactly, same order');
+  for (const band of HEADER_BAND_OPTIONS) {
+    assert.ok(BAND_STATE_BANDS.includes(band), `HEADER_BAND_OPTIONS entry "${band}" must be one of bandState.client.js's own BANDS`);
+  }
+  assert.equal(HEADER_BAND_DEFAULT, BAND_STATE_DEFAULT.band, 'HEADER_BAND_DEFAULT must match bandState.client.js DEFAULT_STATE.band exactly, or the server-rendered <select> would silently disagree with the client default');
+});
+
+test('renderHeader: renders the band control with all four options, the default selected, and its own script, only for pages in BAND_CONTROL_PAGES', () => {
+  for (const active of BAND_CONTROL_PAGES) {
+    const html = renderHeader({ builder: 'a.html', player: 'b.html', repertoire: 'c.html', drill: 'd.html' }, active);
+    assert.match(html, /<select id="site-band-select" class="band-header-select" data-band-header-control/, `active="${active}" should render the band control`);
+    for (const band of HEADER_BAND_OPTIONS) {
+      assert.match(html, new RegExp(`<option value="${band.replace('+', '\\+')}"[^>]*>${band.replace('+', '\\+')}</option>`), `active="${active}" should offer band option ${band}`);
+    }
+    assert.match(html, new RegExp(`<option value="${HEADER_BAND_DEFAULT}" selected>`), `active="${active}" should pre-select the default band`);
+    assert.match(html, /<script src="band-header\.js" defer><\/script>/, `active="${active}" should load band-header.js`);
+  }
+});
+
+test('renderHeader: omits the band control and its script entirely for a page not in BAND_CONTROL_PAGES', () => {
+  for (const active of ['openings', 'eco', 'guides', 'faq', 'packs', null]) {
+    const html = renderHeader({ builder: 'a.html', openings: 'e.html', faq: 'f.html' }, active);
+    assert.doesNotMatch(html, /band-header-control|data-band-header-control/, `active="${active}" must not render the band control`);
+    assert.doesNotMatch(html, /band-header\.js/, `active="${active}" must not load band-header.js`);
+  }
+});
+
+test('renderHeader: band control markup is well-formed regardless of which nav keys are present (server.js\'s 2-key nav)', () => {
+  const html = renderHeader({ player: '/', repertoire: '/repertoire' }, 'player');
+  assert.match(html, /data-band-header-control/);
+  assert.match(html, /aria-label="Rating band, remembered for your next visit"/);
 });

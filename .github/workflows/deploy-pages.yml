@@ -60,8 +60,17 @@ jobs:
       - name: Validate HTML
         run: npx html-validate "dist/**/*.html"
 
+      # --skip-aggregates: this job's checkout can have
+      # data/aggregates/manifest.json (git-tracked once ingest-dump.yml has
+      # committed one back) without the shards it lists (git-ignored,
+      # published as a GitHub Release asset instead -- see .gitignore and
+      # scripts/verifyAggregates.js's header comment). This build doesn't
+      # read raw shards off disk at all today, so checking for them here
+      # would fail every deploy on a "missing shard" that isn't actually a
+      # problem -- the dist/-level checks below are the ones that matter
+      # for what this job actually ships.
       - name: Verify data-sanity gates
-        run: node scripts/verifyAggregates.js dist
+        run: node scripts/verifyAggregates.js dist --skip-aggregates
 
       # WS-1 band-meta shards (dist/data/rep/, scripts/buildBandShards.js) --
       # a separate, run-by-hand dataset from data/aggregates/ above, checked

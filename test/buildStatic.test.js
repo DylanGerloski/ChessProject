@@ -12,6 +12,7 @@ const {
   buildPlayerLookupBundle,
   buildDrillBundle,
   buildRepertoireBundle,
+  buildBandHeaderControlBundle,
   bundleBrowserEntry,
   indexPage,
   playerLookupPage,
@@ -185,6 +186,18 @@ test('buildStatic writes the collapsed repertoire.html + repertoire.js, all 8 re
       assert.ok(fs.existsSync(path.join(outDir, page)), `expected ${page} to exist on disk`);
       if (bundle) assert.ok(fs.existsSync(path.join(outDir, bundle)), `expected ${bundle} to exist on disk`);
     }
+
+    // WS-1 spec 3.4 (task W4): one shared bundle, referenced by every page
+    // above plus repertoire.html -- see src/render.js's renderHeader().
+    assert.ok(fs.existsSync(path.join(outDir, 'band-header.js')), 'expected band-header.js to exist on disk');
+    for (const page of ['repertoire-builder.html', 'opening-report.html', 'drill.html', 'drill-reference.html', 'repertoire.html']) {
+      const html = fs.readFileSync(path.join(outDir, page), 'utf8');
+      assert.match(html, /<script src="band-header\.js" defer><\/script>/, `expected ${page} to load band-header.js`);
+      assert.match(html, /data-band-header-control/, `expected ${page} to render the band control`);
+    }
+    // A page with no band-dependent numbers must NOT carry the dead weight.
+    const indexHtml = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
+    assert.doesNotMatch(indexHtml, /band-header\.js|data-band-header-control/, 'index.html is not a band-dependent page and must not load the control');
   })
 );
 
@@ -207,10 +220,14 @@ test('repertoire.html carries a canonical link, a title ending in the site suffi
     assert.match(playerHtml, /<link rel="canonical" href="https:\/\/repertoire-builder\.com\/opening-report\.html">/);
     assert.match(playerHtml, /<meta name="robots" content="noindex, follow">/);
 
+    // WS-1 W2 replaced the opening-report.html placeholder with the real
+    // Personal Opening Report page (IS_PLACEHOLDER now false) -- title and
+    // noindex assertions updated accordingly; see this file's sitemap-count
+    // test below for the matching indexed-page-count update.
     const openingReportHtml = fs.readFileSync(path.join(outDir, 'opening-report.html'), 'utf8');
-    assert.match(openingReportHtml, /<title>Opening report \| Repertoire Builder<\/title>/);
+    assert.match(openingReportHtml, /<title>Your Lichess opening leak report \| Repertoire Builder<\/title>/);
     assert.match(openingReportHtml, /<link rel="canonical" href="https:\/\/repertoire-builder\.com\/opening-report\.html">/);
-    assert.match(openingReportHtml, /<meta name="robots" content="noindex">/);
+    assert.doesNotMatch(openingReportHtml, /<meta name="robots" content="noindex">/, 'opening-report.html is real now, not a placeholder, and must be indexable');
   })
 );
 
@@ -476,6 +493,18 @@ test('buildRepertoireBundle esbuild-bundles bandState.client.js, render.js, and 
   assert.doesNotThrow(() => runBundleInSandbox(bundle));
 });
 
+test('buildBandHeaderControlBundle (WS-1 spec 3.4, task W4) esbuild-bundles bandState.client.js and the band-header browser controller into one self-contained IIFE that runs with no global require/module/exports (file:// invariant)', () => {
+  const bundle = buildBandHeaderControlBundle();
+  assert.match(bundle, /function readBandState/);
+  assert.match(bundle, /function writeBandState/);
+  assert.match(bundle, /function onBandStateChange/);
+  // Real proof: run it against a DOM stub with no [data-band-header-control]
+  // element present (the sandbox's querySelector always returns null) --
+  // the controller must bail out cleanly rather than throw, same invariant
+  // buildRepertoireBundle's sibling test above checks.
+  assert.doesNotThrow(() => runBundleInSandbox(bundle));
+});
+
 test('bundleBrowserEntry throws loudly on a syntax error in the entry point, same failure-loudly guarantee the old string-splice bundler had', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lichess-bundle-test-'));
   try {
@@ -594,22 +623,23 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     assert.ok(ecoExplorerResult.reverseLookupCount > 0);
 
     // index + player.html (stub) + italian-game-drill.html (stub) +
-    // repertoire-builder.html + opening-report.html + drill-reference.html
-    // (WS-1 placeholders) + privacy/about/contact/methodology + 404 +
+    // repertoire-builder.html (real, WS-1 W1a) + opening-report.html +
+    // drill-reference.html (still WS-1 placeholders) +
+    // privacy/about/contact/methodology + 404 +
     // drill.html (the WS-1 hub, drillFile) + repertoire.html = 13 fixed
     // entries + 8 redirect stubs + 10 openings + hub + 8 guides + hub + FAQ
     // + (Phase 7d) 64 T1 family hubs + 5 T2 volume pages + 2 T2
     // browse-index pages + (Phase 7e) 1 ECO explorer page + (M2) 3
     // Repertoire Pack pages.
     // pageFilenames includes 404.html, the 8 repertoire redirect stubs,
-    // player.html/italian-game-drill.html (also now redirect stubs), the 2
-    // still-placeholder WS-1 pages (repertoire-builder.html,
-    // opening-report.html -- noindex), and the 3 pack pages (for the
-    // filename-uniqueness check), but the sitemap itself must exclude all
-    // of those -- see src/sitemap.js's buildSitemapEntries/REDIRECT_STUBS
-    // plus src/buildStatic.js's own noindexPackFiles/
-    // noindexPlaceholderFiles filters. drill.html/drill-reference.html are
-    // real now (Drill Engine v2) and are NOT excluded -- see below.
+    // player.html/italian-game-drill.html (also now redirect stubs), and
+    // the 3 pack pages (for the filename-uniqueness check), but the
+    // sitemap itself must exclude all of those -- see src/sitemap.js's
+    // buildSitemapEntries/REDIRECT_STUBS plus src/buildStatic.js's own
+    // noindexPackFiles/noindexPlaceholderFiles filters. All four WS-1
+    // pages (repertoire-builder.html, opening-report.html, drill.html,
+    // drill-reference.html) have shipped for real now and are NOT
+    // excluded -- see below.
     const expectedPageCount = 13 + 1 + repertoireStubs.length + contentWritten.length + ecoWritten.length + packWritten.length;
     assert.equal(pageFilenames.length, expectedPageCount);
     assert.ok(pageFilenames.includes('404.html'));
@@ -622,11 +652,12 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     const locMatches = [...sitemapXml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
     // Excluded from the sitemap: 404.html (1), the 8 repertoire redirect
     // stubs, the (currently noindex) pack pages, player.html +
-    // italian-game-drill.html (2, now redirect stubs), and the 2 remaining
-    // WS-1 placeholder pages (repertoire-builder.html, opening-report.html
-    // -- still noindex; drill.html/drill-reference.html are real now, see
-    // the Drill Engine v2 task, and DO appear in the sitemap below).
-    const excludedCount = 1 + repertoireStubs.length + packWritten.length + 2 + 2;
+    // italian-game-drill.html (2, now redirect stubs). All four WS-1 pages
+    // (repertoire-builder.html [W1a], opening-report.html [W2], drill.html
+    // and drill-reference.html [Drill Engine v2]) have shipped for real
+    // and are no longer excluded, so there are zero remaining WS-1
+    // placeholder pages to subtract.
+    const excludedCount = 1 + repertoireStubs.length + packWritten.length + 2;
     assert.equal(locMatches.length, expectedPageCount - excludedCount, '404.html, the redirect stubs, the noindex pack pages, and the still-placeholder WS-1 pages must all be excluded from the sitemap');
     assert.ok(!locMatches.some((loc) => loc.includes('repertoire-packs')), 'no noindex pack page should appear in the sitemap');
     assert.ok(locMatches.includes('https://repertoire-builder.com/'), 'home should canonicalize to the directory form');
@@ -638,13 +669,14 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     // Redirect sources and still-placeholder pages must NOT appear.
     assert.ok(!locMatches.includes('https://repertoire-builder.com/italian-game-drill.html'), 'a redirect source must never appear in the sitemap');
     assert.ok(!locMatches.includes('https://repertoire-builder.com/player.html'), 'a redirect source must never appear in the sitemap');
-    // Drill Engine v2 shipped for real (this task) -- drill.html and
-    // drill-reference.html are indexable now, unlike the two WS-1
-    // surfaces that haven't landed yet.
+    // All four WS-1 pages have shipped for real: drill.html and
+    // drill-reference.html (Drill Engine v2, this branch) plus
+    // repertoire-builder.html (WS-1 W1a) and opening-report.html (WS-1 W2,
+    // both merged to master separately) -- all four are indexable now.
     assert.ok(locMatches.includes('https://repertoire-builder.com/drill.html'), 'the WS-1 drill hub is real now and must be indexed');
     assert.ok(locMatches.includes('https://repertoire-builder.com/drill-reference.html'), 'the WS-1 drill reference is real now and must be indexed');
-    assert.ok(!locMatches.includes('https://repertoire-builder.com/repertoire-builder.html'), 'the WS-1 repertoire builder is still a placeholder (noindex) in this test');
-    assert.ok(!locMatches.includes('https://repertoire-builder.com/opening-report.html'), 'the WS-1 opening report is still a placeholder (noindex) in this test');
+    assert.ok(locMatches.includes('https://repertoire-builder.com/repertoire-builder.html'), 'the WS-1 repertoire builder shipped for real (WS-1 W1a) and must be indexed');
+    assert.ok(locMatches.includes('https://repertoire-builder.com/opening-report.html'), 'the WS-1 opening report shipped for real (WS-1 W2) and must be indexed');
     assert.equal(ecoWritten.length, 64 + 5 + 2, 'Phase 7d: 64 T1 hubs + 5 T2 volume pages + 2 T2 browse-index pages');
     assert.ok(locMatches.includes('https://repertoire-builder.com/sicilian-defense-variations.html'));
     assert.ok(locMatches.includes('https://repertoire-builder.com/eco-volume-b.html'));

@@ -142,7 +142,42 @@ jobs:
           git add data/aggregates/manifest.json
           if git diff --cached --quiet; then
             echo "manifest.json unchanged, nothing to commit"
-          else
-            git commit -m "data: update aggregate manifest for ${{ inputs.month }}"
-            git push
+            exit 0
           fi
+          git commit -m "data: update aggregate manifest for ${{ inputs.month }}"
+
+          # A bare `git push` here races any unrelated PR merging to master
+          # during this job's run window (Ingest+Verify+Package+Release can
+          # take 30-90+ minutes) and LOSES that race outright -- a rejected
+          # push is not retried, so a fully verified manifest.json silently
+          # never lands on master even though every earlier step passed
+          # (confirmed against a real run: 2026-07's ingest published its
+          # Release asset fine but this step's push was rejected --
+          # "! [rejected] master -> master (fetch first)" -- and nobody
+          # noticed until a manual audit). manifest.json is the ONLY file
+          # this job ever touches and it is fully regenerated fresh each
+          # run, so there is no real content to reconcile on conflict: if
+          # origin/master moved, rebase onto it keeping THIS run's freshly
+          # verified manifest.json (rebase's "theirs" = the commit being
+          # replayed, i.e. our local commit -- rebase inverts merge's
+          # ours/theirs, see `git rebase --help`), then retry the push.
+          # Bounded retries with backoff so a genuinely stuck remote fails
+          # the job loudly instead of hanging.
+          for attempt in 1 2 3 4 5; do
+            echo "commit-back attempt ${attempt}/5: fetching origin/master and rebasing"
+            git fetch origin master
+            if ! git rebase -X theirs origin/master; then
+              echo "rebase hit an unexpected conflict outside manifest.json -- aborting and retrying"
+              git rebase --abort || true
+              sleep $(( attempt * 5 ))
+              continue
+            fi
+            if git push; then
+              echo "pushed manifest.json on attempt ${attempt}"
+              exit 0
+            fi
+            echo "push still rejected (attempt ${attempt}/5) -- master moved again, retrying"
+            sleep $(( attempt * 5 ))
+          done
+          echo "::error::failed to push data/aggregates/manifest.json to master after 5 rebase+push attempts -- master kept moving faster than this job could land on it. The data itself is safe in this run's GitHub Release; land manifest.json manually and investigate why master is churning this fast."
+          exit 1
