@@ -1,18 +1,18 @@
 'use strict';
 
 /**
- * PLACEHOLDER esbuild entry point for /drill.html's bundle (drill-hub.js).
- * The follow-on task that builds Drill Engine v2 (spec
- * WS-1 spec section 3.3) replaces this file's contents entirely
- * -- see src/renderDrillHub.js's header comment for the full reasoning.
- * That task may end up repurposing src/browser/drill.client.js instead of
- * this file for the hub's real bundle; either way, src/buildStatic.js's
- * buildDrillHubBundle() call (bundleBrowserEntry pointed at THIS path)
- * never changes on its own, so update this file's own require() if the
- * real implementation moves elsewhere, not buildStatic.js.
- *
- * Deliberately does nothing yet -- the placeholder page has no interactive
- * element for this to wire up.
+ * esbuild entry point for /drill.html's bundle (drill-hub.js).
+ * src/buildStatic.js's buildDrillHubBundle() call (bundleBrowserEntry
+ * pointed at THIS path) is a FROZEN, shared-file call site (WS-1 spec
+ * section 6.2's mitigation -- this task does not touch buildStatic.js).
+ * The Drill Engine v2 task's own file footprint names
+ * src/browser/drill.client.js, not this file, so the real hub+session
+ * controller lives there; this file only require()s it, exactly the
+ * indirection this file's own placeholder-era header comment already
+ * anticipated ("that task may end up repurposing src/browser/drill.client.js
+ * instead of this file for the hub's real bundle ... update this file's
+ * own require() if the real implementation moves elsewhere, not
+ * buildStatic.js").
  */
 
-console.log('Opening drill hub: coming soon.');
+require('./drill.client');
