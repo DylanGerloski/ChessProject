@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const { buildContentPages } = require('../src/buildContent');
+const { buildContentPages, fetchLineWithValidation } = require('../src/buildContent');
 const { buildOpeningModel } = require('../src/processOpenings');
 const { renderOpeningPage } = require('../src/renderContent');
 const { OPENINGS } = require('../src/openings');
@@ -82,6 +82,57 @@ test('buildContentPages fails loudly on a move-order mismatch instead of publish
     await assert.rejects(() => buildContentPages({ fetchImpl: badFetch, outDir }), /ply 0 expects/);
   })
 );
+
+// The known-gap fallback: an ingest run's per-family shards are sampled per
+// family, not per shared ancestor position, so a position several openings
+// pass through in common can be present at `dir` (aggregatesAvailable()
+// true, manifest.json + root.json both on disk) while still coming back
+// empty for THIS particular lookup -- distinct from "no aggregate data at
+// all" (the badFetch case above, which the pre-existing move-order-mismatch
+// test already covers). fetchLineWithValidation must retry live in that
+// case rather than concluding the configured move order is wrong.
+test('fetchLineWithValidation: aggregate data present but this position missing (known ingest-sampling gap) retries live instead of throwing', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'buildContent-known-gap-'));
+  try {
+    // manifest.json + root.json both exist (aggregatesAvailable() === true)
+    // but root.json's positions map is empty -- every aggregate lookup at
+    // this dir comes back with zero candidate moves, the exact shape of the
+    // real ruy-lopez/scotch-game gap found via a real workflow_dispatch CI
+    // run against the actual published aggregate-data Release.
+    fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ pipelineVersion: 1, retrievedAt: new Date().toISOString() }), 'utf8');
+    fs.writeFileSync(path.join(dir, 'root.json'), JSON.stringify({ positions: {}, pathIndex: {} }), 'utf8');
+
+    let liveCalls = 0;
+    const liveFetchImpl = async () => {
+      liveCalls += 1;
+      return fakeResponse({
+        opening: null, white: 900, draws: 400, black: 700,
+        moves: [{ uci: 'e2e4', san: 'e4', white: 900, draws: 400, black: 700 }],
+      });
+    };
+
+    // Only the per-ply VALIDATION loop is under test here -- it must not
+    // throw when the aggregate lookup for a genuinely-empty position comes
+    // back empty, as long as the live fallback confirms the configured move
+    // really is a valid candidate. (The trailing "full line" stats call is
+    // a separate, already-disclosed degrade-gracefully path -- not what
+    // this test is checking.)
+    await assert.doesNotReject(() => fetchLineWithValidation({
+      slug: 'test-opening',
+      line: [{ uci: 'e2e4', san: 'e4' }],
+      ratings: [1600, 1800],
+      speeds: ['blitz', 'rapid'],
+      band: '1600-1800',
+      familySlug: 'test-family',
+      fetchImpl: liveFetchImpl,
+      aggregatesDir: dir,
+    }));
+
+    assert.equal(liveCalls > 0, true, 'expected the live-Explorer fallback to be called at least once');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test('the openings hub links to all 10 opening pages', () =>
   withTempDist(async (outDir) => {
