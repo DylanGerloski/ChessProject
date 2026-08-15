@@ -207,10 +207,14 @@ test('repertoire.html carries a canonical link, a title ending in the site suffi
     assert.match(playerHtml, /<link rel="canonical" href="https:\/\/repertoire-builder\.com\/opening-report\.html">/);
     assert.match(playerHtml, /<meta name="robots" content="noindex, follow">/);
 
+    // WS-1 W2 replaced the opening-report.html placeholder with the real
+    // Personal Opening Report page (IS_PLACEHOLDER now false) -- title and
+    // noindex assertions updated accordingly; see this file's sitemap-count
+    // test below for the matching indexed-page-count update.
     const openingReportHtml = fs.readFileSync(path.join(outDir, 'opening-report.html'), 'utf8');
-    assert.match(openingReportHtml, /<title>Opening report \| Repertoire Builder<\/title>/);
+    assert.match(openingReportHtml, /<title>Your Lichess opening leak report \| Repertoire Builder<\/title>/);
     assert.match(openingReportHtml, /<link rel="canonical" href="https:\/\/repertoire-builder\.com\/opening-report\.html">/);
-    assert.match(openingReportHtml, /<meta name="robots" content="noindex">/);
+    assert.doesNotMatch(openingReportHtml, /<meta name="robots" content="noindex">/, 'opening-report.html is real now, not a placeholder, and must be indexable');
   })
 );
 
@@ -620,9 +624,10 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     const locMatches = [...sitemapXml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
     // Excluded from the sitemap: 404.html (1), the 8 repertoire redirect
     // stubs, the (currently noindex) pack pages, player.html +
-    // italian-game-drill.html (2, now redirect stubs), and the 4 WS-1
-    // placeholder pages (still noindex).
-    const excludedCount = 1 + repertoireStubs.length + packWritten.length + 2 + 4;
+    // italian-game-drill.html (2, now redirect stubs), and the remaining 3
+    // WS-1 placeholder pages (still noindex) -- opening-report.html shipped
+    // for real (WS-1 W2) and is no longer one of them.
+    const excludedCount = 1 + repertoireStubs.length + packWritten.length + 2 + 3;
     assert.equal(locMatches.length, expectedPageCount - excludedCount, '404.html, the redirect stubs, the noindex pack pages, and the still-placeholder WS-1 pages must all be excluded from the sitemap');
     assert.ok(!locMatches.some((loc) => loc.includes('repertoire-packs')), 'no noindex pack page should appear in the sitemap');
     assert.ok(locMatches.includes('https://repertoire-builder.com/'), 'home should canonicalize to the directory form');
@@ -636,7 +641,7 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     assert.ok(!locMatches.includes('https://repertoire-builder.com/player.html'), 'a redirect source must never appear in the sitemap');
     assert.ok(!locMatches.includes('https://repertoire-builder.com/drill.html'), 'the WS-1 drill hub is still a placeholder (noindex) in this test');
     assert.ok(!locMatches.includes('https://repertoire-builder.com/repertoire-builder.html'), 'the WS-1 repertoire builder is still a placeholder (noindex) in this test');
-    assert.ok(!locMatches.includes('https://repertoire-builder.com/opening-report.html'), 'the WS-1 opening report is still a placeholder (noindex) in this test');
+    assert.ok(locMatches.includes('https://repertoire-builder.com/opening-report.html'), 'the WS-1 opening report shipped for real (WS-1 W2) and must be indexed');
     assert.ok(!locMatches.includes('https://repertoire-builder.com/drill-reference.html'), 'the WS-1 drill reference is still a placeholder (noindex) in this test');
     assert.equal(ecoWritten.length, 64 + 5 + 2, 'Phase 7d: 64 T1 hubs + 5 T2 volume pages + 2 T2 browse-index pages');
     assert.ok(locMatches.includes('https://repertoire-builder.com/sicilian-defense-variations.html'));

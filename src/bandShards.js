@@ -11,7 +11,13 @@
 
 const { Chess } = require('chess.js');
 const { fenToEpd, posKeyFromEpd } = require('./ingest/positionWalk');
-const { applyExplorerUci } = require('./buildPack');
+// From src/explorerUci.js (a zero-dependency module), NOT src/buildPack.js
+// -- buildPack.js's own require('./explorerSource') pulls in Node's
+// fs/path, which breaks any esbuild browser bundle that needs this module
+// (bandShards.js is required by src/browser/bandData.client.js, which
+// several WS-1 client bundles need). See explorerUci.js's own header
+// comment for the full story.
+const { applyExplorerUci } = require('./explorerUci');
 
 const SCHEMA_VERSION = 1;
 const SOURCE_EXPLORER = 'lichess-opening-explorer';

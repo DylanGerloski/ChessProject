@@ -47,6 +47,7 @@ const { RATING_BANDS, DEFAULT_SPEEDS } = require('./processRepertoire');
 const { scoreInterval } = require('./stats');
 const { fetchMoves, AGGREGATES_DIR } = require('./explorerSource');
 const { Chess } = require('chess.js');
+const { applyExplorerUci } = require('./explorerUci');
 
 const RULE_VERSION = '1';
 const MIN_N = 300;
@@ -58,35 +59,14 @@ const SIZE_CAP = 800;
 const THRESHOLD_STEP = 0.005; // 0.5 percentage points
 const TIE_BAND = 0.005; // 0.5 percentage points, spec 1.3's tie-break window
 
-/**
- * Applies one Explorer-sourced UCI move to a live chess.js instance,
- * returning chess.js's own move-result object (throws on illegal input,
- * same as chess.js's own `.move()` -- see fenAfter()'s doc comment).
- *
- * Handles ONE real quirk, found by running this module against live data
- * (not assumed from documentation, same "verified today" discipline
- * src/pgnWrapper.js's header comment uses for this library): the Lichess
- * Opening Explorer API encodes castling as "king captures its own rook"
- * (e1h1/e1a1/e8h8/e8a8 -- the UCI_Chess960 convention) even for an
- * ordinary, non-Chess960 game. Every position this module walks up to
- * MAX_PLY=12 is well within range of a castling move, and chess.js's
- * object-form `.move()` on a normal (non-960) instance does not
- * understand that encoding -- it expects the king's actual landing square
- * (e1g1/e1c1/...). Detected structurally (king's square -> a same-color
- * rook's square), not by string-matching specific squares, so it also
- * covers a hypothetical future Chess960 pack without change.
- */
-function applyExplorerUci(chess, uci) {
-  const from = uci.slice(0, 2);
-  let to = uci.slice(2, 4);
-  const promotion = uci.length > 4 ? uci[4] : undefined;
-  const mover = chess.get(from);
-  const target = chess.get(to);
-  if (mover && mover.type === 'k' && target && target.type === 'r' && target.color === mover.color) {
-    to = `${to[0] === 'h' ? 'g' : 'c'}${from[1]}`;
-  }
-  return chess.move({ from, to, promotion });
-}
+// applyExplorerUci now lives in src/explorerUci.js (a zero-dependency
+// module) and is re-exported below, unchanged in behaviour -- see that
+// file's own header comment for why: this module's own
+// `require('./explorerSource')` (fs/path-dependent, build-time only) used
+// to get pulled into any browser bundle that needed just this one
+// function, which is fatal for esbuild's `platform: 'browser'` bundling.
+// src/bandShards.js and src/browser/bandData.client.js import it directly
+// from src/explorerUci.js now, not from here.
 
 /**
  * FEN after replaying a UCI move list from the standard starting position.

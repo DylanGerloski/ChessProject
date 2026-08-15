@@ -1,7 +1,17 @@
 'use strict';
 
 const { Chess } = require('chess.js');
-const crypto = require('node:crypto');
+// Was `node:crypto` -- swapped for a dependency-free, byte-for-byte
+// identical SHA-1 (see src/sha1.js's own header comment) because this
+// module is require()'d by src/bandShards.js, which src/browser/
+// bandData.client.js (the WS-1 runtime read path every client surface
+// uses) needs in an esbuild browser bundle, and Node's `crypto` module
+// cannot be bundled for `platform: 'browser'`. Found while wiring WS-1 W2's
+// client bundle -- the first W-task to actually esbuild-bundle a module
+// that transitively required this file; test/sha1.test.js proves the
+// output is identical to `crypto.createHash('sha1')` for every input, so
+// no already-committed shard posKey is invalidated by this change.
+const { sha1Hex } = require('../sha1');
 
 /**
  * SAN -> position walk. chess.js is already a devDependency
@@ -26,7 +36,7 @@ function fenToEpd(fen) {
  * stored positions).
  */
 function posKeyFromEpd(epd) {
-  return crypto.createHash('sha1').update(epd).digest('hex').slice(0, 24);
+  return sha1Hex(epd).slice(0, 24);
 }
 
 /**
