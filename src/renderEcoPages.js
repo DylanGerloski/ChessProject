@@ -86,9 +86,20 @@ function ecoRangeLabel(ecoCodes) {
  * optionally prefixed with a label (used when more than one line shares a
  * node -- see renderVariationTreeNode below -- so each transposition is
  * still individually identifiable by its own move order).
+ *
+ * The label and move text are separate flex children (`.rep-node-row` is
+ * `display: flex` with its own `gap`, src/render.js) rather than one span
+ * joined by a text separator -- a family with hundreds of named lines (e.g.
+ * Sicilian Defense, 391 rows) repeated a textual "label -- moves" em-dash
+ * separator once per row, which was the single largest source of
+ * scripts/emDashDensity.js's site-wide failures: not prose style, a UI
+ * separator character reused at row-per-line scale. No separator character
+ * is needed at all once label/moves are distinct elements -- same
+ * convention this row already uses for the eco-chip span.
  */
 function renderLineRow(line, label) {
-  return `<div class="rep-node-row"><span class="eco-chip">${escapeHtml(line.eco)}</span><span>${label ? `${escapeHtml(label)} &mdash; ` : ''}${escapeHtml(formatSanLine(line.plies))}</span></div>`;
+  const labelHtml = label ? `<span class="rep-node-label">${escapeHtml(label)}</span>` : '';
+  return `<div class="rep-node-row"><span class="eco-chip">${escapeHtml(line.eco)}</span>${labelHtml}<span>${escapeHtml(formatSanLine(line.plies))}</span></div>`;
 }
 
 /**
@@ -225,7 +236,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd 
     ${renderPageHead({
       breadcrumb: renderBreadcrumb(breadcrumbItems),
       eyebrow: 'ECO family guide',
-      title: `${escapeHtml(family)} &mdash; all variations and ECO codes`,
+      title: `${escapeHtml(family)}: all variations and ECO codes`,
       subtitle: `${lineCount} named lines across ${ecoCodes.length} ECO code${ecoCodes.length === 1 ? '' : 's'}
         (${escapeHtml(ecoRangeLabel(ecoCodes))})${volumes.length > 1 ? `, spanning ECO volumes ${volumes.join(', ')}` : ''}.
         Source: the CC0-licensed <a href="https://github.com/lichess-org/chess-openings">lichess.org opening database</a>.`,
@@ -241,13 +252,13 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd 
     </figure>
 
     <h2>How the main line scores at your rating</h2>
-    <p>Real Lichess win rates for ${escapeHtml(sanLine)}, playing as ${escapeHtml(mainLineSide)} &mdash; the family's
+    <p>Real Lichess win rates for ${escapeHtml(sanLine)}, playing as ${escapeHtml(mainLineSide)}: the family's
        ${ecoCodes.length > 1 || lineCount > 1 ? 'other variations are not separately tracked for win rate yet, ' : ''}main line only.</p>
     ${renderBandsTable({ side: mainLineSide, bands: bandStats.bands })}
 
     <h2>All ${lineCount} named variations</h2>
     <p class="repertoire-intro">Every named line in the ${escapeHtml(family)} family, from the CC0-licensed ECO
-       classification &mdash; not separately tracked for win rate, but every ECO code and move sequence is real,
+       classification: not separately tracked for win rate, but every ECO code and move sequence is real,
        sourced data.</p>
     ${renderVariationTree(familyEntry)}
 
