@@ -31,3 +31,12 @@ SEO_*.md
 *_REPORT_*.md
 *HEALTH*.md
 *_PLAN.md
+
+# Generated Repertoire Pack artifacts (scripts/buildPacks.js): these are
+# the $9 sellable product itself (PGN/manifest/PDF/README), never site
+# content -- committing them to a public repo would let anyone download
+# the paid product for free straight from GitHub, defeating the sale.
+# sample.pgn is the one free file in here; it's re-served from dist/ by a
+# separate build step, not by being committed here. Regenerate locally
+# with `node scripts/buildPacks.js` any time; never restored from git.
+packs/
