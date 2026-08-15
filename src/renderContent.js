@@ -69,7 +69,7 @@ function renderCI({ halfWidthPct, srLabel, lowPct, highPct, sampleSize }) {
  */
 function wideIntervalNote(halfWidthPct) {
   if (typeof halfWidthPct !== 'number' || halfWidthPct < WIDE_INTERVAL_THRESHOLD_PP) return '';
-  return '<span class="wide-interval-note">Wide interval, small sample &mdash; treat this number cautiously.</span>';
+  return '<span class="wide-interval-note">Wide interval, small sample: treat this number cautiously.</span>';
 }
 
 // Still used by src/buildDrill.js -> src/renderDrill.js for the Italian
@@ -318,7 +318,7 @@ function renderTopRepliesTable(model) {
 
 function renderMistakesSection(model) {
   if (model.mistakes.length === 0) {
-    return '<p class="empty-note">No move at this band is both common and clearly low-scoring, controlling for rating gap &mdash; players at this rating aren&rsquo;t making an obvious mistake here.</p>';
+    return '<p class="empty-note">No move at this band is both common and clearly low-scoring, controlling for rating gap. Players at this rating aren&rsquo;t making an obvious mistake here.</p>';
   }
   const items = model.mistakes
     .map((m) => {
@@ -429,7 +429,7 @@ function renderOpeningPage({ model, openingConfig, nav, related = [], repertoire
     ? `<section class="drill-cta">
       <h2>Drill this opening</h2>
       <p>Play the position out move by move and find out instantly whether you picked what players at your rating
-        actually pick &mdash; and what that move scores.</p>
+        actually pick, and what that move scores.</p>
       <p><a href="${escapeHtml(drillFile)}">Open the Italian Game drill &rarr;</a></p>
     </section>
 
@@ -454,8 +454,8 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd:
     ${renderPageHead({
       breadcrumb: renderBreadcrumb(breadcrumbItems),
       eyebrow: 'Opening guide',
-      title: `${escapeHtml(model.name)} (${escapeHtml(model.eco)}) &mdash; win rates at club level`,
-      subtitle: `${escapeHtml(sanLine)}, playing as ${escapeHtml(model.side)} &mdash; ${totalGamesNote}.`,
+      title: `${escapeHtml(model.name)} (${escapeHtml(model.eco)}): win rates at club level`,
+      subtitle: `${escapeHtml(sanLine)}, playing as ${escapeHtml(model.side)}. ${totalGamesNote[0].toUpperCase()}${totalGamesNote.slice(1)}.`,
     })}
 
     <h2>The position</h2>
@@ -482,7 +482,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd:
     ${renderGamesTable(model.masterGames, 'Master games in this line')}
 
     <h2>Recent club games in this line</h2>
-    <p>Recent rated games at ${escapeHtml(model.defaultBand)} &mdash; not model games, just what actually happens at that rating.</p>
+    <p>Recent rated games at ${escapeHtml(model.defaultBand)}: not model games, just what actually happens at that rating.</p>
     ${renderGamesTable(model.recentGames, 'Recent games in this line')}
 
     <h2>Build a repertoire from here</h2>
@@ -511,8 +511,8 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd:
  */
 function selectionEffectNote(usedBalanced) {
   return usedBalanced
-    ? '<p class="disclosure-note">Ranked by score among games between similarly-rated opponents (rating gap &le;50), which removes the biggest confound in a raw comparison like this: players who choose one opening are not the same players who choose another, so a raw score difference partly reflects who tends to play each opening, not just how it performs. This ranking does not control for anything beyond that rating gap &mdash; time-control mix and how each player group prepares are still unmeasured. Rows too close to call given their own sample sizes share a rank.</p>'
-    : '<p class="disclosure-note">This ranking uses each opening&rsquo;s all-games score &mdash; it does NOT control for who tends to choose each opening, which is a real confound in any cross-opening comparison like this one (players who pick one opening are not the same players who pick another). A rating-gap-controlled version of this ranking will replace it once this site is built from its own aggregate dataset rather than the live Lichess Explorer API. Rows too close to call given their own sample sizes share a rank.</p>';
+    ? '<p class="disclosure-note">Ranked by score among games between similarly-rated opponents (rating gap &le;50), which removes the biggest confound in a raw comparison like this: players who choose one opening are not the same players who choose another, so a raw score difference partly reflects who tends to play each opening, not just how it performs. This ranking does not control for anything beyond that rating gap; time-control mix and how each player group prepares are still unmeasured. Rows too close to call given their own sample sizes share a rank.</p>'
+    : '<p class="disclosure-note">This ranking uses each opening&rsquo;s all-games score. It does NOT control for who tends to choose each opening, which is a real confound in any cross-opening comparison like this one (players who pick one opening are not the same players who pick another). A rating-gap-controlled version of this ranking will replace it once this site is built from its own aggregate dataset rather than the live Lichess Explorer API. Rows too close to call given their own sample sizes share a rank.</p>';
 }
 
 /**
@@ -588,7 +588,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(b
     ${renderBreadcrumb(breadcrumbItems)}
     <h1 class="page-title">Chess openings by real win rate</h1>
     <p class="subtitle">Ranked by the score each opening actually gets for its own side in real Lichess games at
-      1600-1800. Sample size is shown for every row &mdash; a rate over a small sample is not a signal.</p>
+      1600-1800. Sample size is shown for every row: a rate over a small sample is not a signal.</p>
 
     <h2>Compare all ${entries.length} openings</h2>
     ${confoundNote}
@@ -606,8 +606,8 @@ ${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(b
 
     ${ecoIndexLink ? `<h2>Browse the full ECO index</h2>
     <p class="repertoire-intro">Every one of the ${ecoIndexLink.lineCount.toLocaleString()} named lines in the standard Encyclopaedia of Chess Openings
-       classification, grouped into ${ecoIndexLink.familyCount} opening families &mdash;
-       <a href="${escapeHtml(ecoIndexLink.href)}">browse the ECO index &rarr;</a></p>` : ''}
+       classification, grouped into ${ecoIndexLink.familyCount} opening families.
+       <a href="${escapeHtml(ecoIndexLink.href)}">Browse the ECO index &rarr;</a></p>` : ''}
   </main>
   ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}.`, CONTENT_LEGAL_LINKS)}
 </div>
@@ -673,7 +673,7 @@ ${renderDocumentHead({ title, description: meta.description, canonical, ogType: 
       ${bodyHtml.trim()}
     </article>${relatedHtml}
   </main>
-  ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}. This article is written to reflect that data &mdash; not a substitute for a coach&rsquo;s judgment about your own games.`, CONTENT_LEGAL_LINKS)}
+  ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}. This article is written to reflect that data, not as a substitute for a coach&rsquo;s judgment about your own games.`, CONTENT_LEGAL_LINKS)}
 </div>
 </body>
 </html>
@@ -818,27 +818,27 @@ function renderMethodologyPage({ nav, manifest = null, thresholds, minGamesForPc
   // THIS build actually ran on dump-sourced aggregates or is still on the
   // live-Explorer-API fallback (see this function's own doc comment).
   const sourceSection = manifest
-    ? `<p>Every win/draw/loss number on this site is computed from Lichess&rsquo;s own published database dumps (<a href="https://database.lichess.org">database.lichess.org</a>), released under a CC0 public-domain dedication &mdash; free to use for any purpose. Attribution here is included as a courtesy.</p>
-      <p>This build used ${escapeHtml((manifest.dumpMonths || []).join(', ') || 'an unspecified month')}. A full month&rsquo;s dump is tens of gigabytes; this pipeline reads a BOUNDED PREFIX of it (not the whole month) to stay within GitHub Actions&rsquo; free runner limits and to keep bandwidth use to the Lichess database modest. The games actually observed in this build span ${manifest.observedGameDateRange ? `${escapeHtml(manifest.observedGameDateRange[0])} to ${escapeHtml(manifest.observedGameDateRange[1])}` : 'a date range not recorded in this build'} &mdash; the start of the month, not the whole month, which is a real bias this page states outright rather than hiding: games later in the month are systematically absent from this sample.</p>
+    ? `<p>Every win/draw/loss number on this site is computed from Lichess&rsquo;s own published database dumps (<a href="https://database.lichess.org">database.lichess.org</a>), released under a CC0 public-domain dedication, free to use for any purpose. Attribution here is included as a courtesy.</p>
+      <p>This build used ${escapeHtml((manifest.dumpMonths || []).join(', ') || 'an unspecified month')}. A full month&rsquo;s dump is tens of gigabytes; this pipeline reads a BOUNDED PREFIX of it (not the whole month) to stay within GitHub Actions&rsquo; free runner limits and to keep bandwidth use to the Lichess database modest. The games actually observed in this build span ${manifest.observedGameDateRange ? `${escapeHtml(manifest.observedGameDateRange[0])} to ${escapeHtml(manifest.observedGameDateRange[1])}` : 'a date range not recorded in this build'}: the start of the month, not the whole month, which is a real bias this page states outright rather than hiding. Games later in the month are systematically absent from this sample.</p>
       <p>${(manifest.gamesScanned || 0).toLocaleString()} games were scanned; ${(manifest.gamesUsed || 0).toLocaleString()} were used after filtering. Retrieved ${escapeHtml((manifest.retrievedAt || '').slice(0, 10) || BUILD_DATE)}.</p>`
     : `<p>This build&rsquo;s numbers are computed from the live <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a> (the same public, keyless database Lichess itself exposes), retrieved at build time on ${escapeHtml(BUILD_DATE)}. Lichess&rsquo;s underlying game data is released under a CC0 public-domain dedication (<a href="https://database.lichess.org">database.lichess.org</a>); attribution here is included as a courtesy.</p>
-      <p>This site is migrating to compute the same numbers directly from Lichess&rsquo;s own published monthly database dumps instead of live API calls, which will additionally unlock the rating-gap-controlled (&ldquo;balanced&rdquo;) figures described in this page&rsquo;s later sections. That migration&rsquo;s first live data run has not happened yet as of this build &mdash; this page will update to name the exact month(s) and observed date range once it has.</p>`;
+      <p>This site is migrating to compute the same numbers directly from Lichess&rsquo;s own published monthly database dumps instead of live API calls, which will additionally unlock the rating-gap-controlled (&ldquo;balanced&rdquo;) figures described in this page&rsquo;s later sections. That migration&rsquo;s first live data run has not happened yet as of this build. This page will update to name the exact month(s) and observed date range once it has.</p>`;
 
-  const bucketingSection = `<p>Games are grouped by <strong>rating band</strong>, using the average of both players&rsquo; ratings at the time of the game &mdash; the same bucketing the Lichess Opening Explorer itself uses, which keeps this site&rsquo;s numbers comparable to it. Bands shown on this site run 1400-1600 through 2000+.</p>
-    <p>Games are also grouped by <strong>time-control pool</strong>: this site&rsquo;s default, and the number shown unless you pick another, is blitz. Correspondence games are excluded outright &mdash; a correspondence game (played over days, often with opening-book assistance) is a genuinely different population from a live blitz or rapid game, and folding it into &ldquo;what players at your rating play&rdquo; would misstate what the number means.</p>
-    <p>A second, narrower subset &mdash; <strong>balanced</strong> games, where both players&rsquo; ratings are within ${balancedEloWindow} points of each other &mdash; powers every rating-gap-controlled figure on this site (see &ldquo;What we do not control for&rdquo; and &ldquo;How &lsquo;common mistake&rsquo; is defined&rdquo; below). A lopsided-rating game tells you less about how an opening performs between evenly-matched opponents, which is the comparison a &ldquo;common mistake&rdquo; claim actually needs.</p>`;
+  const bucketingSection = `<p>Games are grouped by <strong>rating band</strong>, using the average of both players&rsquo; ratings at the time of the game. That is the same bucketing the Lichess Opening Explorer itself uses, which keeps this site&rsquo;s numbers comparable to it. Bands shown on this site run 1400-1600 through 2000+.</p>
+    <p>Games are also grouped by <strong>time-control pool</strong>: this site&rsquo;s default, and the number shown unless you pick another, is blitz. Correspondence games are excluded outright: a correspondence game (played over days, often with opening-book assistance) is a genuinely different population from a live blitz or rapid game, and folding it into &ldquo;what players at your rating play&rdquo; would misstate what the number means.</p>
+    <p>A second, narrower subset, <strong>balanced</strong> games, where both players&rsquo; ratings are within ${balancedEloWindow} points of each other, powers every rating-gap-controlled figure on this site (see &ldquo;What we do not control for&rdquo; and &ldquo;How &lsquo;common mistake&rsquo; is defined&rdquo; below). A lopsided-rating game tells you less about how an opening performs between evenly-matched opponents, which is the comparison a &ldquo;common mistake&rdquo; claim actually needs.</p>`;
 
   const computationSection = `<p>Two different quantities are shown on this site, and they use two different formulas because they measure genuinely different things:</p>
     <ul>
-      <li><strong>Win / draw / loss rate</strong> is a proportion (how many of these games ended this way) &mdash; shown with a <a href="https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval#Wilson_score_interval">Wilson score interval</a>, which stays accurate at small sample sizes and near 0% or 100%, unlike the naive normal-approximation interval most simple stats tools use.</li>
-      <li><strong>Score</strong> (the standard chess-scoring convention: a win counts 1, a draw counts 0.5) is the MEAN of a value that can be 0, 0.5, or 1 for each game &mdash; not a proportion, so it uses a different formula (a trinomial-variance confidence interval), not the Wilson interval. Applying the Wilson formula to a mean would produce a confidence interval that looks precise but is mathematically wrong for this quantity.</li>
+      <li><strong>Win / draw / loss rate</strong> is a proportion (how many of these games ended this way), shown with a <a href="https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval#Wilson_score_interval">Wilson score interval</a>, which stays accurate at small sample sizes and near 0% or 100%, unlike the naive normal-approximation interval most simple stats tools use.</li>
+      <li><strong>Score</strong> (the standard chess-scoring convention: a win counts 1, a draw counts 0.5) is the MEAN of a value that can be 0, 0.5, or 1 for each game. It is not a proportion, so it uses a different formula (a trinomial-variance confidence interval), not the Wilson interval. Applying the Wilson formula to a mean would produce a confidence interval that looks precise but is mathematically wrong for this quantity.</li>
     </ul>
-    <p>Every rate and score on this site that has enough games to trust carries its 95% confidence interval as a small &ldquo;&plusmn;&rdquo; figure next to the number, and a screen-reader-only sentence spelling out the full interval and sample size. A row whose interval half-width is 1.0 percentage point or wider &mdash; wide enough that it could change how you&rsquo;d read the number &mdash; carries a visible &ldquo;wide interval, small sample&rdquo; note as well.</p>
+    <p>Every rate and score on this site that has enough games to trust carries its 95% confidence interval as a small &ldquo;&plusmn;&rdquo; figure next to the number, and a screen-reader-only sentence spelling out the full interval and sample size. A row whose interval half-width is 1.0 percentage point or wider, wide enough that it could change how you&rsquo;d read the number, carries a visible &ldquo;wide interval, small sample&rdquo; note as well.</p>
     <p>Below ${minGamesForPct.toLocaleString()} games at a given rating band, this site shows no percentage at all for that band, rather than a number computed from too small a sample to mean anything.</p>`;
 
   const uncontrolledSection = `<p>Stated plainly:</p>
     <ul>
-      <li><strong>Selection effects on cross-opening comparisons.</strong> When two different openings are compared by score, the players who choose each one are not the same players &mdash; a raw score difference partly reflects who tends to play each opening, not just how the opening performs. This site&rsquo;s cross-opening rankings rank on the ${balancedEloWindow}-rating-point-gap-controlled subset where that data is available, which removes the largest single confound, but does not remove every one (see below).</li>
+      <li><strong>Selection effects on cross-opening comparisons.</strong> When two different openings are compared by score, the players who choose each one are not the same players. A raw score difference partly reflects who tends to play each opening, not just how the opening performs. This site&rsquo;s cross-opening rankings rank on the ${balancedEloWindow}-rating-point-gap-controlled subset where that data is available, which removes the largest single confound, but does not remove every one (see below).</li>
       <li><strong>Time-control mix within a pool.</strong> &ldquo;Blitz&rdquo; on Lichess spans a range of actual time controls; this site does not further split by exact clock setting.</li>
       <li><strong>The prefix-sampling date window</strong> (see &ldquo;Where the numbers come from&rdquo; above), on any build sourced from a dump rather than the live API.</li>
       <li><strong>A rating band is not a skill band.</strong> Two players with the same rating can have very different actual chess understanding; rating is a real, useful, but imperfect proxy.</li>
@@ -847,13 +847,13 @@ function renderMethodologyPage({ nav, manifest = null, thresholds, minGamesForPc
   const mistakeSection = `<p>A move is flagged as a &ldquo;common mistake&rdquo; only when ALL FOUR of these hold, using this build&rsquo;s live threshold values:</p>
     <ol>
       <li><strong>Frequency:</strong> played in at least ${thresholds.minPlayedPct}% of games at the displayed band.</li>
-      <li><strong>Rating-diff control:</strong> scored on the balanced (rating gap &le;${balancedEloWindow}) subset, not all games, and only when that subset has at least ${thresholds.minBalancedN} games &mdash; below that, the move isn&rsquo;t flagged at all, rather than falling back to an uncontrolled number.</li>
-      <li><strong>Statistical significance:</strong> the move&rsquo;s own confidence interval must sit entirely below the surrounding position&rsquo;s confidence interval &mdash; a move that merely scores a little lower than average is not flagged; one whose deficit survives its own error bar is.</li>
-      <li><strong>Transposition check:</strong> the position the move leads to &mdash; merged across every move order that reaches it, since this site keys its data by chess position rather than by move sequence &mdash; must ALSO score below the surrounding position&rsquo;s confidence interval. This stops a move from being flagged just because it reaches a perfectly healthy position by an unusual order.</li>
+      <li><strong>Rating-diff control:</strong> scored on the balanced (rating gap &le;${balancedEloWindow}) subset, not all games, and only when that subset has at least ${thresholds.minBalancedN} games. Below that, the move isn&rsquo;t flagged at all, rather than falling back to an uncontrolled number.</li>
+      <li><strong>Statistical significance:</strong> the move&rsquo;s own confidence interval must sit entirely below the surrounding position&rsquo;s confidence interval. A move that merely scores a little lower than average is not flagged; one whose deficit survives its own error bar is.</li>
+      <li><strong>Transposition check:</strong> the position the move leads to, merged across every move order that reaches it, since this site keys its data by chess position rather than by move sequence, must ALSO score below the surrounding position&rsquo;s confidence interval. This stops a move from being flagged just because it reaches a perfectly healthy position by an unusual order.</li>
     </ol>
     <p>This is deliberately conservative: it flags fewer moves than a simpler &ldquo;plays often, low score&rdquo; rule would, and an opening with no qualifying mistake shows an honest empty state rather than a loosened threshold to fill space.</p>`;
 
-  const changeSection = `<p>This site is rebuilt periodically from fresh data, not updated in real time between rebuilds. Once this site is sourced from Lichess&rsquo;s database dumps, the refresh cadence is monthly, and any page displaying a number reads it from this build&rsquo;s manifest &mdash; a build fails outright rather than shipping a number whose source data is more than 100 days old, so a number on this site is never silently stale past that point.</p>`;
+  const changeSection = `<p>This site is rebuilt periodically from fresh data, not updated in real time between rebuilds. Once this site is sourced from Lichess&rsquo;s database dumps, the refresh cadence is monthly, and any page displaying a number reads it from this build&rsquo;s manifest. A build fails outright rather than shipping a number whose source data is more than 100 days old, so a number on this site is never silently stale past that point.</p>`;
 
   const correctionsSection = `<p>If you find a number on this site that looks wrong, the <a href="contact.html">contact page</a> is the way to reach us. A confirmed error is corrected in the next rebuild, and a materially wrong published figure is noted rather than silently replaced.</p>`;
 
@@ -867,7 +867,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd 
     ${renderBreadcrumb(breadcrumbItems)}
     <article class="prose">
       <h1 class="page-title">How Repertoire Builder computes its numbers</h1>
-      <p class="subtitle">Every number on this site links here. This page is the full, honest account &mdash; including what it does not control for.</p>
+      <p class="subtitle">Every number on this site links here. This page is the full, honest account, including what it does not control for.</p>
 
       <section>
         <h2>Where the numbers come from</h2>
