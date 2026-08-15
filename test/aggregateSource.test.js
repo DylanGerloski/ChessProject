@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { loadAggregates, resolvePosition, explorerShapedResponse } = require('../src/aggregateSource');
+const { loadAggregates, resolvePosition, explorerShapedResponse, resultingPositionBalanced } = require('../src/aggregateSource');
 const { walkPositions } = require('../src/ingest/positionWalk');
 const { moveStatsFromExplorerResponse } = require('../src/processRepertoire');
 
@@ -111,4 +111,39 @@ test('explorerShapedResponse: falls back to a family shard for a position not in
   });
   assert.equal(response.white, 5);
   assert.equal(response.black, 1);
+});
+
+test('explorerShapedResponse: each move carries its own balanced (rating gap <= 50) counts, additive to the all-games ones', () => {
+  const dir = tmpDir();
+  writeFixtureAggregates(dir);
+  const aggregates = loadAggregates({ dir });
+  const response = explorerShapedResponse({ aggregates, play: [], band: '1600-1800', pool: 'blitz' });
+  const e4 = response.moves.find((m) => m.uci === 'e2e4');
+  const d4 = response.moves.find((m) => m.uci === 'd2d4');
+  assert.deepEqual(e4.balanced, { white: 3, draws: 0, black: 1 });
+  assert.deepEqual(d4.balanced, { white: 1, draws: 1, black: 2 });
+});
+
+test('resultingPositionBalanced: returns the RESULTING position\'s balanced totals, merged across every path that reaches it', () => {
+  const dir = tmpDir();
+  const { afterE4Key } = writeFixtureAggregates(dir);
+  // Add a second position record for "after 1.e4" so resultingPositionBalanced
+  // has something real to find (writeFixtureAggregates only stores the
+  // starting position's record).
+  const rootPath = path.join(dir, 'root.json');
+  const root = JSON.parse(fs.readFileSync(rootPath, 'utf8'));
+  root.positions['1600-1800'].blitz[afterE4Key] = [7, 1, 2, 3, 0, 1, {}];
+  fs.writeFileSync(rootPath, JSON.stringify(root), 'utf8');
+
+  const aggregates = loadAggregates({ dir });
+  const result = resultingPositionBalanced({ aggregates, play: [], uci: 'e2e4', band: '1600-1800', pool: 'blitz' });
+  assert.deepEqual(result, { white: 3, draws: 0, black: 1 });
+});
+
+test('resultingPositionBalanced: returns null (not zero) when the resulting position is not in this dataset', () => {
+  const dir = tmpDir();
+  writeFixtureAggregates(dir);
+  const aggregates = loadAggregates({ dir });
+  const result = resultingPositionBalanced({ aggregates, play: [], uci: 'g1f3', band: '1600-1800', pool: 'blitz' });
+  assert.equal(result, null);
 });

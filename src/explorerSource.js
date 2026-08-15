@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { loadAggregates, explorerShapedResponse } = require('./aggregateSource');
+const { loadAggregates, explorerShapedResponse, resultingPositionBalanced } = require('./aggregateSource');
 const { fetchExplorerMoves } = require('./fetchOpeningExplorer');
 
 /**
@@ -132,10 +132,24 @@ async function fetchMoves({
   if (aggregatesAvailable(dir)) {
     const aggregates = loadAggregatesCached(dir);
     const response = explorerShapedResponse({ aggregates, play, band, pool, familySlug });
-    if (typeof moves === 'number' && Array.isArray(response.moves) && response.moves.length > moves) {
-      return { ...response, moves: response.moves.slice(0, moves) };
-    }
-    return response;
+    // Enriches each candidate move with the BALANCED totals of the position
+    // that move LEADS TO (WS-3.3 condition 4, the transposition check) --
+    // only possible on the aggregate path, since it needs a second
+    // position lookup this module already has every argument for right
+    // here (aggregates/band/pool/familySlug/play). `resultingBalanced` is
+    // an additive field, same "unknown fields are ignored" convention as
+    // aggregateSource.js's own `balanced`/`posKey` -- absent entirely on
+    // the live-Explorer fallback below, which src/processOpenings.js's
+    // findCommonMistakes() must treat as "no data" (skip the check), never
+    // as a zero.
+    const enrichedMoves = (response.moves || []).map((m) => ({
+      ...m,
+      resultingBalanced: resultingPositionBalanced({ aggregates, play, uci: m.uci, band, pool, familySlug }),
+    }));
+    const limitedMoves = typeof moves === 'number' && enrichedMoves.length > moves
+      ? enrichedMoves.slice(0, moves)
+      : enrichedMoves;
+    return { ...response, moves: limitedMoves };
   }
   return fetchExplorerMoves({ play, ratings, speeds, moves, recentGames, topGames, fetchImpl });
 }

@@ -15,11 +15,15 @@ const LOWER_BAND = '1400-1600';
 function render(ctx) {
   const { entries, rankOpeningsByScore, escapeHtml, formatPct, formatGamesAbbrev, wrapTable } = ctx;
   const ranked = rankOpeningsByScore(entries, LOWER_BAND);
+  const usedBalanced = ranked.length > 0 && ranked[0].usedBalanced;
 
   const rows = ranked
-    .map(
-      (r, i) => `<tr><td>${i + 1}</td><td><a href="${escapeHtml(r.slug)}.html">${escapeHtml(r.name)}</a></td><td>${escapeHtml(r.side)}</td><td>${formatGamesAbbrev(r.games)}</td><td>${formatPct(r.scoreForSide)}%</td></tr>`
-    )
+    .map((r) => {
+      const scoreCell = usedBalanced && r.scoreForSideBalanced != null
+        ? `${formatPct(r.scoreForSideBalanced)}% <span class="rep-pct">(${formatPct(r.scoreForSide)}% all games)</span>`
+        : `${formatPct(r.scoreForSide)}%`;
+      return `<tr><td>${r.rank}</td><td><a href="${escapeHtml(r.slug)}.html">${escapeHtml(r.name)}</a></td><td>${escapeHtml(r.side)}</td><td>${formatGamesAbbrev(r.games)}</td><td>${scoreCell}</td></tr>`;
+    })
     .join('');
 
   return `
@@ -28,6 +32,9 @@ function render(ctx) {
     <div class="callout">This is not a claim that these are the only good openings for beginners, or that a higher score here means &ldquo;easier to learn&rdquo; &mdash; it means players in this rating band who reached this exact position won more often with this piece configuration than with the others on this list. Style, how much you enjoy a position, and how much time you want to spend on theory all matter too, and none of those are measurable from a database.</div>
 
     <h2>Ranked by score at ${escapeHtml(LOWER_BAND)}</h2>
+    <p class="disclosure-note">${usedBalanced
+      ? 'Ranked by score among games between similarly-rated opponents (rating gap &le;50), with the all-games score shown alongside &mdash; this removes the biggest confound in a raw comparison like this (players who choose one opening are not the same players who choose another). Rows too close to call given their own sample sizes share a rank number.'
+      : 'This ranking uses each opening&rsquo;s all-games score and does NOT control for who tends to choose each opening &mdash; a real confound in any list like this. Rows too close to call given their own sample sizes share a rank number.'}</p>
     ${rows ? wrapTable(`<table><caption class="sr-only">Openings ranked by score at ${escapeHtml(LOWER_BAND)}</caption><thead><tr><th scope="col">#</th><th scope="col">Opening</th><th scope="col">Side</th><th scope="col">Games</th><th scope="col">Score</th></tr></thead><tbody>${rows}</tbody></table>`, `Openings ranked by score at ${LOWER_BAND}`) : '<p class="empty-note">Band data was not available for this build.</p>'}
 
     <h2>Why a &ldquo;score&rdquo; isn&rsquo;t the whole story</h2>

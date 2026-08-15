@@ -228,6 +228,41 @@ function itemListJsonLd({ name, items }) {
   });
 }
 
+/**
+ * Dataset JSON-LD for the /methodology page (spec WS-3.3 section 3.5) --
+ * describes the aggregate corpus every displayed rate on this site is
+ * computed from. Genuinely applicable here (unlike FAQPage's removed rich
+ * result, see this file's own header comment): a real, described dataset
+ * with a real license and a real creator, not a rich-result bet.
+ *
+ * @param {object} opts
+ * @param {string} opts.name
+ * @param {string} opts.description
+ * @param {string} opts.url methodology page's own canonical URL
+ * @param {string} [opts.creatorName] defaults to SITE_NAME
+ * @param {string} [opts.license] a license URL, e.g. CC0's
+ * @param {string[]} [opts.temporalCoverage] `[start, end]` ISO dates (the
+ *   manifest's observedGameDateRange) -- schema.org's Dataset.temporalCoverage
+ *   expects a single string; this function formats a 2-element array as
+ *   "start/end" (the ISO 8601 interval form) and passes a single date
+ *   through unchanged.
+ */
+function datasetJsonLd({ name, description, url, creatorName = SITE_NAME, license, temporalCoverage }) {
+  const temporal = Array.isArray(temporalCoverage) && temporalCoverage.length === 2
+    ? `${temporalCoverage[0]}/${temporalCoverage[1]}`
+    : temporalCoverage || undefined;
+  return jsonLdScript({
+    '@context': 'https://schema.org',
+    '@type': 'Dataset',
+    name,
+    description,
+    url,
+    creator: { '@type': 'Organization', name: creatorName },
+    ...(license ? { license } : {}),
+    ...(temporal ? { temporalCoverage: temporal } : {}),
+  });
+}
+
 module.exports = {
   jsonLdScript,
   stripHtmlToText,
@@ -237,4 +272,5 @@ module.exports = {
   homeJsonLd,
   definedTermSetJsonLd,
   itemListJsonLd,
+  datasetJsonLd,
 };

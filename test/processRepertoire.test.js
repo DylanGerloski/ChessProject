@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { RATING_BANDS, DEFAULT_SPEEDS, moveStatsFromExplorerResponse } = require('../src/processRepertoire');
+const { wilsonInterval } = require('../src/stats');
 
 const FIXTURES = path.join(__dirname, 'fixtures');
 const explorerResponseFixture = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'explorer-response.json'), 'utf8'));
@@ -59,4 +60,32 @@ test('moveStatsFromExplorerResponse handles an empty/missing moves array gracefu
 
 test('moveStatsFromExplorerResponse rejects an invalid moverColor', () => {
   assert.throws(() => moveStatsFromExplorerResponse(explorerResponseFixture, 'red'), /moverColor/);
+});
+
+test('moveStatsFromExplorerResponse: winCI/drawCI/lossCI are Wilson half-widths in percentage points, matching src/stats.js directly', () => {
+  const rows = moveStatsFromExplorerResponse(explorerResponseFixture, 'white');
+  const e4 = rows.find((r) => r.san === 'e4');
+  const expectedWinCI = Number((wilsonInterval(28000, 55000).half * 100).toFixed(1));
+  assert.equal(e4.winCI, expectedWinCI);
+  assert.ok(e4.winCI > 0 && e4.winCI < 2, 'a 55,000-game sample should have a narrow interval');
+});
+
+test('moveStatsFromExplorerResponse: balanced/resultingBalanced are null when the source response has none (live-Explorer-API shape)', () => {
+  const rows = moveStatsFromExplorerResponse(explorerResponseFixture, 'white');
+  const e4 = rows.find((r) => r.san === 'e4');
+  assert.equal(e4.balanced, null);
+  assert.equal(e4.balancedGames, 0);
+  assert.equal(e4.resultingBalanced, null);
+});
+
+test('moveStatsFromExplorerResponse: passes through balanced/resultingBalanced when the source response has them (aggregate-shaped)', () => {
+  const response = {
+    white: 100, draws: 20, black: 80, moves: [
+      { uci: 'e2e4', san: 'e4', white: 100, draws: 20, black: 80, averageRating: 1600, balanced: { white: 40, draws: 8, black: 32 }, resultingBalanced: { white: 30, draws: 5, black: 25 } },
+    ],
+  };
+  const rows = moveStatsFromExplorerResponse(response, 'white');
+  assert.deepEqual(rows[0].balanced, { white: 40, draws: 8, black: 32 });
+  assert.equal(rows[0].balancedGames, 80);
+  assert.deepEqual(rows[0].resultingBalanced, { white: 30, draws: 5, black: 25 });
 });

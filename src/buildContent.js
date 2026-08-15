@@ -341,7 +341,12 @@ async function buildContentPages({
     written.push({ file, html, slug: entry.openingConfig.slug, title: extractTitle(html), description: extractDescription(html) });
   }
 
-  const hubHtml = renderOpeningsHub(entries, { nav, ecoIndexLink });
+  // Selection-effect disclosure (spec WS-3.3 section 3.3): rank the compare
+  // table for real, on the balanced-subset score when available (falls back
+  // to all-games honestly, see rankOpeningsByScore's own doc), rather than
+  // just listing entries in declaration order with an unsorted score column.
+  const ranked = rankOpeningsByScore(entries, DEFAULT_BAND);
+  const hubHtml = renderOpeningsHub(entries, { nav, ecoIndexLink, ranked });
   fs.writeFileSync(path.join(outDir, 'openings.html'), hubHtml, 'utf8');
   written.push({ file: 'openings.html', html: hubHtml, slug: 'openings-hub', title: extractTitle(hubHtml), description: extractDescription(hubHtml) });
 

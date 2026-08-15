@@ -827,6 +827,22 @@ ${designTokensCss(THEME_ROLES.dark)}
 
   .wdl-label { font-size: var(--text-xs); color: var(--color-muted); }
 
+  /* Confidence-interval disclosure (spec WS-3.3 section 3.2): a point value's
+     sibling ± half-width, and the visible "wide interval" note for a row
+     whose half-width is large enough to change the reading. Zero new
+     tokens -- .ci intentionally reuses --color-muted/--text-xs (the exact
+     same role .wdl-label already uses for the same kind of secondary,
+     de-emphasized number), since a --color-interval token would only
+     duplicate --color-muted under a different name (design-standards.md:
+     that's a QA failure, not a style choice). */
+  .ci { font-size: var(--text-xs); color: var(--color-muted); }
+  .wide-interval-note {
+    display: block;
+    font-size: var(--text-xs);
+    color: var(--color-muted);
+    margin-top: var(--space-1);
+  }
+
   .repertoire-intro { color: var(--color-muted); margin: 0 0 var(--space-5); }
 
   ul.repertoire-tree, ul.repertoire-tree ul {
@@ -1660,24 +1676,41 @@ function renderDisclosure() {
  * @param {string} innerHtml page-specific footer copy (data-source credit,
  *   etc). Callers should NOT claim the site is only local/unpublished --
  *   this app is deployed to GitHub Pages.
- * @param {{privacy?: string, about?: string, contact?: string}} [legalLinks]
+ * @param {{privacy?: string, about?: string, contact?: string, methodology?: string}} [legalLinks]
  *   Optional footer link targets for the compliance pages implemented in
- *   src/renderCompliance.js. Only callers that know those pages actually
- *   exist at those paths should pass this -- the
+ *   src/renderCompliance.js, plus `methodology` (spec WS-3.3 section 3.5 --
+ *   every page carrying an interval links to /methodology.html; the shared
+ *   footer is the mechanism that makes that "every page" rather than a
+ *   per-template link a future page can forget to add). Only callers that
+ *   know those pages actually exist at those paths should pass this -- the
  *   local-only dev server (src/server.js) has no routes for them and
  *   deliberately omits it, so its footer renders with no legal-links row
  *   rather than a broken link. The disclosure paragraph above, by contrast,
  *   is unconditional (see renderDisclosure()'s own comment).
  */
 function renderFooter(innerHtml, legalLinks) {
-  const legalRow = legalLinks
-    ? `
+  // Built as a list of only the PRESENT links, joined -- same "no blank
+  // line for an omitted optional field" technique as renderPageHead() above
+  // (see that function's own doc comment for exactly which html-validate
+  // rule a naive per-line ternary trips). `methodology` was the first key
+  // here that isn't present on every legalLinks object a caller passes
+  // (some ECO-page callers -- src/renderEcoPages.js's ECO_LEGAL_LINKS,
+  // src/renderEcoExplorerPage.js's ECO_EXPLORER_LEGAL_LINKS -- don't carry
+  // it), which is what exposed this: a fixed 4-line template with a falsy
+  // 4th line leaves a whitespace-only text node exactly like the bug
+  // renderPageHead already documents.
+  let legalRow = '';
+  if (legalLinks) {
+    const links = [];
+    if (legalLinks.privacy) links.push(`<a href="${escapeHtml(legalLinks.privacy)}">Privacy policy</a>`);
+    if (legalLinks.about) links.push(`<a href="${escapeHtml(legalLinks.about)}">About</a>`);
+    if (legalLinks.contact) links.push(`<a href="${escapeHtml(legalLinks.contact)}">Contact</a>`);
+    if (legalLinks.methodology) links.push(`<a href="${escapeHtml(legalLinks.methodology)}">Methodology</a>`);
+    legalRow = `
   <nav class="legal-links" aria-label="Legal">
-    ${legalLinks.privacy ? `<a href="${escapeHtml(legalLinks.privacy)}">Privacy policy</a>` : ''}
-    ${legalLinks.about ? `<a href="${escapeHtml(legalLinks.about)}">About</a>` : ''}
-    ${legalLinks.contact ? `<a href="${escapeHtml(legalLinks.contact)}">Contact</a>` : ''}
-  </nav>`
-    : '';
+    ${links.join('\n    ')}
+  </nav>`;
+  }
   // THEME_TOGGLE_SCRIPT is appended here (not in the header, where the
   // toggle button itself lives) because renderFooter() is the one function
   // every page template already calls unconditionally -- it queries

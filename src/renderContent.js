@@ -21,8 +21,56 @@
 const { escapeHtml, formatPct, renderDocumentHead, renderHeader, renderFooter, wrapTable, renderPageHead } = require('./render');
 const { START_BOARD, applyUciMoves } = require('./chessPosition');
 const { SITE_NAME, SITE_AUTHOR, BUILD_DATE, absoluteUrl, pageTitle } = require('./site');
-const { breadcrumbJsonLd, articleJsonLd, faqPageJsonLd } = require('./structuredData');
+const { breadcrumbJsonLd, articleJsonLd, faqPageJsonLd, datasetJsonLd } = require('./structuredData');
 const { spriteDefsHtml, renderBoardDiagram, pieceAttributionHtml } = require('./boardSvg');
+const { formatInterval } = require('./stats');
+
+// Half-width (percentage points) at or above which a confidence interval is
+// wide enough to change the reading, per spec WS-3.3 section 3.2 -- the
+// row also gets a visible "wide interval, small sample" note, not just the
+// .ci figure, since a technically-present-but-visually-ignorable interval
+// is disclosure theatre (the spec's own words).
+const WIDE_INTERVAL_THRESHOLD_PP = 1.0;
+
+/**
+ * The exact markup spec section 3.2 requires for a rate/score with a
+ * confidence interval: the point value's sibling `.ci` span (a de-
+ * emphasized "±0.4"), and a `.sr-only` span spelling out the full interval
+ * and sample size for assistive tech -- never `title=`, which design-
+ * standards.md notes isn't reliably exposed to screen readers. Returns ''
+ * when there's no interval to show (a suppressed/missing number), so a
+ * caller can always concatenate this right after its own point-value markup
+ * with no extra branching.
+ *
+ * @param {object} opts
+ * @param {number|null} halfWidthPct half-width in PERCENTAGE POINTS (not a
+ *   fraction) -- every caller in this codebase already computes this shape
+ *   (processRepertoire.js's winCI/drawCI/lossCI, processOpenings.js's
+ *   scoreForSideCI/scoreCI), so this function multiplies nothing itself.
+ * @param {string} srLabel e.g. "White win rate" -- prefixed onto the
+ *   sr-only sentence so a screen-reader user knows which figure this
+ *   interval belongs to.
+ * @param {number|null} lowPct
+ * @param {number|null} highPct
+ * @param {number} sampleSize
+ */
+function renderCI({ halfWidthPct, srLabel, lowPct, highPct, sampleSize }) {
+  if (halfWidthPct == null || lowPct == null || highPct == null) return '';
+  const srText = `${escapeHtml(srLabel)}: 95 percent confidence interval ${formatPct(lowPct)} to ${formatPct(highPct)} percent, ${sampleSize.toLocaleString()} games.`;
+  return `<span class="ci"> ${escapeHtml(formatInterval(halfWidthPct / 100))}</span><span class="sr-only">${srText}</span>`;
+}
+
+/**
+ * The visible "wide interval, small sample" note spec section 3.2 requires
+ * whenever a displayed interval's half-width is >= WIDE_INTERVAL_THRESHOLD_PP
+ * -- a disclosure a caller can drop right after its own table row/figure.
+ * Returns '' below the threshold (or with no interval at all), so it's
+ * always safe to concatenate unconditionally.
+ */
+function wideIntervalNote(halfWidthPct) {
+  if (typeof halfWidthPct !== 'number' || halfWidthPct < WIDE_INTERVAL_THRESHOLD_PP) return '';
+  return '<span class="wide-interval-note">Wide interval, small sample &mdash; treat this number cautiously.</span>';
+}
 
 // Still used by src/buildDrill.js -> src/renderDrill.js for the Italian
 // Game drill's own board (a separate, button-based, keyboard-operable
@@ -40,7 +88,7 @@ const PIECE_GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟'
 // the static compliance-page filenames directly rather than threaded
 // through as a parameter. Keep in sync with buildStatic.js's LEGAL_LINKS,
 // which points at the same three flat filenames.
-const CONTENT_LEGAL_LINKS = { privacy: 'privacy.html', about: 'about.html', contact: 'contact.html' };
+const CONTENT_LEGAL_LINKS = { privacy: 'privacy.html', about: 'about.html', contact: 'contact.html', methodology: 'methodology.html' };
 
 /**
  * @param {Record<string,string>} board square -> FEN piece letter (see chessPosition.js)
@@ -117,10 +165,16 @@ function renderOpeningStatCard(openingConfig, model, extraClass = '') {
   if (!hasData) {
     return `<div class="${classes}"><h3><a href="${href}">${escapeHtml(model.name)}</a></h3><p>${escapeHtml(model.eco)}, playing as ${escapeHtml(model.side)}</p></div>`;
   }
+  const scoreCI = renderCI({
+    halfWidthPct: band.scoreForSideCI, srLabel: `Score for ${model.side}`,
+    lowPct: band.scoreForSideCI != null ? Number((band.scoreForSide - band.scoreForSideCI).toFixed(1)) : null,
+    highPct: band.scoreForSideCI != null ? Number((band.scoreForSide + band.scoreForSideCI).toFixed(1)) : null,
+    sampleSize: band.games,
+  });
   return `<div class="${classes}">
     <h3><a href="${href}">${escapeHtml(model.name)}</a></h3>
     <div class="card-wdl-row">${wdlBar(band.whitePct, band.drawPct, band.blackPct, `White/draw/black at 1600-1800: ${formatPct(band.whitePct)}% / ${formatPct(band.drawPct)}% / ${formatPct(band.blackPct)}%`)}</div>
-    <p class="card-score">Scores ${formatPct(band.scoreForSide)}% for ${escapeHtml(model.side)} at 1600-1800 (${band.games.toLocaleString()} games)</p>
+    <p class="card-score">Scores ${formatPct(band.scoreForSide)}%${scoreCI} for ${escapeHtml(model.side)} at 1600-1800 (${band.games.toLocaleString()} games)</p>
   </div>`;
 }
 
@@ -146,10 +200,19 @@ function lichessOpeningUrl(name) {
 }
 
 /**
- * @param {{large?: boolean}} [opts] `large` widens the bar to fill its
- *   cell (`.wdl-bar--lg`, render.js), used only for the one hero table per
- *   opening page (renderBandsTable below). The adjacent percentages
- *   (.wdl-label) always render too, so color is never the sole encoding.
+ * @param {{large?: boolean, ci?: {games:number, winCI:number|null, drawCI:number|null,
+ *   lossCI:number|null, winLow:number|null, winHigh:number|null, drawLow:number|null,
+ *   drawHigh:number|null, lossLow:number|null, lossHigh:number|null}}} [opts]
+ *   `large` widens the bar to fill its cell (`.wdl-bar--lg`, render.js),
+ *   used only for the one hero table per opening page (renderBandsTable
+ *   below). The adjacent percentages (.wdl-label) always render too, so
+ *   color is never the sole encoding. `ci`, when given (spec WS-3.3
+ *   section 3.2), adds a `.ci` half-width span plus a `.sr-only` full-
+ *   interval sentence after EACH of win/draw/loss, and a visible
+ *   "wide interval" note when any of the three is wide enough to matter --
+ *   see renderCI()/wideIntervalNote() above. Omitted entirely (undefined)
+ *   is a fully backward-compatible no-CI render, unchanged from before this
+ *   field existed.
  *
  * Rendered as an inline <svg> with three <rect> segments on a 0-100 viewBox
  * (x/width map directly to the percentages), not <span style="width:X%">.
@@ -167,8 +230,13 @@ function wdlBar(winPct, drawPct, lossPct, title, opts = {}) {
   const barClass = opts.large ? 'wdl-bar wdl-bar--lg' : 'wdl-bar';
   const drawX = winPct;
   const lossX = winPct + drawPct;
+  const c = opts.ci;
+  const winCI = c ? renderCI({ halfWidthPct: c.winCI, srLabel: 'Win rate', lowPct: c.winLow, highPct: c.winHigh, sampleSize: c.games }) : '';
+  const drawCI = c ? renderCI({ halfWidthPct: c.drawCI, srLabel: 'Draw rate', lowPct: c.drawLow, highPct: c.drawHigh, sampleSize: c.games }) : '';
+  const lossCI = c ? renderCI({ halfWidthPct: c.lossCI, srLabel: 'Loss rate', lowPct: c.lossLow, highPct: c.lossHigh, sampleSize: c.games }) : '';
+  const wideNote = c ? wideIntervalNote(Math.max(c.winCI || 0, c.drawCI || 0, c.lossCI || 0)) : '';
   return `<svg class="${barClass}" viewBox="0 0 100 12" preserveAspectRatio="none" role="img"><title>${escapeHtml(title)}</title><rect class="wdl-seg--win" x="0" y="0" width="${winPct}" height="12"></rect><rect class="wdl-seg--draw" x="${drawX}" y="0" width="${drawPct}" height="12"></rect><rect class="wdl-seg--loss" x="${lossX}" y="0" width="${lossPct}" height="12"></rect></svg>
-    <span class="wdl-label">${formatPct(winPct)}% / ${formatPct(drawPct)}% / ${formatPct(lossPct)}%</span>`;
+    <span class="wdl-label">${formatPct(winPct)}%${winCI} / ${formatPct(drawPct)}%${drawCI} / ${formatPct(lossPct)}%${lossCI}</span>${wideNote}`;
 }
 
 function renderBandsTable(model) {
@@ -177,11 +245,35 @@ function renderBandsTable(model) {
       if (!b.enoughData) {
         return `<tr><td>${escapeHtml(b.band)}</td><td class="num">${b.games.toLocaleString()}</td><td colspan="4" class="rep-pct">Not enough games at this band yet.</td></tr>`;
       }
+      // buildOpeningModel only stores the Wilson HALF-WIDTH per band rate
+      // (whiteCI/drawCI/blackCI), not the exact (slightly asymmetric) low/
+      // high bounds moveStatsFromExplorerResponse computes per-move -- a
+      // symmetric pct+/-half reconstruction here is a disclosed, minor
+      // approximation for the sr-only sentence's "X to Y" wording only; the
+      // displayed +/-half figure itself (what a sighted reader actually
+      // sees) is always the exact Wilson value.
+      const bandLowHigh = (pct, half) => (half == null ? { low: null, high: null } : { low: Number((pct - half).toFixed(1)), high: Number((pct + half).toFixed(1)) });
+      const whiteLH = bandLowHigh(b.whitePct, b.whiteCI);
+      const drawLH = bandLowHigh(b.drawPct, b.drawCI);
+      const blackLH = bandLowHigh(b.blackPct, b.blackCI);
+      const bar = wdlBar(b.whitePct, b.drawPct, b.blackPct, `White/draw/black: ${formatPct(b.whitePct)}% / ${formatPct(b.drawPct)}% / ${formatPct(b.blackPct)}%`, {
+        large: true,
+        ci: {
+          games: b.games, winCI: b.whiteCI, drawCI: b.drawCI, lossCI: b.blackCI,
+          winLow: whiteLH.low, winHigh: whiteLH.high, drawLow: drawLH.low, drawHigh: drawLH.high, lossLow: blackLH.low, lossHigh: blackLH.high,
+        },
+      });
+      const scoreCI = renderCI({
+        halfWidthPct: b.scoreForSideCI, srLabel: `Score for ${b.games ? model.side : ''}`.trim(),
+        lowPct: b.scoreForSideCI != null ? Number((b.scoreForSide - b.scoreForSideCI).toFixed(1)) : null,
+        highPct: b.scoreForSideCI != null ? Number((b.scoreForSide + b.scoreForSideCI).toFixed(1)) : null,
+        sampleSize: b.games,
+      });
       return `<tr>
         <td>${escapeHtml(b.band)}</td>
         <td class="num">${b.games.toLocaleString()}</td>
-        <td>${wdlBar(b.whitePct, b.drawPct, b.blackPct, `White/draw/black: ${formatPct(b.whitePct)}% / ${formatPct(b.drawPct)}% / ${formatPct(b.blackPct)}%`, { large: true })}</td>
-        <td class="num">${formatPct(b.scoreForSide)}%</td>
+        <td>${bar}</td>
+        <td class="num">${formatPct(b.scoreForSide)}%${scoreCI}${wideIntervalNote(b.scoreForSideCI)}</td>
       </tr>`;
     })
     .join('');
@@ -202,11 +294,17 @@ function renderTopRepliesTable(model) {
   const rows = model.topReplies
     .map((m) => {
       const label = m.opening ? ` <span class="rep-pct">(${escapeHtml(m.opening.name)})</span>` : '';
+      const bar = wdlBar(m.winPct, m.drawPct, m.lossPct, `${m.san} win/draw/loss`, {
+        ci: {
+          games: m.games, winCI: m.winCI, drawCI: m.drawCI, lossCI: m.lossCI,
+          winLow: m.winLow, winHigh: m.winHigh, drawLow: m.drawLow, drawHigh: m.drawHigh, lossLow: m.lossLow, lossHigh: m.lossHigh,
+        },
+      });
       return `<tr>
         <td><a href="https://lichess.org/analysis/pgn/${encodeURIComponent(m.san)}">${escapeHtml(m.san)}</a>${label}</td>
         <td class="num">${m.games.toLocaleString()}</td>
         <td class="num">${formatPct(m.playedPct)}%</td>
-        <td>${wdlBar(m.winPct, m.drawPct, m.lossPct, `${m.san} win/draw/loss`)}</td>
+        <td>${bar}</td>
       </tr>`;
     })
     .join('');
@@ -220,11 +318,17 @@ function renderTopRepliesTable(model) {
 
 function renderMistakesSection(model) {
   if (model.mistakes.length === 0) {
-    return '<p class="empty-note">No move at this band is both common and clearly low-scoring &mdash; players at this rating aren&rsquo;t making an obvious mistake here.</p>';
+    return '<p class="empty-note">No move at this band is both common and clearly low-scoring, controlling for rating gap &mdash; players at this rating aren&rsquo;t making an obvious mistake here.</p>';
   }
   const items = model.mistakes
     .map((m) => {
-      const base = `<strong>${escapeHtml(m.san)}</strong> is played in ${formatPct(m.playedPct)}% of games here but scores only ${formatPct(m.score)}% for ${escapeHtml(model.opponentColor)}.`;
+      const ci = renderCI({
+        halfWidthPct: m.scoreCI, srLabel: `Score for ${model.opponentColor}, rating-gap-controlled`,
+        lowPct: m.scoreCI != null ? Number((m.score - m.scoreCI).toFixed(1)) : null,
+        highPct: m.scoreCI != null ? Number((m.score + m.scoreCI).toFixed(1)) : null,
+        sampleSize: m.balancedGames,
+      });
+      const base = `<strong>${escapeHtml(m.san)}</strong> is played in ${formatPct(m.playedPct)}% of games here but scores only ${formatPct(m.score)}%${ci} for ${escapeHtml(model.opponentColor)} among games between similarly-rated opponents (rating gap &le;50).`;
       const follow = m.punishingReply
         ? ` After ${escapeHtml(m.san)}, <strong>${escapeHtml(m.punishingReply.san)}</strong> is the most common answer and scores ${m.punishingReply.winPct != null ? formatPct(m.punishingReply.winPct + m.punishingReply.drawPct / 2) : '?'}% for ${escapeHtml(model.side)}.`
         : '';
@@ -392,6 +496,24 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd:
 }
 
 /**
+ * The confound-disclosure note spec WS-3.3 section 3.3 requires directly
+ * adjacent to (never a footer/tooltip on) any cross-opening ranking table.
+ * Written honestly against what's ACTUALLY controlled for today (Non-
+ * Negotiable 5: never claim a control that wasn't applied) -- `usedBalanced`
+ * (from processOpenings.js's rankOpeningsByScore) tells this function
+ * whether ranking really did happen on the rating-gap-controlled subset, or
+ * fell back to the uncontrolled all-games score because balanced data
+ * wasn't available for this build (true of every ranking today, since real
+ * balanced counts only exist once this site is sourced from
+ * src/aggregateSource.js -- WS-3 B2's live ingest, not yet run).
+ */
+function selectionEffectNote(usedBalanced) {
+  return usedBalanced
+    ? '<p class="disclosure-note">Ranked by score among games between similarly-rated opponents (rating gap &le;50), which removes the biggest confound in a raw comparison like this: players who choose one opening are not the same players who choose another, so a raw score difference partly reflects who tends to play each opening, not just how it performs. This ranking does not control for anything beyond that rating gap &mdash; time-control mix and how each player group prepares are still unmeasured. Rows too close to call given their own sample sizes share a rank.</p>'
+    : '<p class="disclosure-note">This ranking uses each opening&rsquo;s all-games score &mdash; it does NOT control for who tends to choose each opening, which is a real confound in any cross-opening comparison like this one (players who pick one opening are not the same players who pick another). A rating-gap-controlled version of this ranking will replace it once this site is built from its own aggregate dataset rather than the live Lichess Explorer API. Rows too close to call given their own sample sizes share a rank.</p>';
+}
+
+/**
  * @param {Array<{openingConfig:object, model:object}>} entries
  * @param {object} opts
  * @param {object} opts.nav
@@ -400,30 +522,57 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd:
  *   the T2 family/ECO-code browse index -- optional and defaulted to
  *   nothing so a caller that hasn't built that index yet (or a test that
  *   doesn't pass it) renders byte-identical output to before Phase 7d.
+ * @param {Array} [opts.ranked] processOpenings.js's rankOpeningsByScore(entries,
+ *   '1600-1800') output -- when given, the compare table is sorted into
+ *   real rank order (spec WS-3.3 section 3.3: rank on the balanced-subset
+ *   score when available, all-games score alongside, ties sharing a rank,
+ *   an inline confound note) instead of plain declaration order. Optional
+ *   so a caller/test that predates this feature still renders.
  */
-function renderOpeningsHub(entries, { nav, ecoIndexLink = null }) {
+function renderOpeningsHub(entries, { nav, ecoIndexLink = null, ranked = null }) {
   const title = `Chess Openings by Real Win Rate | ${SITE_NAME}`;
   const description = `${entries.length} chess openings compared by real Lichess win rate, move-by-move, across four rating bands from 1400 to 2000+.`;
   const canonical = absoluteUrl('openings.html');
   const breadcrumbItems = [{ label: 'Home', href: nav.home }, { label: 'Openings', href: 'openings.html' }];
 
-  const rows = entries
+  const byslug = {};
+  for (const e of entries) byslug[e.openingConfig.slug] = e;
+
+  const orderedEntries = ranked
+    ? ranked.map((r) => byslug[r.slug]).filter(Boolean)
+    : entries;
+
+  const rankBySlug = {};
+  if (ranked) for (const r of ranked) rankBySlug[r.slug] = r;
+
+  const rows = orderedEntries
     .map(({ openingConfig, model }) => {
       const band = model.bands.find((b) => b.band === '1600-1800') || model.bands[0];
+      const r = rankBySlug[openingConfig.slug];
+      const rankCell = r ? `<td class="num">${r.rank}</td>` : '';
+      const scoreDisplay = r && r.usedBalanced && r.scoreForSideBalanced != null
+        ? `${formatPct(r.scoreForSideBalanced)}%${renderCI({ halfWidthPct: r.scoreForSideBalancedCI, srLabel: 'Rating-gap-controlled score', lowPct: r.scoreForSideBalancedCI != null ? Number((r.scoreForSideBalanced - r.scoreForSideBalancedCI).toFixed(1)) : null, highPct: r.scoreForSideBalancedCI != null ? Number((r.scoreForSideBalanced + r.scoreForSideBalancedCI).toFixed(1)) : null, sampleSize: band ? band.balancedGames || 0 : 0 })} <span class="rep-pct">(${formatPct(band ? band.scoreForSide : null)}% all games)</span>`
+        : band && band.scoreForSide != null
+          ? `${formatPct(band.scoreForSide)}%${renderCI({ halfWidthPct: band.scoreForSideCI, srLabel: 'Score', lowPct: band.scoreForSideCI != null ? Number((band.scoreForSide - band.scoreForSideCI).toFixed(1)) : null, highPct: band.scoreForSideCI != null ? Number((band.scoreForSide + band.scoreForSideCI).toFixed(1)) : null, sampleSize: band.games })}`
+          : 'n/a';
       return `<tr>
+        ${rankCell}
         <td><a href="${escapeHtml(openingConfig.slug)}.html">${escapeHtml(model.name)}</a></td>
         <td>${escapeHtml(model.eco)}</td>
         <td>${escapeHtml(formatSanLine(openingConfig.line))}</td>
         <td class="num">${band ? band.games.toLocaleString() : '–'}</td>
-        <td class="num">${band && band.scoreForSide != null ? `${formatPct(band.scoreForSide)}%` : 'n/a'}</td>
+        <td class="num">${scoreDisplay}</td>
       </tr>`;
     })
     .join('');
 
+  const usedBalanced = !!(ranked && ranked.length > 0 && ranked[0].usedBalanced);
+  const confoundNote = ranked ? selectionEffectNote(usedBalanced) : '';
+
   // Every card below carries its 1600-1800 WDL bar + score inline
   // (renderOpeningStatCard, defined above) -- same fallback-to-plain-card
   // rule as the homepage's equivalent list, never an approximated number.
-  const cards = entries
+  const cards = orderedEntries
     .map(({ openingConfig, model }) => renderOpeningStatCard(openingConfig, model))
     .join('');
 
@@ -439,11 +588,12 @@ ${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(b
       1600-1800. Sample size is shown for every row &mdash; a rate over a small sample is not a signal.</p>
 
     <h2>Compare all ${entries.length} openings</h2>
+    ${confoundNote}
     ${wrapTable(`
       <table>
         <caption class="sr-only">Opening comparison at 1600-1800</caption>
         <thead>
-          <tr><th scope="col">Opening</th><th scope="col">ECO</th><th scope="col">First moves</th><th scope="col" class="num">Games (1600-1800)</th><th scope="col" class="num">Score for its side</th></tr>
+          <tr>${ranked ? '<th scope="col" class="num">#</th>' : ''}<th scope="col">Opening</th><th scope="col">ECO</th><th scope="col">First moves</th><th scope="col" class="num">Games (1600-1800)</th><th scope="col" class="num">Score for its side</th></tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>`, 'Opening comparison at 1600-1800')}
@@ -594,6 +744,162 @@ ${renderDocumentHead({ title, description, canonical, jsonLd })}
 `;
 }
 
+/**
+ * /methodology.html -- the public page documenting exactly how every
+ * displayed rate on this site is computed (spec WS-3.3 section 3.5, all 7
+ * required sections). Renders from LIVE values (the manifest, when this
+ * build is sourced from src/aggregateSource.js; MISTAKE_THRESHOLDS'
+ * actual numbers either way) rather than retyping a number into prose, per
+ * the spec's explicit instruction -- and is honest about which data source
+ * this SPECIFIC build actually used (Non-Negotiable 1/5): describing an
+ * aspirational dump pipeline as live when a build is still running on the
+ * live Explorer-API fallback would itself be exactly the false-precision
+ * problem this page exists to prevent.
+ *
+ * @param {object} opts
+ * @param {object} opts.nav
+ * @param {object|null} [opts.manifest] data/aggregates/manifest.json's
+ *   parsed contents, when this build is sourced from the dump pipeline --
+ *   null when it isn't (today's actual production state, pending WS-3 B2's
+ *   human-gated first live ingest).
+ * @param {{minPlayedPct:number, minBalancedN:number, limit:number}} opts.thresholds
+ *   processOpenings.js's MISTAKE_THRESHOLDS, passed in rather than imported
+ *   here to keep this module's existing "renderContent.js doesn't import
+ *   processOpenings.js" boundary (buildContent.js orchestrates, this module
+ *   only renders what it's handed).
+ * @param {number} [opts.minGamesForPct] processOpenings.js's minGamesForPct
+ *   default (1000) -- the number every band-level percentage is suppressed
+ *   below.
+ * @param {number} [opts.balancedEloWindow] src/ingest/gameFilter.js's
+ *   BALANCED_ELO_WINDOW (50) -- the rating-gap cutoff for the "balanced"
+ *   subset every rating-diff control on this site uses.
+ */
+function renderMethodologyPage({ nav, manifest = null, thresholds, minGamesForPct = 1000, balancedEloWindow = 50 }) {
+  const title = pageTitle('Methodology: How Opening Stats Are Computed');
+  const description = 'How Repertoire Builder computes opening win rates: sample sizes, confidence intervals, rating-diff controls, and what is not controlled for.';
+  const canonical = absoluteUrl('methodology.html');
+  const breadcrumbItems = [{ label: 'Home', href: nav.home }, { label: 'Methodology', href: 'methodology.html' }];
+
+  const datasetName = 'Repertoire Builder opening aggregate dataset';
+  const datasetDescription = manifest
+    ? `Position and move aggregates computed from Lichess database dump(s) ${(manifest.dumpMonths || []).join(', ')}, ${(manifest.gamesUsed || 0).toLocaleString()} games used.`
+    : 'Position and move aggregates computed from the live Lichess Opening Explorer API (blitz + rapid, keyless).';
+  const jsonLd = [
+    breadcrumbJsonLd(breadcrumbItems),
+    articleJsonLd({
+      headline: 'How Repertoire Builder computes its numbers',
+      description,
+      datePublished: manifest && manifest.retrievedAt ? manifest.retrievedAt.slice(0, 10) : BUILD_DATE,
+      dateModified: BUILD_DATE,
+      url: canonical,
+      authorName: SITE_AUTHOR,
+      publisherName: SITE_NAME,
+    }),
+    datasetJsonLd({
+      name: datasetName,
+      description: datasetDescription,
+      url: canonical,
+      license: 'http://creativecommons.org/publicdomain/zero/1.0/',
+      temporalCoverage: manifest && manifest.observedGameDateRange ? manifest.observedGameDateRange : undefined,
+    }),
+  ].join('\n  ');
+
+  // Section 1: where the numbers come from -- branches honestly on whether
+  // THIS build actually ran on dump-sourced aggregates or is still on the
+  // live-Explorer-API fallback (see this function's own doc comment).
+  const sourceSection = manifest
+    ? `<p>Every win/draw/loss number on this site is computed from Lichess&rsquo;s own published database dumps (<a href="https://database.lichess.org">database.lichess.org</a>), released under a CC0 public-domain dedication &mdash; free to use for any purpose, with attribution here as a courtesy rather than a license requirement.</p>
+      <p>This build used ${escapeHtml((manifest.dumpMonths || []).join(', ') || 'an unspecified month')}. A full month&rsquo;s dump is tens of gigabytes; this pipeline reads a BOUNDED PREFIX of it (not the whole month) to stay within GitHub Actions&rsquo; free runner limits and to keep bandwidth use to the Lichess database modest. The games actually observed in this build span ${manifest.observedGameDateRange ? `${escapeHtml(manifest.observedGameDateRange[0])} to ${escapeHtml(manifest.observedGameDateRange[1])}` : 'a date range not recorded in this build'} &mdash; the start of the month, not the whole month, which is a real bias this page states outright rather than hiding: games later in the month are systematically absent from this sample.</p>
+      <p>${(manifest.gamesScanned || 0).toLocaleString()} games were scanned; ${(manifest.gamesUsed || 0).toLocaleString()} were used after filtering. Retrieved ${escapeHtml((manifest.retrievedAt || '').slice(0, 10) || BUILD_DATE)}.</p>`
+    : `<p>This build&rsquo;s numbers are computed from the live <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a> (the same public, keyless database Lichess itself exposes), retrieved at build time on ${escapeHtml(BUILD_DATE)}. Lichess&rsquo;s underlying game data is released under a CC0 public-domain dedication (<a href="https://database.lichess.org">database.lichess.org</a>); attribution here is a courtesy, not a license requirement.</p>
+      <p>This site is migrating to compute the same numbers directly from Lichess&rsquo;s own published monthly database dumps instead of live API calls, which will additionally unlock the rating-gap-controlled (&ldquo;balanced&rdquo;) figures described in this page&rsquo;s later sections. That migration&rsquo;s first live data run has not happened yet as of this build &mdash; this page will update to name the exact month(s) and observed date range once it has.</p>`;
+
+  const bucketingSection = `<p>Games are grouped by <strong>rating band</strong>, using the average of both players&rsquo; ratings at the time of the game &mdash; the same bucketing the Lichess Opening Explorer itself uses, which keeps this site&rsquo;s numbers comparable to it. Bands shown on this site run 1400-1600 through 2000+.</p>
+    <p>Games are also grouped by <strong>time-control pool</strong>: this site&rsquo;s default, and the number shown unless you pick another, is blitz. Correspondence games are excluded outright &mdash; a correspondence game (played over days, often with opening-book assistance) is a genuinely different population from a live blitz or rapid game, and folding it into &ldquo;what players at your rating play&rdquo; would misstate what the number means.</p>
+    <p>A second, narrower subset &mdash; <strong>balanced</strong> games, where both players&rsquo; ratings are within ${balancedEloWindow} points of each other &mdash; powers every rating-gap-controlled figure on this site (see &ldquo;What we do not control for&rdquo; and &ldquo;How &lsquo;common mistake&rsquo; is defined&rdquo; below). A lopsided-rating game tells you less about how an opening performs between evenly-matched opponents, which is the comparison a &ldquo;common mistake&rdquo; claim actually needs.</p>`;
+
+  const computationSection = `<p>Two different quantities are shown on this site, and they use two different formulas &mdash; this is a real distinction, not a stylistic choice:</p>
+    <ul>
+      <li><strong>Win / draw / loss rate</strong> is a proportion (how many of these games ended this way) &mdash; shown with a <a href="https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval#Wilson_score_interval">Wilson score interval</a>, which stays accurate at small sample sizes and near 0% or 100%, unlike the naive normal-approximation interval most simple stats tools use.</li>
+      <li><strong>Score</strong> (the standard chess-scoring convention: a win counts 1, a draw counts 0.5) is the MEAN of a value that can be 0, 0.5, or 1 for each game &mdash; not a proportion, so it uses a different formula (a trinomial-variance confidence interval), not the Wilson interval. Applying the Wilson formula to a mean would produce a confidence interval that looks precise but is mathematically wrong for this quantity.</li>
+    </ul>
+    <p>Every rate and score on this site that has enough games to trust carries its 95% confidence interval as a small &ldquo;&plusmn;&rdquo; figure next to the number, and a screen-reader-only sentence spelling out the full interval and sample size. A row whose interval half-width is 1.0 percentage point or wider &mdash; wide enough that it could change how you&rsquo;d read the number &mdash; carries a visible &ldquo;wide interval, small sample&rdquo; note as well.</p>
+    <p>Below ${minGamesForPct.toLocaleString()} games at a given rating band, this site shows no percentage at all for that band, rather than a number computed from too small a sample to mean anything.</p>`;
+
+  const uncontrolledSection = `<p>Stated plainly, not buried:</p>
+    <ul>
+      <li><strong>Selection effects on cross-opening comparisons.</strong> When two different openings are compared by score, the players who choose each one are not the same players &mdash; a raw score difference partly reflects who tends to play each opening, not just how the opening performs. This site&rsquo;s cross-opening rankings rank on the ${balancedEloWindow}-rating-point-gap-controlled subset where that data is available, which removes the largest single confound, but does not remove every one (see below).</li>
+      <li><strong>Time-control mix within a pool.</strong> &ldquo;Blitz&rdquo; on Lichess spans a range of actual time controls; this site does not further split by exact clock setting.</li>
+      <li><strong>The prefix-sampling date window</strong> (see &ldquo;Where the numbers come from&rdquo; above), on any build sourced from a dump rather than the live API.</li>
+      <li><strong>A rating band is not a skill band.</strong> Two players with the same rating can have very different actual chess understanding; rating is a real, useful, but imperfect proxy.</li>
+    </ul>`;
+
+  const mistakeSection = `<p>A move is flagged as a &ldquo;common mistake&rdquo; only when ALL FOUR of these hold, using this build&rsquo;s live threshold values:</p>
+    <ol>
+      <li><strong>Frequency:</strong> played in at least ${thresholds.minPlayedPct}% of games at the displayed band.</li>
+      <li><strong>Rating-diff control:</strong> scored on the balanced (rating gap &le;${balancedEloWindow}) subset, not all games, and only when that subset has at least ${thresholds.minBalancedN} games &mdash; below that, the move isn&rsquo;t flagged at all, rather than falling back to an uncontrolled number.</li>
+      <li><strong>Statistical significance:</strong> the move&rsquo;s own confidence interval must sit entirely below the surrounding position&rsquo;s confidence interval &mdash; a move that merely scores a little lower than average is not flagged; one whose deficit survives its own error bar is.</li>
+      <li><strong>Transposition check:</strong> the position the move leads to &mdash; merged across every move order that reaches it, since this site keys its data by chess position rather than by move sequence &mdash; must ALSO score below the surrounding position&rsquo;s confidence interval. This stops a move from being flagged just because it reaches a perfectly healthy position by an unusual order.</li>
+    </ol>
+    <p>This is deliberately conservative: it flags fewer moves than a simpler &ldquo;plays often, low score&rdquo; rule would, and an opening with no qualifying mistake shows an honest empty state rather than a loosened threshold to fill space.</p>`;
+
+  const changeSection = `<p>This site is rebuilt periodically from fresh data, not updated in real time between rebuilds. Once this site is sourced from Lichess&rsquo;s database dumps, the refresh cadence is monthly, and any page displaying a number reads it from this build&rsquo;s manifest &mdash; a build fails outright rather than shipping a number whose source data is more than 100 days old, so a number on this site is never silently stale past that point.</p>`;
+
+  const correctionsSection = `<p>If you find a number on this site that looks wrong, the <a href="contact.html">contact page</a> is the way to reach us. A confirmed error is corrected in the next rebuild, and a materially wrong published figure is noted rather than silently replaced.</p>`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd })}
+<body>
+  ${renderHeader(nav, null)}
+  <main>
+    ${renderBreadcrumb(breadcrumbItems)}
+    <article class="prose">
+      <h1 class="page-title">How Repertoire Builder computes its numbers</h1>
+      <p class="subtitle">Every number on this site links here. This page is the full, honest account &mdash; including what it does not control for.</p>
+
+      <section>
+        <h2>Where the numbers come from</h2>
+        ${sourceSection}
+      </section>
+
+      <section>
+        <h2>How games are bucketed</h2>
+        ${bucketingSection}
+      </section>
+
+      <section>
+        <h2>How rates are computed</h2>
+        ${computationSection}
+      </section>
+
+      <section>
+        <h2>What we do not control for</h2>
+        ${uncontrolledSection}
+      </section>
+
+      <section>
+        <h2>How &ldquo;common mistake&rdquo; is defined</h2>
+        ${mistakeSection}
+      </section>
+
+      <section>
+        <h2>What would change a number</h2>
+        ${changeSection}
+      </section>
+
+      <section>
+        <h2>Corrections policy</h2>
+        ${correctionsSection}
+      </section>
+    </article>
+  </main>
+  ${renderFooter(`Methodology retrieved ${BUILD_DATE}. ${pieceAttributionHtml()}`, CONTENT_LEGAL_LINKS)}
+</body>
+</html>
+`;
+}
+
 module.exports = {
   renderBoard,
   renderBreadcrumb,
@@ -604,6 +910,7 @@ module.exports = {
   renderArticlePage,
   renderGuidesHub,
   renderFaqPage,
+  renderMethodologyPage,
   formatSanLine,
   formatGamesAbbrev,
   lichessAnalysisUrl,

@@ -18,6 +18,7 @@
  */
 
 const { moveStatsFromExplorerResponse } = require('./processRepertoire');
+const { scoreInterval, wilsonInterval } = require('./stats');
 
 function opponentOf(side) {
   return side === 'white' ? 'black' : 'white';
@@ -41,26 +42,116 @@ function scoreFor(totals, color) {
 }
 
 /**
- * Finds moves that are played often enough to matter at this rating but
- * score badly for the side playing them -- a claim true by arithmetic, not
- * an assertion of chess knowledge (spec section 3.3).
+ * Same computation as scoreFor(), plus the trinomial-variance confidence
+ * interval around it (spec WS-3.3 section 3.1 -- src/stats.js's
+ * scoreInterval(), never wilsonInterval(), since score is a mean over
+ * {0, 0.5, 1}, not a binomial proportion). Kept as a separate function
+ * rather than folded into scoreFor() itself so every existing scoreFor()
+ * caller (there are several, all displaying a bare percentage with no CI
+ * need) is untouched.
  *
- * @param {object} response an Opening Explorer response for the position
+ * @param {{white:number, draws:number, black:number}} totals
+ * @param {'white'|'black'} color
+ * @returns {{score:number, low:number, high:number, half:number}|null}
+ *   `score`/`low`/`high` as PERCENTAGES (0-100, one decimal), `half` in
+ *   percentage points -- null if there's no data (total <= 0).
+ */
+function scoreForWithCI(totals, color) {
+  if (!totals) return null;
+  const white = totals.white || 0;
+  const draws = totals.draws || 0;
+  const black = totals.black || 0;
+  if (white + draws + black <= 0) return null;
+  const winsForColor = color === 'white' ? white : black;
+  const lossesForColor = color === 'white' ? black : white;
+  const { score, low, high, half } = scoreInterval(winsForColor, draws, lossesForColor);
+  return {
+    score: Number((score * 100).toFixed(1)),
+    low: Number((low * 100).toFixed(1)),
+    high: Number((high * 100).toFixed(1)),
+    half: Number((half * 100).toFixed(1)),
+  };
+}
+
+// Rebuilt "common mistake" thresholds (spec WS-3.3 section 3.4), exported as
+// one object (not scattered literals) so /methodology can render the actual
+// live values instead of a prose paraphrase that drifts out of date --
+// spec's explicit instruction. `maxScoreForMover` from the old rule (a bare
+// score <= 47) is GONE: significance is now a CI comparison (condition 3
+// below), not an arbitrary cutoff.
+const MISTAKE_THRESHOLDS = {
+  minPlayedPct: 2, // condition 1: frequency
+  minBalancedN: 300, // condition 2: rating-diff-controlled sample floor
+  limit: 2,
+};
+
+/**
+ * Finds moves that are played often enough to matter at this rating AND
+ * score badly for the side playing them AGAINST four conditions (spec
+ * WS-3.3 section 3.4), all required -- a claim true by arithmetic and by a
+ * real confidence interval, not an assertion of chess knowledge and not the
+ * old single arbitrary literal (score <= 47):
+ *
+ *   1. FREQUENCY: playedPct >= minPlayedPct in the displayed band+pool.
+ *   2. RATING-DIFF CONTROL: score the move on its BALANCED (rating gap <=
+ *      50) subset, not all games. Requires balancedGames >= minBalancedN;
+ *      below that the move isn't flagged at all -- there is no aggregate
+ *      data to control for rating gap here (this is the live-Explorer-API
+ *      fallback case today, since real balanced counts only exist once
+ *      src/aggregateSource.js is the data source), so nothing is flagged
+ *      rather than falling back to an uncontrolled number.
+ *   3. SIGNIFICANCE: the move's own balanced-score CI upper bound must sit
+ *      BELOW the parent position's balanced-score CI lower bound (both from
+ *      src/stats.js's scoreInterval(), via scoreForWithCI() above). A move
+ *      that merely scores lower than average isn't a mistake; one whose
+ *      deficit survives its own error bar against the position's overall
+ *      error bar is.
+ *   4. TRANSPOSITION CHECK: the RESULTING position's own balanced score
+ *      (merged across every move order that reaches it -- see
+ *      src/aggregateSource.js's resultingPositionBalanced() doc comment)
+ *      must ALSO sit below the parent's balanced-score CI lower bound. This
+ *      is what stops flagging a move that simply transposes into a
+ *      perfectly healthy position by an unusual order, and it's only
+ *      possible because the pipeline keys by position, not move path.
+ *
+ * Expect this to flag FEWER moves than the old single-condition rule -- see
+ * this function's callers for the honest empty-state rendering that's the
+ * point, not a defect.
+ *
+ * @param {object} response an Explorer-shaped response for the PARENT
+ *   position (src/aggregateSource.js's explorerShapedResponse() shape, or
+ *   the live Explorer API's own shape as a fallback -- see module doc).
  * @param {'white'|'black'} moverColor whose candidate moves to evaluate
- * @param {{minPlayedPct?:number, maxScoreForMover?:number, limit?:number}} opts
- * @returns {Array} moves (each carrying a `score` field), worst score first
+ * @param {{minPlayedPct?:number, minBalancedN?:number, limit?:number}} [opts]
+ * @returns {Array} moves (each carrying a `score` field -- the BALANCED-
+ *   subset score, per condition 2, NOT the all-games score the old version
+ *   returned here), worst score first.
  */
 function findCommonMistakes(response, moverColor, opts = {}) {
-  const { minPlayedPct = 2, maxScoreForMover = 47, limit = 2 } = opts;
+  const { minPlayedPct = MISTAKE_THRESHOLDS.minPlayedPct, minBalancedN = MISTAKE_THRESHOLDS.minBalancedN, limit = MISTAKE_THRESHOLDS.limit } = opts;
   const moves = moveStatsFromExplorerResponse(response, moverColor);
+
+  // Condition 3/4's comparison point: the PARENT position's own balanced
+  // score CI, from the SAME moverColor's perspective as every move below.
+  // Absent entirely on the live-Explorer-API fallback (response.balanced is
+  // undefined there) -- in that case conditions 2-4 can never pass, so
+  // nothing is flagged, matching this function's module-doc expectation.
+  const parentTotals = response && response.balanced ? response.balanced : null;
+  const parentCI = parentTotals ? scoreForWithCI(parentTotals, moverColor) : null;
+
   return moves
-    .map((m) => ({
-      ...m,
-      score: m.winPct == null || m.drawPct == null ? null : Number((m.winPct + m.drawPct / 2).toFixed(1)),
-    }))
-    .filter((m) => m.playedPct != null && m.playedPct >= minPlayedPct && m.score != null && m.score <= maxScoreForMover)
-    .sort((a, b) => a.score - b.score)
-    .slice(0, limit);
+    .filter((m) => m.playedPct != null && m.playedPct >= minPlayedPct) // condition 1
+    .map((m) => {
+      const moveCI = m.balancedGames >= minBalancedN && m.balanced ? scoreForWithCI(m.balanced, moverColor) : null;
+      const resultingScore = m.resultingBalanced ? scoreFor(m.resultingBalanced, moverColor) : null;
+      return { ...m, moveCI, resultingScore };
+    })
+    .filter((m) => m.moveCI != null) // condition 2
+    .filter((m) => parentCI != null && m.moveCI.high < parentCI.low) // condition 3
+    .filter((m) => m.resultingScore != null && m.resultingScore < parentCI.low) // condition 4
+    .sort((a, b) => a.moveCI.score - b.moveCI.score)
+    .slice(0, limit)
+    .map((m) => ({ ...m, score: m.moveCI.score, scoreCI: m.moveCI.half }));
 }
 
 /**
@@ -104,18 +195,54 @@ function buildOpeningModel({
   const eco = apiOpening && apiOpening.eco ? apiOpening.eco : openingConfig.ecoHint;
   const name = openingConfig.name;
 
+  // WS-3.3's balanced-subset minimum for a CROSS-OPENING ranking to use it
+  // (spec section 3.4's condition-2 minBalancedN, reused here rather than a
+  // second invented constant -- same "rating gap <=50 subset is only
+  // trustworthy at n>=300" judgment applies to both).
+  const minBalancedNForBand = MISTAKE_THRESHOLDS.minBalancedN;
+
   const bands = Object.keys(bandResponses || {}).map((band) => {
     const resp = bandResponses[band];
     const totals = { white: (resp && resp.white) || 0, draws: (resp && resp.draws) || 0, black: (resp && resp.black) || 0 };
     const games = totals.white + totals.draws + totals.black;
     const enoughData = games >= minGamesForPct;
+
+    // Wilson half-widths (percentage points) for the three displayed rates
+    // -- spec 3.2 requires an interval on every displayed rate, not just
+    // score. Suppressed under the same minGamesForPct gate as the
+    // percentages themselves (an interval on a suppressed number is
+    // meaningless).
+    const whiteCI = enoughData ? Number((wilsonInterval(totals.white, games).half * 100).toFixed(1)) : null;
+    const drawCI = enoughData ? Number((wilsonInterval(totals.draws, games).half * 100).toFixed(1)) : null;
+    const blackCI = enoughData ? Number((wilsonInterval(totals.black, games).half * 100).toFixed(1)) : null;
+
+    const scoreCIResult = enoughData ? scoreForWithCI(totals, openingConfig.side) : null;
+
+    // Balanced (rating gap <=50) score for this SAME band -- the
+    // rating-diff-controlled figure WS-3.3 section 3.3 requires cross-
+    // opening rankings to rank on. Only present at all once this build is
+    // sourced from src/aggregateSource.js (resp.balanced) -- undefined on
+    // the live-Explorer-API fallback, which findCommonMistakes() already
+    // treats the same way (see that function's own doc).
+    const balancedTotals = resp && resp.balanced ? resp.balanced : null;
+    const balancedGames = balancedTotals ? balancedTotals.white + balancedTotals.draws + balancedTotals.black : 0;
+    const balancedEnough = balancedGames >= minBalancedNForBand;
+    const balancedScoreCI = balancedEnough ? scoreForWithCI(balancedTotals, openingConfig.side) : null;
+
     return {
       band,
       games,
       whitePct: enoughData ? Number(((totals.white / games) * 100).toFixed(1)) : null,
       drawPct: enoughData ? Number(((totals.draws / games) * 100).toFixed(1)) : null,
       blackPct: enoughData ? Number(((totals.black / games) * 100).toFixed(1)) : null,
-      scoreForSide: enoughData ? scoreFor(totals, openingConfig.side) : null,
+      whiteCI,
+      drawCI,
+      blackCI,
+      scoreForSide: scoreCIResult ? scoreCIResult.score : null,
+      scoreForSideCI: scoreCIResult ? scoreCIResult.half : null,
+      balancedGames,
+      scoreForSideBalanced: balancedScoreCI ? balancedScoreCI.score : null,
+      scoreForSideBalancedCI: balancedScoreCI ? balancedScoreCI.half : null,
       enoughData,
     };
   });
@@ -158,19 +285,41 @@ function buildOpeningModel({
 }
 
 /**
- * Ranks the 10 tracked openings by score-for-its-own-side at one rating
- * band, for cross-opening comparison articles (phase 2). Openings whose
- * band doesn't have enough games yet (see buildOpeningModel's
- * minGamesForPct) are left out entirely rather than shown with a noisy
- * percentage -- same "don't print a confident number from 8 games" rule as
- * the per-opening page itself.
+ * Ranks the 10 tracked openings at one rating band, for cross-opening
+ * comparison articles (phase 2) -- rebuilt per spec WS-3.3 section 3.3's
+ * selection-effect disclosure rule:
+ *
+ *   1. Rank on the BALANCED-subset score (scoreForSideBalanced, rating gap
+ *      <=50) when every ranked entry has one, since that removes the
+ *      largest single confound (which players choose an opening) instead
+ *      of merely disclosing it. `usedBalanced: true` on the returned rows
+ *      when this happened.
+ *   2. FALLS BACK to the all-games score (scoreForSide, `usedBalanced:
+ *      false`) when balanced data isn't available for this build -- true
+ *      of every ranking today, since real balanced counts only exist once
+ *      src/aggregateSource.js is the data source (WS-3 B2's live ingest,
+ *      not yet run). This is a disclosed degradation, not a silent one:
+ *      never claim a control that wasn't actually applied (Non-Negotiable
+ *      5) -- callers must render `usedBalanced` honestly, not assume true.
+ *   3. Adjacent rows whose score gap is smaller than the sum of their own
+ *      CI half-widths share the same rank number (a tie) rather than being
+ *      shown as a strict, unsupported ordering -- competition-style
+ *      ranking (a tie consumes its rank position, so the next distinct row
+ *      is numbered by count, not by 1-more-than-the-tie).
+ *
+ * Openings whose band doesn't have enough games at all (see
+ * buildOpeningModel's minGamesForPct) are left out entirely rather than
+ * shown with a noisy percentage -- same "don't print a confident number
+ * from 8 games" rule as the per-opening page itself.
  *
  * @param {Array<{openingConfig:object, model:object}>} entries
  * @param {string} band a RATING_BANDS key, e.g. '1600-1800'
- * @returns {Array<{slug,name,side,band,games,scoreForSide}>} best score first
+ * @returns {Array<{slug,name,side,band,games,scoreForSide,scoreForSideCI,
+ *   scoreForSideBalanced,scoreForSideBalancedCI,usedBalanced,rank}>} best
+ *   (ranked) score first.
  */
 function rankOpeningsByScore(entries, band) {
-  return entries
+  const rows = entries
     .map(({ openingConfig, model }) => {
       const b = (model.bands || []).find((x) => x.band === band);
       return {
@@ -180,11 +329,43 @@ function rankOpeningsByScore(entries, band) {
         band,
         games: b ? b.games : 0,
         scoreForSide: b ? b.scoreForSide : null,
+        scoreForSideCI: b ? b.scoreForSideCI : null,
+        scoreForSideBalanced: b ? b.scoreForSideBalanced : null,
+        scoreForSideBalancedCI: b ? b.scoreForSideBalancedCI : null,
         enoughData: b ? b.enoughData : false,
       };
     })
-    .filter((e) => e.enoughData)
-    .sort((a, b) => b.scoreForSide - a.scoreForSide);
+    .filter((e) => e.enoughData);
+
+  // Use the balanced score for ranking only when EVERY row being ranked has
+  // one -- ranking some rows on a controlled figure and others on an
+  // uncontrolled one would silently mix two different measurements in one
+  // ordering, which is worse than falling back for all of them.
+  const usedBalanced = rows.length > 0 && rows.every((r) => r.scoreForSideBalanced != null);
+  const rankScore = (r) => (usedBalanced ? r.scoreForSideBalanced : r.scoreForSide);
+  const rankHalf = (r) => (usedBalanced ? r.scoreForSideBalancedCI : r.scoreForSideCI) || 0;
+
+  const sorted = rows
+    .map((r) => ({ ...r, usedBalanced }))
+    .sort((a, b) => rankScore(b) - rankScore(a));
+
+  // Competition-style rank assignment with ties: two adjacent rows tie
+  // (share a rank) when their score gap is smaller than the SUM of their
+  // own CI half-widths -- the gap the data cannot actually distinguish.
+  let rank = 1;
+  for (let i = 0; i < sorted.length; i += 1) {
+    if (i === 0) {
+      sorted[i].rank = rank;
+      continue;
+    }
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
+    const gap = rankScore(prev) - rankScore(cur);
+    const tie = gap < rankHalf(prev) + rankHalf(cur);
+    if (!tie) rank = i + 1;
+    sorted[i].rank = rank;
+  }
+  return sorted;
 }
 
 /**
@@ -243,6 +424,8 @@ function scoreRangeAcrossBands(model) {
 
 module.exports = {
   scoreFor,
+  scoreForWithCI,
+  MISTAKE_THRESHOLDS,
   findCommonMistakes,
   buildOpeningModel,
   opponentOf,

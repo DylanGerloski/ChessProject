@@ -296,6 +296,41 @@ test('buildStatic also writes privacy.html, about.html, contact.html, and ads.tx
   })
 );
 
+test('buildStatic also writes methodology.html (WS-3.3 B4), linked from the footer, with Article+Dataset JSON-LD and no manifest yet (live-Explorer-API fallback)', () =>
+  withTempDist(async () => {
+    const { fetchImpl } = fakeExplorerFetch();
+    const { outDir } = await buildStatic({ fetchImpl, useCache: false });
+
+    const methodologyPath = path.join(outDir, 'methodology.html');
+    assert.ok(fs.existsSync(methodologyPath), 'expected methodology.html to exist on disk');
+    const html = fs.readFileSync(methodologyPath, 'utf8');
+    assert.match(html, /<h1 class="page-title">How Repertoire Builder computes its numbers<\/h1>/);
+    assert.equal((html.match(/<h2[^>]*>/g) || []).length >= 7, true);
+    assert.doesNotMatch(html, /"@type":"FAQPage"/);
+    assert.match(html, /"@type":"Dataset"/);
+    assert.match(html, /"@type":"Article"/);
+
+    const homeHtml = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
+    assert.match(homeHtml, /href="methodology\.html">Methodology<\/a>/);
+  })
+);
+
+test('buildStatic writes a dist/_headers file (Cloudflare Pages header config) with HSTS, nosniff, and a frame-ancestors CSP', () =>
+  withTempDist(async () => {
+    const { fetchImpl } = fakeExplorerFetch();
+    const { outDir } = await buildStatic({ fetchImpl, useCache: false });
+
+    const headersPath = path.join(outDir, '_headers');
+    assert.ok(fs.existsSync(headersPath), 'expected dist/_headers to exist on disk');
+
+    const headers = fs.readFileSync(headersPath, 'utf8');
+    assert.match(headers, /^\/\*$/m);
+    assert.match(headers, /Strict-Transport-Security: max-age=31536000; includeSubDomains/);
+    assert.match(headers, /X-Content-Type-Options: nosniff/);
+    assert.match(headers, /frame-ancestors 'none'/);
+  })
+);
+
 test('indexPage footer never mentions TESTING.md or other internal build artifacts', () => {
   const html = indexPage([]);
   assert.doesNotMatch(html, /TESTING\.md/);
@@ -510,14 +545,14 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     assert.ok(ecoExplorerResult.reverseLookupCount > 0);
 
     // index + player + drill + 404 + repertoire.html + 8 redirect stubs
-    // + 10 openings + hub + 6 guides + hub + FAQ + privacy/about/contact
+    // + 10 openings + hub + 6 guides + hub + FAQ + privacy/about/contact/methodology
     // + (Phase 7d) 64 T1 family hubs + 5 T2 volume pages + 2 T2 browse-index pages
     // + (Phase 7e) 1 ECO explorer page.
     // pageFilenames includes 404.html and the 8 redirect stubs (for the
     // filename-uniqueness check), but the sitemap itself must exclude all 9
     // -- see the separate assertion below, and src/sitemap.js's
     // buildSitemapEntries/REDIRECT_STUBS.
-    const expectedPageCount = 4 + 1 + repertoireStubs.length + contentWritten.length + ecoWritten.length + 3 + 1;
+    const expectedPageCount = 4 + 1 + repertoireStubs.length + contentWritten.length + ecoWritten.length + 4 + 1;
     assert.equal(pageFilenames.length, expectedPageCount);
     assert.ok(pageFilenames.includes('404.html'));
     assert.ok(pageFilenames.includes('eco-explorer.html'));
@@ -532,6 +567,7 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     assert.ok(locMatches.includes('https://repertoire-builder.com/italian-game.html'));
     assert.ok(locMatches.includes('https://repertoire-builder.com/chess-opening-faq.html'));
     assert.ok(locMatches.includes('https://repertoire-builder.com/privacy.html'));
+    assert.ok(locMatches.includes('https://repertoire-builder.com/methodology.html'));
     assert.ok(locMatches.includes('https://repertoire-builder.com/italian-game-drill.html'));
     assert.equal(ecoWritten.length, 64 + 5 + 2, 'Phase 7d: 64 T1 hubs + 5 T2 volume pages + 2 T2 browse-index pages');
     assert.ok(locMatches.includes('https://repertoire-builder.com/sicilian-defense-variations.html'));

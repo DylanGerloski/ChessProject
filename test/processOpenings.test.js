@@ -4,6 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   scoreFor,
+  scoreForWithCI,
+  MISTAKE_THRESHOLDS,
   findCommonMistakes,
   buildOpeningModel,
   rankOpeningsByScore,
@@ -23,30 +25,73 @@ test('scoreFor returns null when there is no data', () => {
   assert.equal(scoreFor(null, 'white'), null);
 });
 
-test('findCommonMistakes returns a frequently-played, low-scoring move and excludes rare or good moves', () => {
+test('findCommonMistakes: rebuilt WS-3.3 rule -- all four conditions (frequency, balanced n>=300, CI significance, transposition) must pass', () => {
+  // Parent position's balanced (rating gap <=50) totals: score for Black =
+  // (400 + 25) / 1000 = 42.5%, CI low ~= 39.5pp (hand-verified below).
+  const parentBalanced = { white: 550, draws: 50, black: 400 };
+  const parentCI = scoreForWithCI(parentBalanced, 'black');
+  assert.ok(Math.abs(parentCI.low - 39.5) < 0.5, `sanity-check the fixture's own parent CI, got ${parentCI.low}`);
+
   const response = {
-    white: 0,
-    draws: 0,
-    black: 0,
+    white: 590 + 4 + 400,
+    draws: 20 + 1 + 150,
+    black: 390 + 1 + 450,
+    balanced: parentBalanced,
     moves: [
-      // Played often (10%), scores badly for Black (41%) -> should be flagged.
-      { uci: 'g8f6', san: 'Nf6', white: 590, draws: 20, black: 390, averageRating: 1500 },
-      // Played rarely (well under minPlayedPct) even though it scores badly -> excluded (too rare to matter).
+      // Frequent (~50% of games), and on the rating-diff-controlled
+      // (balanced) subset it scores badly enough for Black that its CI
+      // upper bound sits below the parent's CI lower bound (condition 3),
+      // AND the resulting position's own balanced score is also below the
+      // parent's CI lower bound (condition 4) -- should be flagged.
+      {
+        uci: 'g8f6', san: 'Nf6', white: 590, draws: 20, black: 390, averageRating: 1500,
+        balanced: { white: 220, draws: 10, black: 80 }, // n=310 >= 300; score ~27.4%
+        resultingBalanced: { white: 250, draws: 10, black: 100 }, // score ~29.2%
+      },
+      // Played rarely -- excluded by condition 1 (frequency) before its
+      // balanced numbers (absent here) would even matter.
       { uci: 'a7a6', san: 'a6', white: 4, draws: 1, black: 1, averageRating: 1480 },
-      // Played often but scores well for Black -> excluded (not a mistake).
-      { uci: 'd7d5', san: 'd5', white: 400, draws: 150, black: 450, averageRating: 1550 },
+      // Frequent, and has real balanced data (n=400 >= 300, condition 2
+      // passes) -- but its balanced score (52.5%) is NOT significantly
+      // below the parent's -- excluded by condition 3.
+      {
+        uci: 'd7d5', san: 'd5', white: 400, draws: 150, black: 450, averageRating: 1550,
+        balanced: { white: 150, draws: 80, black: 170 }, // n=400; score 52.5%
+      },
     ],
   };
-  // moveStatsFromExplorerResponse computes playedPct from response.white/draws/black totals
-  // summed across all listed moves being representative of the position total.
-  response.white = 590 + 4 + 400;
-  response.draws = 20 + 1 + 150;
-  response.black = 390 + 1 + 450;
 
-  const mistakes = findCommonMistakes(response, 'black', { minPlayedPct: 2, maxScoreForMover: 47, limit: 2 });
+  const mistakes = findCommonMistakes(response, 'black');
   assert.equal(mistakes.length, 1);
   assert.equal(mistakes[0].san, 'Nf6');
-  assert.ok(mistakes[0].score <= 47);
+  assert.ok(mistakes[0].score < parentCI.low, `expected a balanced-subset score under the parent's CI lower bound (${parentCI.low}), got ${mistakes[0].score}`);
+});
+
+test('findCommonMistakes: with no balanced/parent data at all (today\'s live-Explorer-API fallback), flags nothing -- never falls back to an uncontrolled rule', () => {
+  const response = {
+    white: 590 + 4 + 400, draws: 20 + 1 + 150, black: 390 + 1 + 450,
+    moves: [
+      { uci: 'g8f6', san: 'Nf6', white: 590, draws: 20, black: 390, averageRating: 1500 },
+    ],
+  };
+  assert.deepEqual(findCommonMistakes(response, 'black'), []);
+});
+
+test('findCommonMistakes: a move with balanced data below the n>=300 floor is excluded by condition 2, even if its raw score looks bad', () => {
+  const response = {
+    white: 1000, draws: 0, black: 1000,
+    balanced: { white: 550, draws: 50, black: 400 },
+    moves: [
+      { uci: 'g8f6', san: 'Nf6', white: 590, draws: 20, black: 390, averageRating: 1500, balanced: { white: 100, draws: 5, black: 20 } }, // n=125 < 300
+    ],
+  };
+  assert.deepEqual(findCommonMistakes(response, 'black'), []);
+});
+
+test('MISTAKE_THRESHOLDS exposes the live threshold values (for /methodology to render, per spec)', () => {
+  assert.equal(MISTAKE_THRESHOLDS.minPlayedPct, 2);
+  assert.equal(MISTAKE_THRESHOLDS.minBalancedN, 300);
+  assert.equal(MISTAKE_THRESHOLDS.limit, 2);
 });
 
 test('buildOpeningModel shapes bands correctly and tolerates a band with zero games', () => {
@@ -137,7 +182,7 @@ test('buildOpeningModel attaches a punishing reply to the worst mistake when a f
   }
 });
 
-function fakeEntry({ slug, name, side, band, games, scoreForSide, mistakes = [] }) {
+function fakeEntry({ slug, name, side, band, games, scoreForSide, scoreForSideCI = 0, scoreForSideBalanced = null, scoreForSideBalancedCI = 0, mistakes = [] }) {
   return {
     openingConfig: { slug, name, side },
     model: {
@@ -145,13 +190,13 @@ function fakeEntry({ slug, name, side, band, games, scoreForSide, mistakes = [] 
       side,
       opponentColor: side === 'white' ? 'black' : 'white',
       defaultBand: band,
-      bands: [{ band, games, scoreForSide, enoughData: games >= 1000 }],
+      bands: [{ band, games, scoreForSide, scoreForSideCI, scoreForSideBalanced, scoreForSideBalancedCI, enoughData: games >= 1000 }],
       mistakes,
     },
   };
 }
 
-test('rankOpeningsByScore sorts by score-for-side descending and excludes bands without enough data', () => {
+test('rankOpeningsByScore: with no balanced data anywhere (today\'s fallback), sorts by all-games score descending, usedBalanced false', () => {
   const entries = [
     fakeEntry({ slug: 'a', name: 'Opening A', side: 'white', band: '1600-1800', games: 5000, scoreForSide: 48 }),
     fakeEntry({ slug: 'b', name: 'Opening B', side: 'white', band: '1600-1800', games: 6000, scoreForSide: 55 }),
@@ -161,6 +206,44 @@ test('rankOpeningsByScore sorts by score-for-side descending and excludes bands 
   assert.equal(ranked.length, 2);
   assert.equal(ranked[0].slug, 'b');
   assert.equal(ranked[1].slug, 'a');
+  assert.equal(ranked[0].usedBalanced, false);
+  assert.equal(ranked[0].rank, 1);
+  assert.equal(ranked[1].rank, 2);
+});
+
+test('rankOpeningsByScore: ranks on the balanced-subset score when every ranked entry has one, shows the all-games score alongside', () => {
+  const entries = [
+    fakeEntry({ slug: 'a', name: 'Opening A', side: 'white', band: '1600-1800', games: 5000, scoreForSide: 60, scoreForSideBalanced: 48, scoreForSideBalancedCI: 1 }),
+    fakeEntry({ slug: 'b', name: 'Opening B', side: 'white', band: '1600-1800', games: 6000, scoreForSide: 50, scoreForSideBalanced: 55, scoreForSideBalancedCI: 1 }),
+  ];
+  const ranked = rankOpeningsByScore(entries, '1600-1800');
+  assert.equal(ranked[0].slug, 'b'); // 55 > 48 on the BALANCED score, even though 'a' had the higher all-games score
+  assert.equal(ranked[0].usedBalanced, true);
+  assert.equal(ranked[0].scoreForSide, 50); // all-games score still present alongside
+});
+
+test('rankOpeningsByScore: falls back to all-games ranking (not a mixed ranking) when even one entry lacks balanced data', () => {
+  const entries = [
+    fakeEntry({ slug: 'a', name: 'Opening A', side: 'white', band: '1600-1800', games: 5000, scoreForSide: 60, scoreForSideBalanced: 48 }),
+    fakeEntry({ slug: 'b', name: 'Opening B', side: 'white', band: '1600-1800', games: 6000, scoreForSide: 50, scoreForSideBalanced: null }),
+  ];
+  const ranked = rankOpeningsByScore(entries, '1600-1800');
+  assert.equal(ranked[0].usedBalanced, false);
+  assert.equal(ranked[0].slug, 'a'); // ranked on all-games score (60 > 50), not the partial balanced data
+});
+
+test('rankOpeningsByScore: adjacent rows within their combined CI half-width tie (share a rank number)', () => {
+  const entries = [
+    fakeEntry({ slug: 'a', name: 'Opening A', side: 'white', band: '1600-1800', games: 5000, scoreForSide: 51, scoreForSideCI: 1 }),
+    fakeEntry({ slug: 'b', name: 'Opening B', side: 'white', band: '1600-1800', games: 6000, scoreForSide: 50, scoreForSideCI: 1 }),
+    fakeEntry({ slug: 'c', name: 'Opening C', side: 'white', band: '1600-1800', games: 6000, scoreForSide: 30, scoreForSideCI: 1 }),
+  ];
+  const ranked = rankOpeningsByScore(entries, '1600-1800');
+  // a (51) vs b (50): gap 1 < half+half (1+1=2) -> tie, same rank.
+  assert.equal(ranked[0].rank, 1);
+  assert.equal(ranked[1].rank, 1);
+  // c (30) is nowhere near b (50) -- a real, supported gap -> rank 3 (competition-style, not 2).
+  assert.equal(ranked[2].rank, 3);
 });
 
 test('aggregateMistakesAcrossOpenings flattens and sorts every opening\'s mistakes worst-score-first', () => {

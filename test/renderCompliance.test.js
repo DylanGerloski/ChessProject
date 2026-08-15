@@ -9,6 +9,7 @@ const {
   renderContactPage,
   render404Page,
   adsTxtContent,
+  cloudflareHeadersContent,
 } = require('../src/renderCompliance');
 const { renderFooter, renderDisclosure } = require('../src/render');
 
@@ -73,6 +74,26 @@ test('adsTxtContent declares the approved AdSense publisher as an authorized DIR
   const txt = adsTxtContent();
   assert.match(txt, /^# ads\.txt for/);
   assert.match(txt, /^google\.com, pub-9767914878112531, DIRECT, f08c47fec0942fa0$/m);
+});
+
+test('cloudflareHeadersContent applies to every path and sets the header-only controls a meta tag cannot (HSTS, nosniff, Permissions-Policy, frame-ancestors)', () => {
+  const txt = cloudflareHeadersContent();
+  assert.match(txt, /^\/\*$/m);
+  assert.match(txt, /^\s+Strict-Transport-Security: max-age=31536000; includeSubDomains$/m);
+  assert.match(txt, /^\s+X-Content-Type-Options: nosniff$/m);
+  assert.match(txt, /^\s+Referrer-Policy: strict-origin-when-cross-origin$/m);
+  assert.match(txt, /^\s+Permissions-Policy: /m);
+  assert.match(txt, /^\s+Content-Security-Policy: .*frame-ancestors 'none'/m);
+});
+
+test("cloudflareHeadersContent's CSP directive keeps the same object-src/base-uri values as the meta-tag CSP (defense in depth, not a divergent policy)", () => {
+  const txt = cloudflareHeadersContent();
+  assert.match(txt, /object-src 'none'; base-uri 'none'; frame-ancestors 'none'/);
+  // No script-src: a static page can't produce the per-response nonce
+  // AdSense's real CSP guidance requires (security-standards.md), so a
+  // fake script-src would be theatre, not a control -- same reasoning as
+  // the existing meta CSP, which also omits it.
+  assert.doesNotMatch(txt, /script-src/);
 });
 
 test('renderFooter always includes the affiliate/support-link disclosure, with or without legalLinks', () => {

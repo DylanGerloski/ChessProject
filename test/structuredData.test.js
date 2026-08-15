@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { jsonLdScript, stripHtmlToText, breadcrumbJsonLd, articleJsonLd, faqPageJsonLd, homeJsonLd } = require('../src/structuredData');
+const { jsonLdScript, stripHtmlToText, breadcrumbJsonLd, articleJsonLd, faqPageJsonLd, homeJsonLd, datasetJsonLd } = require('../src/structuredData');
 
 /** Pulls the JSON payload back out of a `<script type="application/ld+json">...</script>` block. */
 function parseJsonLdScript(html) {
@@ -106,4 +106,29 @@ test('homeJsonLd emits both a WebSite and an Organization block, with no sitelin
   assert.equal(website.url, 'https://repertoire-builder.com/');
   assert.equal(website.description, 'tagline');
   assert.equal(website.potentialAction, undefined);
+});
+
+test('datasetJsonLd: emits a real Dataset block, license, creator, and a start/end temporalCoverage interval', () => {
+  const html = datasetJsonLd({
+    name: 'Repertoire Builder aggregate dataset',
+    description: 'Position and move aggregates from Lichess database dumps.',
+    url: 'https://repertoire-builder.com/methodology.html',
+    license: 'http://creativecommons.org/publicdomain/zero/1.0/',
+    temporalCoverage: ['2026-07-01', '2026-07-04'],
+  });
+  const match = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  const ld = JSON.parse(match[1]);
+  assert.equal(ld['@type'], 'Dataset');
+  assert.equal(ld.name, 'Repertoire Builder aggregate dataset');
+  assert.equal(ld.creator['@type'], 'Organization');
+  assert.equal(ld.license, 'http://creativecommons.org/publicdomain/zero/1.0/');
+  assert.equal(ld.temporalCoverage, '2026-07-01/2026-07-04');
+});
+
+test('datasetJsonLd: omits license/temporalCoverage entirely when not given, rather than emitting null/undefined', () => {
+  const html = datasetJsonLd({ name: 'x', description: 'y', url: 'https://repertoire-builder.com/methodology.html' });
+  const match = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  const ld = JSON.parse(match[1]);
+  assert.equal('license' in ld, false);
+  assert.equal('temporalCoverage' in ld, false);
 });

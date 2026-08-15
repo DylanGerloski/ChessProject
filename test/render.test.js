@@ -110,3 +110,29 @@ test('renderFooter links only Ko-fi in the support-links block, never Buy Me a C
   assert.doesNotMatch(html, /buymeacoffee\.com/);
   assert.doesNotMatch(html, /Buy Me a Coffee/);
 });
+
+// Regression: a legalLinks object missing `methodology` (some callers --
+// src/renderEcoPages.js's ECO_LEGAL_LINKS, src/renderEcoExplorerPage.js's
+// ECO_EXPLORER_LEGAL_LINKS -- carry privacy/about/contact but not
+// methodology) used to leave a whitespace-only text node inside the
+// <nav class="legal-links"> block, which html-validate's no-trailing-
+// whitespace rule flags. Caught by running html-validate across the FULL
+// dist/**/*.html output, not just the pages a task directly touches.
+test('renderFooter: a legalLinks object missing methodology renders no blank line (no-trailing-whitespace safe)', () => {
+  const html = renderFooter('footer copy', { privacy: 'privacy.html', about: 'about.html', contact: 'contact.html' });
+  const navMatch = html.match(/<nav class="legal-links"[^>]*>([\s\S]*?)<\/nav>/);
+  const inner = navMatch[1];
+  assert.doesNotMatch(inner, /^[\t ]+\r?\n[\t ]*$/m, 'no line inside the nav should contain only whitespace');
+  assert.match(inner, /Privacy policy/);
+  assert.match(inner, /About/);
+  assert.match(inner, /Contact/);
+  assert.doesNotMatch(inner, /Methodology/);
+});
+
+test('renderFooter: a legalLinks object WITH methodology renders the fourth link, still with no blank lines', () => {
+  const html = renderFooter('footer copy', { privacy: 'privacy.html', about: 'about.html', contact: 'contact.html', methodology: 'methodology.html' });
+  const navMatch = html.match(/<nav class="legal-links"[^>]*>([\s\S]*?)<\/nav>/);
+  const inner = navMatch[1];
+  assert.doesNotMatch(inner, /^[\t ]+\r?\n[\t ]*$/m, 'no line inside the nav should contain only whitespace');
+  assert.match(inner, /href="methodology\.html">Methodology<\/a>/);
+});

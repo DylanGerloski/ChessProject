@@ -250,10 +250,46 @@ google.com, pub-9767914878112531, DIRECT, f08c47fec0942fa0
 `;
 }
 
+/**
+ * Cloudflare Pages' header-configuration mechanism (a plain dist/_headers
+ * file Cloudflare's edge reads at deploy time -- see
+ * https://developers.cloudflare.com/pages/configuration/headers/). GitHub
+ * Pages cannot set custom response headers at all (no `.htaccess`, no
+ * `_headers` -- see docs/SECURITY_REFERENCE.md's Headers section), which is
+ * why the site has relied on `<meta http-equiv="Content-Security-Policy">`
+ * and `<meta name="referrer">` alone up to now; those meta tags stay in
+ * every page as defense-in-depth (some clients only honor the meta form,
+ * and it's free), but this file adds the header-only controls a meta tag
+ * cannot express: HSTS, X-Content-Type-Options, Permissions-Policy, and a
+ * CSP `frame-ancestors` directive (all four are silent no-ops in a meta
+ * tag per CSP Level 3 / MDN -- security-standards.md's "No-op meta tags").
+ *
+ * Directive choices, kept consistent with the existing meta CSP
+ * (object-src 'none'; base-uri 'none' -- both appear verbatim in Google's
+ * own AdSense-supported CSP, so neither can break ad serving; no script-src
+ * is set here for the same reason the meta tag has none -- a static page
+ * can't produce the per-response nonce AdSense's real CSP guidance
+ * requires, so a fake script-src would be security theatre, not a
+ * control). Permissions-Policy disables only browser feature APIs this
+ * site never uses (camera, microphone, geolocation, payment, usb, motion
+ * sensors, and the deprecated interest-cohort/FLoC signal) -- it does not
+ * touch scripts, network requests, or ad serving.
+ */
+function cloudflareHeadersContent() {
+  return `/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()
+  Content-Security-Policy: object-src 'none'; base-uri 'none'; frame-ancestors 'none'
+`;
+}
+
 module.exports = {
   renderPrivacyPage,
   renderAboutPage,
   renderContactPage,
   render404Page,
   adsTxtContent,
+  cloudflareHeadersContent,
 };

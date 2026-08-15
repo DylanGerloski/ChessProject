@@ -177,7 +177,7 @@ function explorerShapedResponse({ aggregates, play = [], band, pool, familySlug 
   const [w, d, l, bw, bd, bl, movesObj] = record;
   const moves = Object.entries(movesObj || {})
     .map(([uci, arr]) => {
-      const [mw, md, ml, , , , ratingSum, ratingCount] = arr;
+      const [mw, md, ml, mbw, mbd, mbl, ratingSum, ratingCount] = arr;
       return {
         uci,
         san: sanForUci(fen, uci),
@@ -185,6 +185,15 @@ function explorerShapedResponse({ aggregates, play = [], band, pool, familySlug 
         white: mw,
         draws: md,
         black: ml,
+        // Rating-diff-controlled (rating gap <= 50) counts for this SAME
+        // move, alongside the all-games counts above -- WS-3.3 condition 2
+        // ("common mistake" rebuild) scores a candidate move on this subset,
+        // not on the all-games totals. Additive field: existing consumers
+        // that destructure only {uci, san, averageRating, white, draws,
+        // black} are unaffected (module doc's "additive, not a shape
+        // mismatch" rule, same as the position-level `balanced` field
+        // already was before this change).
+        balanced: { white: mbw, draws: mbd, black: mbl },
       };
     })
     .sort((a, b) => (b.white + b.draws + b.black) - (a.white + a.draws + a.black));
@@ -200,9 +209,37 @@ function explorerShapedResponse({ aggregates, play = [], band, pool, familySlug 
   };
 }
 
+/**
+ * The RESULTING position's own balanced (rating gap <= 50) W/D/L totals
+ * after playing `uci` from `play` -- WS-3.3 condition 4 (transposition
+ * check). Because this module keys by POSITION rather than by move path
+ * (spec WS-3.1 section 1.4), the record returned here is already merged
+ * across every move order that reaches that position, not just this one --
+ * that merge is what makes "does this move just transpose into a position
+ * that's actually fine?" answerable at all, and it comes for free from the
+ * schema rather than needing any extra bookkeeping here.
+ *
+ * @param {object} args same shape as explorerShapedResponse's, plus:
+ * @param {string} args.uci the candidate move to play from `play`.
+ * @returns {{white:number, draws:number, black:number}|null} null when the
+ *   resulting position isn't present in this dataset (below MIN_GAMES, or
+ *   outside the stored ply depth) -- callers must treat that as "no data",
+ *   never as a zero, the same "don't invent a number" rule as the rest of
+ *   this module.
+ */
+function resultingPositionBalanced({ aggregates, play = [], uci, band, pool, familySlug }) {
+  if (!uci) return null;
+  const { posKey } = resolvePosition([...play, uci]);
+  const record = findPositionRecord({ aggregates, band, pool, posKey, familySlug });
+  if (!record) return null;
+  const [, , , bw, bd, bl] = record;
+  return { white: bw, draws: bd, black: bl };
+}
+
 module.exports = {
   loadAggregates,
   findPositionRecord,
   resolvePosition,
   explorerShapedResponse,
+  resultingPositionBalanced,
 };

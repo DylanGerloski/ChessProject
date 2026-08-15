@@ -51,7 +51,10 @@ const esbuild = require('esbuild');
 const { buildRepertoireTree } = require('./buildRepertoire');
 const { RATING_BANDS } = require('./processRepertoire');
 const { renderRepertoireExplorerPage, renderRedirectStubPage, escapeHtml, renderDocumentHead, renderHeader, renderFooter, renderPageHead } = require('./render');
-const { renderOpeningStatCard } = require('./renderContent');
+const { renderOpeningStatCard, renderMethodologyPage } = require('./renderContent');
+const { MISTAKE_THRESHOLDS } = require('./processOpenings');
+const { loadAggregates } = require('./aggregateSource');
+const { BALANCED_ELO_WINDOW } = require('./ingest/gameFilter');
 const { getApiToken } = require('./fetchOpeningExplorer');
 const { buildContentPages } = require('./buildContent');
 const { buildEcoPages } = require('./buildEcoPages');
@@ -60,7 +63,7 @@ const { buildFamilyIndex, t1Families } = require('./ecoFamilies');
 const { ECO_INDEX_FILE } = require('./renderEcoPages');
 const { buildEcoExplorerPage, ECO_EXPLORER_FILE, REVERSE_LOOKUP_FILE } = require('./buildEcoExplorer');
 const { withExplorerCache } = require('./explorerCache');
-const { renderPrivacyPage, renderAboutPage, renderContactPage, render404Page, adsTxtContent } = require('./renderCompliance');
+const { renderPrivacyPage, renderAboutPage, renderContactPage, render404Page, adsTxtContent, cloudflareHeadersContent } = require('./renderCompliance');
 const { renderSitemapXml, robotsTxtContent } = require('./sitemap');
 const { renderRssXml } = require('./rss');
 const { homeJsonLd } = require('./structuredData');
@@ -151,7 +154,7 @@ const DRILL_PAGES = { [DRILL_OPENING_SLUG]: 'italian-game-drill.html' };
 // every other static page, and shared with src/renderContent.js's own
 // CONTENT_LEGAL_LINKS constant (kept in sync by comment there, since that
 // module can't require() this one without a circular dependency).
-const LEGAL_LINKS = { privacy: 'privacy.html', about: 'about.html', contact: 'contact.html' };
+const LEGAL_LINKS = { privacy: 'privacy.html', about: 'about.html', contact: 'contact.html', methodology: 'methodology.html' };
 
 const BROWSER_ENTRY = path.join(__dirname, 'browser', 'playerLookup.client.js');
 const DRILL_ENTRY = path.join(__dirname, 'browser', 'drill.client.js');
@@ -713,6 +716,21 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   fs.writeFileSync(path.join(OUT_DIR, 'contact.html'), renderContactPage({ nav: STATIC_NAV, legalLinks: LEGAL_LINKS }), 'utf8');
   fs.writeFileSync(path.join(OUT_DIR, 'ads.txt'), adsTxtContent(), 'utf8');
 
+  // /methodology.html (spec WS-3.3 section 3.5): the public page documenting
+  // exactly how every displayed rate is computed. Loads the real manifest
+  // when this build is sourced from data/aggregates/ (aggregatesAvailable(),
+  // already imported above for the same reason buildContent.js/
+  // explorerSource.js check it); null otherwise, which
+  // renderMethodologyPage() renders as an honest live-Explorer-API-fallback
+  // description rather than describing a dump pipeline this build never ran
+  // (see that function's own doc comment).
+  const methodologyManifest = aggregatesAvailable(AGGREGATES_DIR) ? loadAggregates({ dir: AGGREGATES_DIR }).manifest : null;
+  fs.writeFileSync(
+    path.join(OUT_DIR, 'methodology.html'),
+    renderMethodologyPage({ nav: STATIC_NAV, manifest: methodologyManifest, thresholds: MISTAKE_THRESHOLDS, balancedEloWindow: BALANCED_ELO_WINDOW }),
+    'utf8'
+  );
+
   // 404 page: same header/nav/footer shell as every other page, noindex,
   // excluded from sitemap.xml (src/sitemap.js filters it out). GitHub Pages
   // serves this automatically for a custom domain (dist/CNAME above).
@@ -772,6 +790,13 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   // absent .nojekyll was found missing from a manually-pushed gh-pages branch update
   // (2026-08-14) precisely because it isn't part of this script's own output.
   fs.writeFileSync(path.join(OUT_DIR, '.nojekyll'), '', 'utf8');
+  // Cloudflare Pages header config (dist/_headers) -- see
+  // src/renderCompliance.js's cloudflareHeadersContent() header comment for
+  // what it sets and why. Same "written on every build or it gets silently
+  // wiped" reasoning as CNAME/.nojekyll above; harmless on GitHub Pages
+  // (which just serves it as an inert static file at /_headers) until the
+  // Cloudflare Pages migration is DNS-live.
+  fs.writeFileSync(path.join(OUT_DIR, '_headers'), cloudflareHeadersContent(), 'utf8');
 
   // dist/data/ (spec WS-3.2 section 2.4): copies data/aggregates/ verbatim
   // when it exists (see copyAggregateShardsToDist()'s own header comment
@@ -784,6 +809,7 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     'privacy.html',
     'about.html',
     'contact.html',
+    'methodology.html',
     '404.html',
     drillFile,
     repertoireFile,
@@ -801,6 +827,7 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     'eco-explorer.js',
     REVERSE_LOOKUP_FILE,
     'CNAME',
+    '_headers',
     'ads.txt',
     'feed.xml',
     ...IDENTITY_ASSET_FILES,
