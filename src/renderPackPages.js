@@ -39,9 +39,9 @@ const PRICE_USD = 9;
 // for a plain-text file), and /methodology.html -- kept as one array here
 // so a future methodology-page pass can reuse it rather than re-deriving.
 const DISCLOSED_LIMITATIONS = [
-  'Score is a sample mean (wins plus half of draws, divided by games), not a win/loss proportion &mdash; its confidence interval uses a normal approximation, not a binomial Wilson interval. Sound at the sample sizes this pack requires (n&nbsp;&ge;&nbsp;300), not an exact coverage guarantee.',
+  'Score is a sample mean (wins plus half of draws, divided by games), not a win/loss proportion &mdash; its confidence interval uses a normal approximation, not a binomial Wilson interval. Sound at the sample sizes this pack requires (n&nbsp;&ge;&nbsp;300); treat the interval as approximate.',
   'Not transposition-aware: the same position reached by a different move order may be counted separately. Pack size is stated in &ldquo;lines,&rdquo; not &ldquo;positions covered.&rdquo;',
-  'Data pool is blitz and rapid games only &mdash; classical and bullet are excluded.',
+  'Data pool is blitz and rapid games only; classical and bullet are excluded.',
   'The chosen move at each point is the highest lower-bound scorer among moves with enough games in this band and pool &mdash; not a claim that it is objectively the best move in the position.',
 ];
 
@@ -415,8 +415,8 @@ function packCtaHtml(pack) {
 function packFaqHtml(pack) {
   const faqs = [
     { q: 'What do I actually get?', a: `Four files: a full PGN with variations and per-move stats, the same data as a structured drill manifest (pack.json), a printable study guide (PDF), and a README. ${pack.lineCount.toLocaleString()} lines total, chosen by the rule printed below.` },
-    { q: 'What don&rsquo;t I get?', a: 'Nothing you already have for free is repackaged here at a price &mdash; the leak report, the drill engine, and the repertoire builder stay free and uncrippled. This is a finished, pruned artifact the free builder was never specced to produce.' },
-    { q: 'Does it work with Lichess Study or ChessBase?', a: 'Yes. repertoire.pgn is a standard PGN with ordinary variations &mdash; import it into Lichess Study via Study &gt; Import PGN game, or open it directly in ChessBase or any standard PGN reader. It also loads directly into this site&rsquo;s own importer.' },
+    { q: 'What don&rsquo;t I get?', a: 'Nothing free here got moved behind the price. This is a finished, pruned artifact the free builder was never specced to produce.' },
+    { q: 'Does it work with Lichess Study or ChessBase?', a: 'Yes. repertoire.pgn is a standard PGN with ordinary variations. Import it into Lichess Study via Study &gt; Import PGN game, or open it directly in ChessBase or any standard PGN reader. It also loads directly into this site&rsquo;s own importer.' },
     { q: 'What happens when the underlying data changes?', a: 'This pack was generated from the site&rsquo;s cached Lichess Opening Explorer data as of the retrieval date on this page. The one-time purchase doesn&rsquo;t include an automatic-update subscription.' },
     { q: 'Refunds?', a: 'Handled by the store this pack sells through, whose refund policy is shown at checkout before you pay.' },
   ];
