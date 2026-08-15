@@ -25,12 +25,36 @@
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
-const { DESIGN_TOKENS, FAVICON_DATA_URI } = require('../src/render');
+const { DESIGN_TOKENS, THEME_ROLES, FAVICON_DATA_URI, designTokensCss } = require('../src/render');
 const { SITE_NAME, SITE_TAGLINE } = require('../src/site');
+const { renderBoardDiagram, spriteDefsHtml } = require('../src/boardSvg');
+const { boardFromFen, packOgImageFilename } = require('../src/renderPackPages');
+const { fenAfter, buildPackTree, packJsonFromResult } = require('../src/buildPack');
+const { PACK_CATALOGUE } = require('../src/buildPackPages');
+const { withExplorerCache } = require('../src/explorerCache');
 
 const ASSETS_DIR = path.join(__dirname, '..', 'assets');
 
-const T = DESIGN_TOKENS;
+// FIX (found while extending this script for per-pack OG images, M2):
+// this file used to interpolate DESIGN_TOKENS values directly as resolved
+// JS strings (`background: ${T['--color-bg']}`), which silently broke the
+// moment a referenced key moved to the semantic role layer (THEME_ROLES.light
+// -- see render.js's own DESIGN_TOKENS doc comment for the two-layer split).
+// A role value like `--color-bg` is ITSELF a `var(--color-ink-0)` reference,
+// not a literal -- interpolating that string into a CSS property with no
+// `--color-ink-0` custom property defined anywhere on the page resolves to
+// nothing, not the intended color (confirmed by re-rendering the existing
+// ogImageHtml() output fresh: plain white background, black text, not the
+// themed parchment/green image actually committed under assets/og-default.png,
+// which therefore predated whichever refactor introduced the split and was
+// stale). Fixed the same way scripts/buildPacks.js's own pdfStylesheet()
+// already does it for the exact same two-layer token set: emit BOTH layers
+// as real CSS custom properties in one shared `:root { ... }` block
+// (ROOT_CSS below), then reference them as literal `var(--name)` in every
+// template's CSS -- never a JS-resolved string. assets/og-default.png and
+// assets/apple-touch-icon.png are regenerated in the same pass as the new
+// pack images below, since they shared the same bug.
+const ROOT_CSS = `:root { ${designTokensCss(DESIGN_TOKENS)}\n${designTokensCss(THEME_ROLES.light)} }`;
 
 /**
  * FAVICON_DATA_URI is a `data:image/svg+xml,<url-encoded markup>` string.
@@ -57,7 +81,7 @@ function boardCornerHtml(squareSize, cols, rows) {
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col < cols; col += 1) {
       const isLight = (row + col) % 2 === 0;
-      const color = isLight ? T['--color-board-light'] : T['--color-board-dark'];
+      const color = isLight ? 'var(--color-board-light)' : 'var(--color-board-dark)';
       squares += `<div style="position:absolute; left:${col * squareSize}px; top:${row * squareSize}px; width:${squareSize}px; height:${squareSize}px; background:${color};"></div>`;
     }
   }
@@ -69,13 +93,14 @@ function ogImageHtml() {
   const board = boardCornerHtml(60, 6, 6);
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
+  ${ROOT_CSS}
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { width: 1200px; height: 630px; }
   body {
     position: relative;
     overflow: hidden;
-    background: ${T['--color-bg']};
-    font-family: ${T['--font-sans']};
+    background: var(--color-bg);
+    font-family: var(--font-sans);
   }
   .frame {
     position: absolute;
@@ -91,18 +116,18 @@ function ogImageHtml() {
     margin-bottom: 28px;
   }
   .wordmark {
-    font-family: ${T['--font-serif']};
-    font-weight: ${T['--weight-bold']};
-    color: ${T['--color-accent-dark']};
+    font-family: var(--font-serif);
+    font-weight: var(--weight-bold);
+    color: var(--color-accent-dark);
     font-size: 84px;
-    line-height: ${T['--leading-tight']};
+    line-height: var(--leading-tight);
     letter-spacing: -0.01em;
   }
   .tagline {
-    font-family: ${T['--font-sans']};
-    color: ${T['--color-muted']};
+    font-family: var(--font-sans);
+    color: var(--color-muted);
     font-size: 30px;
-    line-height: ${T['--leading-normal']};
+    line-height: var(--leading-normal);
     max-width: 780px;
     margin-top: 24px;
   }
@@ -121,18 +146,66 @@ function appleTouchIconHtml() {
   const faviconSvg = decodeFaviconSvg();
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
+  ${ROOT_CSS}
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { width: 180px; height: 180px; }
   body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: ${T['--color-accent-dark']};
+    background: var(--color-accent-dark);
   }
   .mark { width: 180px; height: 180px; }
   .mark svg { display: block; width: 100%; height: 100%; }
 </style></head>
 <body><div class="mark">${faviconSvg}</div></body></html>`;
+}
+
+/**
+ * Per-pack OG image (monetization-layer spec 1.9/1.8 craft-detail item 4):
+ * "the real board at the pack root plus the line count" -- never stock
+ * imagery, the same craft-floor rule every other on-page image already
+ * follows (design-standards.md's Imagery section). Board position is AFTER
+ * the pack's own stated first move (fenAfter([firstMoveUci])) -- see
+ * src/buildPackPages.js's own comment for why root.fen itself is the bare
+ * starting position, not this pack's own identity position.
+ */
+function packOgImageHtml({ title, lineCount, fen, flip }) {
+  const board = boardFromFen(fen);
+  const boardHtml = `${spriteDefsHtml()}${renderBoardDiagram(board, { flip, label: `${title} position` })}`;
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  ${ROOT_CSS}
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1200px; height: 630px; }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 72px;
+    background: var(--color-bg);
+    font-family: var(--font-sans);
+    padding: 0 88px;
+  }
+  .sprite-defs-hidden { position: absolute; width: 0; height: 0; overflow: hidden; }
+  .board { display: grid; grid-template-columns: repeat(8, 48px); grid-template-rows: repeat(8, 48px); width: 384px; height: 384px; border: 2px solid var(--color-accent-dark); border-radius: 8px; overflow: hidden; flex-shrink: 0; }
+  .board-sq { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; }
+  .board-sq--light { background: var(--color-board-light); }
+  .board-sq--dark { background: var(--color-board-dark); }
+  .board-piece { width: 38px; height: 38px; }
+  .text { max-width: 560px; }
+  .kicker { font-family: var(--font-sans); color: var(--color-muted); font-size: 22px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
+  .title { font-family: var(--font-serif); font-weight: var(--weight-bold); color: var(--color-accent-dark); font-size: 46px; line-height: 1.15; }
+  .lines { font-family: var(--font-sans); color: var(--color-text); font-size: 26px; margin-top: 22px; line-height: 1.4; }
+</style></head>
+<body>
+  ${boardHtml}
+  <div class="text">
+    <div class="kicker">Repertoire pack</div>
+    <div class="title">${title}</div>
+    <div class="lines">${lineCount.toLocaleString()} lines, picked by one published rule</div>
+  </div>
+</body></html>`;
 }
 
 async function screenshotHtml(browser, html, width, height, outFile) {
@@ -164,11 +237,32 @@ async function main() {
     const iconPath = path.join(ASSETS_DIR, 'apple-touch-icon.png');
     await screenshotHtml(browser, appleTouchIconHtml(), 180, 180, iconPath);
     console.log(`Wrote ${iconPath} (180x180)`);
+
+    // Repertoire Pack OG images (monetization-layer spec 1.8/1.9): one per
+    // catalogue entry, real board + real line count, never stock imagery.
+    // Uses the SAME cached/live Explorer fetch chain as scripts/
+    // buildPacks.js and src/buildPackPages.js -- see those files' own
+    // header comments for why re-running buildPackTree() here reproduces
+    // byte-identical results rather than depending on packs/<id>/pack.json
+    // having been generated first.
+    const fetchImpl = withExplorerCache(fetch);
+    const retrieved = new Date().toISOString().slice(0, 10);
+    for (const def of PACK_CATALOGUE) {
+      // eslint-disable-next-line no-await-in-loop -- one-off local script, serial by design (same reasoning as every other Explorer-backed builder)
+      const result = await buildPackTree({ ratingBand: def.band, color: def.color, firstMoveUci: def.firstMoveUci, speeds: ['blitz', 'rapid'], fetchImpl });
+      const packJson = packJsonFromResult(result, { id: def.id, title: def.title, speeds: ['blitz', 'rapid'], retrieved });
+      const fen = fenAfter([def.firstMoveUci]);
+      const html = packOgImageHtml({ title: def.title, lineCount: packJson.line_count, fen, flip: def.color === 'black' });
+      const outPath = path.join(ASSETS_DIR, packOgImageFilename(def.id));
+      // eslint-disable-next-line no-await-in-loop -- see above
+      await screenshotHtml(browser, html, 1200, 630, outPath);
+      console.log(`Wrote ${outPath} (1200x630, ${packJson.line_count} lines)`);
+    }
   } finally {
     await browser.close();
   }
 
-  console.log('Done. Commit the three files under assets/ -- buildStatic.js copies them into dist/ on every build.');
+  console.log('Done. Commit the files under assets/ -- buildStatic.js copies them into dist/ on every build.');
 }
 
 if (require.main === module) {
@@ -182,4 +276,5 @@ module.exports = {
   decodeFaviconSvg,
   ogImageHtml,
   appleTouchIconHtml,
+  packOgImageHtml,
 };

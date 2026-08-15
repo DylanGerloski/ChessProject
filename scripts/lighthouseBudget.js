@@ -41,11 +41,32 @@ const SKIP_AUDITS = ['third-party-cookies', 'inspector-issues'];
 // job without a CDP port clash.
 const CDP_PORT = 9523;
 
+// Each entry is either a plain filename, or {page, skipCategories} when a
+// category is a KNOWN, documented, temporary exception for that one page --
+// distinct from SKIP_AUDITS below, which is a permanent, sitewide, specific-
+// audit exemption. skipCategories exists because this gate's pass/fail
+// result directly controls whether deploy-pages.yml's `deploy` job runs
+// (`needs: quality`) -- adding a page that's KNOWN to fail an entire
+// category outright, with no per-category escape hatch, would block every
+// future deploy of the WHOLE SITE on one unrelated page's known gap, not
+// just fail a check for that page.
 const GATED_PAGES = [
   'index.html', // homepage
   'italian-game.html', // representative main opening page
   'italian-game-variations.html', // representative family/variations hub
   'methodology.html', // methodology page -- not yet built; expected to fail this gate until it ships
+  // Repertoire Pack sales pages (design-standards.md Distinctiveness Gate
+  // item 6: "both new page types"). Both currently carry noindex (STORE in
+  // src/render.js still ships sentinel, not-yet-real, merchant urls -- see
+  // isPlaceholderStoreUrl()) until a human picks a merchant and real STORE
+  // urls land, so `seo` is skipped here specifically (Lighthouse's
+  // "is-crawlable" audit -- everything else on these two pages already
+  // scores >=90) rather than exempting the whole page from this gate.
+  // Remove this skipCategories override once STORE carries real urls --
+  // at that point noindex clears and seo should score >=90 like every
+  // other page, so a real regression would show up again immediately.
+  { page: 'repertoire-packs.html', skipCategories: ['seo'] },
+  { page: 'repertoire-packs/white-1400-1600.html', skipCategories: ['seo'] }, // a representative pack detail page (the second new page type)
 ];
 
 function scoreOf(categories, key) {
@@ -54,7 +75,7 @@ function scoreOf(categories, key) {
   return Math.round(cat.score * 100);
 }
 
-async function auditPage(distDir, page) {
+async function auditPage(distDir, page, skipCategories = []) {
   const filePath = path.join(distDir, page);
   if (!fs.existsSync(filePath)) {
     return { page, ok: false, missing: true };
@@ -68,11 +89,12 @@ async function auditPage(distDir, page) {
     for (const key of CATEGORIES) {
       const score = scoreOf(lhr.categories, key);
       scores[key] = score;
+      if (skipCategories.includes(key)) continue;
       if (score === null || score < BUDGET_MIN_SCORE) {
         failures.push(`${key}: ${score === null ? 'n/a' : score}`);
       }
     }
-    return { page, ok: failures.length === 0, scores, failures };
+    return { page, ok: failures.length === 0, scores, failures, skipCategories };
   } finally {
     await browser.close();
     await cleanup();
@@ -81,8 +103,10 @@ async function auditPage(distDir, page) {
 
 async function runAll(distDir) {
   const results = [];
-  for (const page of GATED_PAGES) {
-    results.push(await auditPage(distDir, page));
+  for (const entry of GATED_PAGES) {
+    const page = typeof entry === 'string' ? entry : entry.page;
+    const skipCategories = typeof entry === 'string' ? [] : (entry.skipCategories || []);
+    results.push(await auditPage(distDir, page, skipCategories));
   }
   return results;
 }
@@ -105,7 +129,10 @@ async function main() {
       anyFail = true;
       console.error(`FAIL  ${result.page}: ${result.failures.join(', ')} (budget: >= ${BUDGET_MIN_SCORE})`);
     } else {
-      console.log(`PASS  ${result.page}: ${CATEGORIES.map((k) => `${k}=${result.scores[k]}`).join(' ')}`);
+      const skipNote = result.skipCategories && result.skipCategories.length > 0
+        ? ` (${result.skipCategories.join(', ')} exempted -- see GATED_PAGES comment)`
+        : '';
+      console.log(`PASS  ${result.page}: ${CATEGORIES.map((k) => `${k}=${result.scores[k]}`).join(' ')}${skipNote}`);
     }
   }
 

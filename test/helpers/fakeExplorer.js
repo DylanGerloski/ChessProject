@@ -7,10 +7,40 @@
  * happen anywhere this is used.
  */
 
+const { Chess } = require('chess.js');
 const { OPENINGS } = require('../../src/openings');
 
 function fakeResponse(json) {
   return { ok: true, status: 200, statusText: 'OK', headers: { get: () => null }, json: async () => json };
+}
+
+/**
+ * A real, currently-legal move at the position reached by replaying
+ * `playArr` (a UCI move list) from the starting position -- used by the
+ * fallback branch below so a consumer that walks past every configured
+ * OPENINGS line (src/buildPack.js's buildPackTree(), which validates every
+ * move it's given via chess.js and MAX_PLY=12-deep, unlike every other
+ * builder that reads this fixture) never gets handed the SAME hardcoded
+ * move (the old fixed 'a2a3'/rootFixture's 'e2e4' opening moves) at a
+ * position where it's no longer legal -- which throws
+ * "buildPack.fenAfter: illegal move" once the same UCI string is offered
+ * twice along one line. Prefers a non-king move (skips castling) purely to
+ * avoid re-deriving buildPack.js's own king-captures-rook UCI castling
+ * quirk here; falls back to whatever chess.js reports if that's all that's
+ * left (an extreme, unlikely-in-these-fixtures endgame position).
+ * Returns null if the position is checkmate/stalemate (no legal moves) --
+ * callers should treat that the same as "no candidates," matching how a
+ * real Explorer response with an empty `moves` array already behaves.
+ */
+function realLegalMoveAt(playArr) {
+  const chess = new Chess();
+  for (const uci of playArr) {
+    chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci.length > 4 ? uci[4] : undefined });
+  }
+  const legal = chess.moves({ verbose: true });
+  if (legal.length === 0) return null;
+  const nonKing = legal.find((m) => m.piece !== 'k') || legal[0];
+  return { uci: `${nonKing.from}${nonKing.to}${nonKing.promotion || ''}`, san: nonKing.san };
 }
 
 /**
@@ -112,8 +142,25 @@ function makeSmartExplorerFetch({ fallbackJson = null } = {}) {
       });
     }
 
+    // Both the caller-supplied fallbackJson and the built-in generic
+    // default below used to carry a FIXED, hardcoded move (fallbackJson's
+    // realistic callers pass a real starting-position fixture whose own
+    // `moves` are only legal at ply 0; the built-in default hardcoded
+    // 'a2a3'). Either one, handed back unchanged at every ply of a deep
+    // walk, eventually offers the SAME uci string twice along one line --
+    // legal the first time, illegal the second (see realLegalMoveAt()'s own
+    // doc comment above for which real consumer this fix is for). Every
+    // fallback response instead reports one ACTUALLY legal move for the
+    // real position being asked about; every other field (opening/
+    // topGames/recentGames/totals) is preserved from fallbackJson when one
+    // was supplied, so no existing assertion on those fields changes.
+    const realMove = realLegalMoveAt(playArr);
+    const fallbackMoves = realMove
+      ? [{ uci: realMove.uci, san: realMove.san, averageRating: 1600, white: 3000, draws: 200, black: 1800 }]
+      : [];
+
     if (fallbackJson) {
-      return fakeResponse(fallbackJson);
+      return fakeResponse({ ...fallbackJson, moves: fallbackMoves });
     }
 
     return fakeResponse({
@@ -121,7 +168,7 @@ function makeSmartExplorerFetch({ fallbackJson = null } = {}) {
       white: 3000,
       draws: 200,
       black: 1800,
-      moves: [{ uci: 'a2a3', san: 'a3', averageRating: 1600, white: 3000, draws: 200, black: 1800 }],
+      moves: fallbackMoves,
       topGames: [],
       recentGames: [],
     });

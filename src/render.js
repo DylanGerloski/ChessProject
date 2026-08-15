@@ -1365,6 +1365,218 @@ ${designTokensCss(THEME_ROLES.dark)}
       padding: var(--space-2);
     }
   }
+
+  /* ---------------------------------------------------------------------
+     Repertoire Pack sales pages (monetization-layer spec, section 1.6/1.8).
+     Every value below is an existing token -- no new custom property is
+     introduced (spec 1.8: "NO NEW TOKENS unless a genuinely new role
+     appears"). The layout is a data-table-first sales page (spec 2.8), not
+     the centered-hero-plus-feature-cards template design-standards.md bans,
+     so it gets its own small block here rather than reusing .card-grid. */
+
+  /* Detail page: mobile-first single column (board/price/CTA sidebar shown
+     first, per spec 1.6.2's "board first" mobile rule), two 12-col-grid
+     panels (content 1-7, sidebar 8-12, sticky) from 1024px up. Achieved with
+     named grid areas rather than DOM reordering, so the substantive
+     contents table stays first in source/reading order for assistive tech
+     and crawlers while sighted mobile users still see the board/CTA first. */
+  .pack-detail {
+    display: grid;
+    gap: var(--space-4);
+    grid-template-areas: "sidebar" "content";
+    margin: var(--space-3) 0 var(--space-6);
+  }
+  .pack-detail-content { grid-area: content; }
+  .pack-detail-sidebar {
+    grid-area: sidebar;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    box-shadow: var(--shadow-sm);
+  }
+  @media (min-width: 1024px) {
+    .pack-detail {
+      grid-template-columns: repeat(12, 1fr);
+      grid-template-areas: "content content content content content content content sidebar sidebar sidebar sidebar sidebar";
+      gap: var(--grid-gutter);
+      align-items: start;
+      margin-top: var(--space-5);
+    }
+    .pack-detail-sidebar { position: sticky; top: var(--space-4); padding: var(--space-5); }
+  }
+
+  .pack-sidebar-board { margin: 0 auto var(--space-3); }
+  /* Below 1024px the board is a supporting identity image, not the reading
+     surface the repertoire explorer's own board is -- capped narrower so
+     it (spec 1.6.2's "primary value object") actually clears the fold at
+     360x800 alongside the header nav above it, instead of the 352px
+     default (sized for the explorer's move-by-move board) pushing it
+     ~95px past a 360x800 viewport's own bottom edge. */
+  @media (max-width: 1023px) {
+    .pack-sidebar-board .board, .pack-feature-board .board { width: 190px; }
+  }
+  .pack-price {
+    font-family: var(--font-serif);
+    font-weight: var(--weight-bold);
+    font-size: var(--text-xl);
+    color: var(--color-accent-dark);
+    margin: 0 0 var(--space-2);
+  }
+  .pack-line-count { color: var(--color-muted); font-size: var(--text-sm); margin: 0 0 var(--space-4); }
+
+  /* The one accent-filled action on this page (design-standards.md
+     hierarchy rule) -- same visual recipe as .lookup-form button's primary
+     submit above, reused rather than re-invented. */
+  .pack-cta {
+    display: inline-flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: var(--space-3) var(--space-5);
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--color-accent-dark);
+    color: var(--color-accent-contrast);
+    font: inherit;
+    font-weight: var(--weight-bold);
+    font-size: var(--text-base);
+    text-decoration: none;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 120ms ease, transform 120ms ease;
+  }
+  .pack-cta:hover { background: var(--color-accent); color: var(--color-accent-contrast); }
+  .pack-cta:active { transform: translateY(1px); }
+
+  /* Not listed for sale yet (STORE still carries a sentinel not-yet-real
+     url) -- an honest inert state, never a broken link and never
+     accent-filled (an inert control must not borrow the one accent
+     action's own visual weight). See render.js's isPlaceholderStoreUrl(). */
+  .pack-cta--pending {
+    display: block;
+    width: 100%;
+    background: none;
+    border: 1.5px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-5);
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    text-align: center;
+  }
+
+  .pack-file-list { list-style: none; padding: 0; margin: var(--space-4) 0; font-size: var(--text-sm); }
+  .pack-file-list li { padding: var(--space-1) 0; border-bottom: 1px solid var(--color-border); }
+  .pack-file-list li:last-child { border-bottom: none; }
+  .pack-file-name { font-weight: var(--weight-bold); color: var(--color-text); }
+  .pack-file-desc { color: var(--color-muted); display: block; }
+  .pack-sample-link { display: inline-block; margin-top: var(--space-3); font-size: var(--text-sm); }
+  .pack-meta-note { color: var(--color-muted); font-size: var(--text-xs); margin-top: var(--space-4); }
+
+  /* Contents table rows -- native <details>/<summary> disclosure (same
+     progressive-enhancement element already used by the ECO explorer's
+     "Identify a position" panel), never a second bespoke JS interaction.
+     No transition/animation on open -- the simplest way to genuinely honor
+     prefers-reduced-motion (spec 1.8/WCAG 2.2 SC 2.3.3) is to have no
+     motion to disable. */
+  .pack-contents-table { list-style: none; padding: 0; margin: var(--space-4) 0; }
+  .pack-row {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-2);
+    background: var(--color-surface);
+  }
+  .pack-row-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 44px;
+    padding: var(--space-2) var(--space-4);
+    cursor: pointer;
+    list-style: none;
+  }
+  .pack-row-summary::-webkit-details-marker { display: none; }
+  .pack-row-summary:hover { background: var(--color-hover); }
+  .pack-row-summary:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+  .pack-row-arrow { color: var(--color-muted); }
+  .pack-row[open] .pack-row-arrow { transform: rotate(90deg); }
+  .pack-row-freq { color: var(--color-muted); font-size: var(--text-xs); }
+  .pack-row-score { color: var(--color-accent-dark); font-weight: var(--weight-bold); font-size: var(--text-sm); }
+  .pack-row-ci { color: var(--color-muted); font-size: var(--text-xs); }
+  .pack-row-distribution {
+    padding: var(--space-3) var(--space-4) var(--space-4);
+    border-top: 1px solid var(--color-border);
+  }
+  .pack-row-distribution table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+  .pack-row-distribution th, .pack-row-distribution td { text-align: left; padding: var(--space-1) var(--space-2); }
+  .pack-row-distribution td.num, .pack-row-distribution th.num { text-align: right; }
+  .pack-show-all {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: var(--space-2) var(--space-4);
+    border: 1.5px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    font-weight: var(--weight-bold);
+    background: none;
+    cursor: pointer;
+    color: var(--color-text);
+    font: inherit;
+  }
+  .pack-show-all:hover { background: var(--color-hover); }
+
+  /* Free guarantee / non-influence statements (spec 1.6.1/1.6.6) -- a
+     hairline separator, never a card or filled background (spec: "no card,
+     no background fill"). */
+  .pack-statement {
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-4);
+    margin: var(--space-6) 0;
+  }
+  .pack-statement h2 { margin-top: 0; }
+  .pack-statement p { max-width: var(--measure); }
+  .pack-statement a { color: var(--color-accent-dark); font-weight: var(--weight-bold); }
+
+  /* Leak-report upsell block (spec 1.6.1) -- shares the .pack-statement
+     hairline treatment; the CTA here is a plain accent-colored text link,
+     never accent-filled (the page's one accent-filled action stays the
+     leak report's own "Drill your leaks"). */
+  .pack-upsell a.pack-upsell-link { color: var(--color-accent-dark); font-weight: var(--weight-bold); }
+
+  /* Packs index page: asymmetric by construction (spec 1.6.4) -- the
+     feature pack is a full-width block with its own accent CTA, the other
+     pack(s) are a plain hairline-bordered row with a text link. Never two
+     identical cards. */
+  .pack-feature {
+    display: grid;
+    gap: var(--space-5);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-5);
+    margin: var(--space-4) 0 var(--space-5);
+    box-shadow: var(--shadow-sm);
+  }
+  @media (min-width: 768px) {
+    .pack-feature { grid-template-columns: minmax(0, 240px) 1fr; align-items: center; }
+  }
+  .pack-feature-board { margin: 0 auto; }
+  .pack-feature h2 { margin-top: 0; }
+  .pack-quiet-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    border-top: 1px solid var(--color-border);
+    padding: var(--space-4) 0;
+  }
+  .pack-quiet-row a { font-weight: var(--weight-bold); }
 `;
 
 /**
@@ -1454,7 +1666,7 @@ const THEME_TOGGLE_SCRIPT = `<script>
 /**
  * @param {string|{title:string, description?:string, canonical?:string,
  *   ogType?:'website'|'article', jsonLd?:string, noindex?:boolean,
- *   extraCss?:string}} arg
+ *   extraCss?:string, ogImage?:string}} arg
  *   Back-compat: a plain string is treated exactly as before (just a
  *   <title>). An object form additionally emits a meta description and a
  *   canonical link when given. OpenGraph/Twitter tags are ALWAYS emitted
@@ -1465,12 +1677,15 @@ const THEME_TOGGLE_SCRIPT = `<script>
  *   in this build pass no jsonLd, so nothing changes for them yet. `extraCss`
  *   emits a second <style> block after the shared SITE_CSS one -- only the
  *   drill page (src/renderDrill.js) passes it, so every other page's output
- *   is byte-identical to before.
+ *   is byte-identical to before. `ogImage` overrides the sitewide
+ *   OG_DEFAULT_IMAGE with a page-specific absolute image URL (only the
+ *   Repertoire Pack pages pass this today -- src/renderPackPages.js -- every
+ *   other page keeps the shared default unchanged).
  * @returns {string} a full <head>...</head> block shared by every page.
  */
 function renderDocumentHead(arg) {
   const opts = typeof arg === 'string' ? { title: arg } : (arg || {});
-  const { title, description, canonical, ogType = 'website', jsonLd, noindex, extraCss, feedUrl } = opts;
+  const { title, description, canonical, ogType = 'website', jsonLd, noindex, extraCss, feedUrl, ogImage } = opts;
 
   const metaDescription = description
     ? `\n  <meta name="description" content="${escapeHtml(description)}">`
@@ -1484,7 +1699,7 @@ function renderDocumentHead(arg) {
     (canonical ? `\n  <meta property="og:url" content="${escapeHtml(canonical)}">` : '') +
     `\n  <meta property="og:type" content="${escapeHtml(ogType)}">` +
     `\n  <meta property="og:site_name" content="Repertoire Builder">` +
-    `\n  <meta property="og:image" content="${escapeHtml(OG_DEFAULT_IMAGE)}">` +
+    `\n  <meta property="og:image" content="${escapeHtml(ogImage || OG_DEFAULT_IMAGE)}">` +
     `\n  <meta property="og:image:width" content="1200">` +
     `\n  <meta property="og:image:height" content="630">` +
     `\n  <meta name="twitter:card" content="summary_large_image">`;
@@ -1524,9 +1739,14 @@ function renderDocumentHead(arg) {
 // can pass additional keys as those pages come online (openings in this
 // phase; guides/faq in later phases; drill added for the opening-drill
 // pilot) without editing server.js at all.
-const NAV_ORDER = ['repertoire', 'openings', 'eco', 'drill', 'guides', 'faq', 'player'];
+// 'packs' added for the Repertoire Pack sales pages (monetization-layer spec
+// 1.6.4: "one nav item"). Placed right after 'repertoire' -- the packs are a
+// finished output of the same repertoire-building idea, not a separate
+// product line, so they sit next to it in the nav rather than at the end.
+const NAV_ORDER = ['repertoire', 'packs', 'openings', 'eco', 'drill', 'guides', 'faq', 'player'];
 const NAV_LABELS = {
   repertoire: 'Repertoire explorer',
+  packs: 'Repertoire packs',
   openings: 'Openings',
   eco: 'ECO index',
   // This nav item currently points at Italian-Game-only content --
@@ -1540,13 +1760,13 @@ const NAV_LABELS = {
 };
 
 /**
- * @param {{player?: string, repertoire?: string, openings?: string,
+ * @param {{player?: string, repertoire?: string, packs?: string, openings?: string,
  *   eco?: string, drill?: string, guides?: string, faq?: string}} nav link
  *   targets for whichever pages currently exist -- either the dynamic
  *   dev-server routes (server.js's default, 2 keys) or flat static
- *   filenames (buildStatic.js, up to 7 keys). Only keys present in this
+ *   filenames (buildStatic.js, up to 8 keys). Only keys present in this
  *   object are rendered.
- * @param {'player'|'repertoire'|'openings'|'eco'|'drill'|'guides'|'faq'|null} [active]
+ * @param {'player'|'repertoire'|'packs'|'openings'|'eco'|'drill'|'guides'|'faq'|null} [active]
  *   which nav link, if any, represents the current page.
  * @returns {string} the shared header/nav markup used on every page.
  */
@@ -1587,6 +1807,34 @@ function renderHeader(nav, active = null) {
 // The Buy Me a Coffee account itself stays open and untouched -- this is a
 // content-only change, the site simply stops linking it.
 const KOFI_URL = 'https://ko-fi.com/flavaa';
+
+// Repertoire Pack store links (monetization-layer spec 1.4). Swapping
+// merchants is a one-line edit here -- everything downstream (the pack
+// pages, Product JSON-LD, GoatCounter click paths) reads through this one
+// constant and never assembles a store URL any other way. The two values
+// below are SENTINEL placeholders, not real listings -- the human's merchant
+// decision (account creation, ToS, listing the products) is a separate
+// ALWAYS ESCALATE item this build does not wait on (spec section 5). Every
+// caller MUST check isPlaceholderStoreUrl() before rendering a URL here as
+// an actual <a href> or emitting it into Product JSON-LD -- see
+// renderPackPages.js's renderPackCta()/renderPackDetailPage() for the one
+// place that check happens. A literal "PLACEHOLDER" string must never reach
+// rendered HTML (test/buildStatic.test.js's assertNoPlaceholderLeak checks
+// this against the real built dist/ output); the honest "not listed yet"
+// copy in renderPackCta() is what ships instead until this constant is
+// updated with real merchant URLs.
+const STORE = {
+  vendor: 'gumroad', // or 'ko-fi' -- see the monetization spec's section 1.4/2.5
+  packs: {
+    'white-1400-1600': 'https://PLACEHOLDER/l/rb-white-1400-1600',
+    'black-vs-e4-1400-1600': 'https://PLACEHOLDER/l/rb-black-e4-1400-1600',
+  },
+};
+
+/** @param {string} url a STORE.packs[...] value. */
+function isPlaceholderStoreUrl(url) {
+  return typeof url !== 'string' || url.includes('PLACEHOLDER');
+}
 
 /**
  * Shared social-link mark (a ring, a jagged upward line, a dot at the tip)
@@ -2128,4 +2376,6 @@ module.exports = {
   wrapTable,
   NAV_ORDER,
   NAV_LABELS,
+  STORE,
+  isPlaceholderStoreUrl,
 };

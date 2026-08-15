@@ -1,0 +1,197 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+const {
+  packsIndexFilename,
+  packDetailFilename,
+  packSampleFilename,
+  packOgImageFilename,
+  boardFromFen,
+  collectContentsRows,
+  renderPacksIndexPage,
+  renderPackDetailPage,
+  renderLeakReportUpsell,
+} = require('../src/renderPackPages');
+
+const NAV = { home: '/', repertoire: 'repertoire.html', packs: packsIndexFilename() };
+const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+
+// ---------------------------------------------------------------------------
+// Filename helpers
+// ---------------------------------------------------------------------------
+
+test('filename helpers produce the spec-prescribed URLs', () => {
+  assert.equal(packsIndexFilename(), 'repertoire-packs.html');
+  assert.equal(packDetailFilename('white-1400-1600'), 'repertoire-packs/white-1400-1600.html');
+  assert.equal(packSampleFilename('white-1400-1600'), 'repertoire-packs/white-1400-1600-sample.pgn');
+  assert.equal(packOgImageFilename('white-1400-1600'), 'og-pack-white-1400-1600.png');
+});
+
+// ---------------------------------------------------------------------------
+// boardFromFen
+// ---------------------------------------------------------------------------
+
+test('boardFromFen places pieces on the correct squares from a FEN placement field', () => {
+  const board = boardFromFen(`${STARTING_FEN} w KQkq - 0 1`);
+  assert.equal(board.a1, 'R');
+  assert.equal(board.e1, 'K');
+  assert.equal(board.e8, 'k');
+  assert.equal(board.e4, undefined);
+});
+
+// ---------------------------------------------------------------------------
+// collectContentsRows -- a small hand-built tree matching buildPack.js's
+// own node shape (same fixture style as test/buildPack.test.js).
+// ---------------------------------------------------------------------------
+
+function ourNode(overrides) {
+  return { fen: 'x', ply: 2, side: 'white', san: 'c3', uci: 'c2c3', n: 15000, w: 7500, d: 3000, l: 4500, score: 0.6, wilson: [0.55, 0.65], reach: 0.4, isOurMove: true, children: [], ...overrides };
+}
+
+function opponentNode(overrides) {
+  return { fen: 'x', ply: 1, side: 'black', san: 'c5', uci: 'c7c5', n: 40000, w: 18000, d: 4000, l: 18000, score: 0.5, wilson: [0.49, 0.51], reach: 0.4, isOurMove: false, children: [], ...overrides };
+}
+
+test('collectContentsRows walks a White-pack tree (root is our own forced first move)', () => {
+  const c5 = opponentNode({ children: [ourNode({})] });
+  const e5 = opponentNode({ san: 'e5', uci: 'e7e5', n: 25000, reach: 0.25, children: [] });
+  const root = { fen: STARTING_FEN, ply: 0, side: 'white', san: 'e4', uci: 'e2e4', n: null, score: null, wilson: null, reach: 1, isOurMove: true, children: [c5, e5] };
+
+  const rows = collectContentsRows(root);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].opponentSan, 'c5');
+  assert.equal(rows[0].ourSan, 'c3');
+  assert.ok(Math.abs(rows[0].freq - 40000 / 65000) < 1e-9);
+  assert.equal(rows[0].siblingGroup.length, 2);
+  assert.equal(rows[1].opponentSan, 'e5');
+  assert.equal(rows[1].ourSan, null, 'e5 has no children in this fixture -- the pack ends there');
+});
+
+test('collectContentsRows walks a Black-pack tree (root is White\'s fixed first move, our own first reply is forced/single)', () => {
+  const whiteReply2 = opponentNode({ san: 'Nf3', uci: 'g1f3', side: 'white', ply: 2, n: 30000, children: [] });
+  const ourReply1 = ourNode({ san: 'c5', uci: 'c7c5', side: 'black', ply: 1, isOurMove: true, children: [whiteReply2] });
+  const root = { fen: STARTING_FEN, ply: 0, side: 'white', san: 'e4', uci: 'e2e4', n: null, score: null, wilson: null, reach: 1, isOurMove: false, children: [ourReply1] };
+
+  const rows = collectContentsRows(root);
+  // The first real branch point is White's SECOND move (Nf3 here), not the
+  // fixed 1.e4 nor our own single forced 1...c5 reply -- see this module's
+  // own collectContentsRows() doc comment.
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].opponentSan, 'Nf3');
+});
+
+// ---------------------------------------------------------------------------
+// Page rendering -- placeholder vs. real STORE url, escaping, structure.
+// ---------------------------------------------------------------------------
+
+function makePack(overrides) {
+  const c5 = opponentNode({ children: [ourNode({})] });
+  const root = { fen: STARTING_FEN, ply: 0, side: 'white', san: 'e4', uci: 'e2e4', n: null, score: null, wilson: null, reach: 1, isOurMove: true, children: [c5] };
+  return {
+    id: 'white-1400-1600',
+    title: 'White at 1400-1600',
+    color: 'white',
+    band: '1400-1600',
+    firstMoveUci: 'e2e4',
+    firstMoveSan: 'e4',
+    rootFen: `${STARTING_FEN} b KQkq - 0 1`,
+    tree: root,
+    lineCount: 391,
+    positionCount: 812,
+    thresholdUsed: 0.015,
+    ruleVersion: '1',
+    speeds: ['blitz', 'rapid'],
+    retrieved: '2026-08-15',
+    sampleLineCount: 47,
+    storeUrl: 'https://PLACEHOLDER/l/rb-white-1400-1600',
+    noindex: true,
+    fileSizes: null,
+    ...overrides,
+  };
+}
+
+test('renderPackDetailPage never emits the literal PLACEHOLDER string while STORE is unset, and renders an honest pending CTA', () => {
+  const pack = makePack({});
+  const html = renderPackDetailPage({ pack, otherPacks: [], nav: NAV });
+  assert.ok(!html.includes('PLACEHOLDER'), 'a placeholder STORE url must never reach rendered output');
+  assert.ok(html.includes('Not listed for sale yet'));
+  assert.ok(html.includes('<meta name="robots" content="noindex">'));
+  assert.ok(!html.includes('application/ld+json') || !html.includes('"@type":"Product"'), 'no Product JSON-LD for an unlisted pack');
+});
+
+test('renderPackDetailPage renders a real CTA + Product JSON-LD once STORE carries a real url, and drops noindex', () => {
+  const pack = makePack({ storeUrl: 'https://repertoirebuilder.gumroad.com/l/rb-white-1400-1600', noindex: false });
+  const html = renderPackDetailPage({ pack, otherPacks: [], nav: NAV });
+  assert.ok(html.includes('href="https://repertoirebuilder.gumroad.com/l/rb-white-1400-1600"'));
+  assert.ok(html.includes('rel="noopener noreferrer"'));
+  assert.ok(html.includes('data-goatcounter-click="/out/pack-white-1400-1600"'));
+  assert.ok(!html.includes('<meta name="robots" content="noindex">'));
+  assert.ok(html.includes('"@type":"Product"'));
+  assert.ok(html.includes('Get the pack'));
+});
+
+test('renderPackDetailPage carries no merchant JavaScript, no embedded checkout, no third-party payment script -- plain <a href> only (spec 1.4)', () => {
+  const pack = makePack({ storeUrl: 'https://repertoirebuilder.gumroad.com/l/rb-white-1400-1600', noindex: false });
+  const html = renderPackDetailPage({ pack, otherPacks: [], nav: NAV });
+  assert.ok(!/gumroad\.com\/js|ko-fi\.com\/widget|checkout\.js/i.test(html));
+});
+
+test('renderPackDetailPage escapes untrusted-looking title content rather than emitting it raw', () => {
+  const pack = makePack({ title: 'White <script>alert(1)</script>' });
+  const html = renderPackDetailPage({ pack, otherPacks: [], nav: NAV });
+  assert.ok(!html.includes('<script>alert(1)</script>'));
+});
+
+test('renderPackDetailPage prints real, generator-derived counts, never a hardcoded line count (spec 4.6)', () => {
+  const pack = makePack({ lineCount: 217 });
+  const html = renderPackDetailPage({ pack, otherPacks: [], nav: NAV });
+  assert.ok(html.includes('217 lines'));
+  assert.ok(!html.includes('612'), 'the spec\'s own illustrative 612 figure must never leak into real copy');
+});
+
+test('renderPacksIndexPage is asymmetric: the first pack is a full-width feature block, the rest are quiet rows (spec 1.6.4)', () => {
+  const white = makePack({});
+  const black = makePack({ id: 'black-vs-e4-1400-1600', title: 'Black vs 1.e4 at 1400-1600', color: 'black' });
+  const html = renderPacksIndexPage({ packs: [white, black], nav: NAV });
+  assert.ok(html.includes('pack-feature'));
+  assert.ok(html.includes('pack-quiet-row'));
+  // The feature block's own markup should come before the quiet row's in
+  // document order -- White is packs[0] in the fixture above.
+  assert.ok(html.indexOf('pack-feature') < html.indexOf('pack-quiet-row'));
+});
+
+test('renderPacksIndexPage is noindex only when every pack is still a placeholder', () => {
+  const allPlaceholder = renderPacksIndexPage({ packs: [makePack({ noindex: true }), makePack({ id: 'b', noindex: true })], nav: NAV });
+  assert.ok(allPlaceholder.includes('<meta name="robots" content="noindex">'));
+
+  const oneLive = renderPacksIndexPage({ packs: [makePack({ noindex: false, storeUrl: 'https://real/x' }), makePack({ id: 'b', noindex: true })], nav: NAV });
+  assert.ok(!oneLive.includes('<meta name="robots" content="noindex">'));
+});
+
+test('renderLeakReportUpsell renders nothing when no matching pack exists, and a text-only link (never accent-filled) when one does', () => {
+  assert.equal(renderLeakReportUpsell(null), '');
+  const html = renderLeakReportUpsell(makePack({}));
+  assert.ok(html.includes('pack-upsell-link'));
+  assert.ok(!html.includes('pack-cta'), 'the leak-report upsell must never carry the page\'s one accent-filled action');
+});
+
+test('every disclosed limitation ships on the pack detail page (spec 1.2 item 4 / 1.6.6)', () => {
+  const pack = makePack({});
+  const html = renderPackDetailPage({ pack, otherPacks: [], nav: NAV });
+  assert.ok(html.includes('confidence interval uses a normal approximation'));
+  assert.ok(html.includes('Not transposition-aware'));
+  assert.ok(html.includes('blitz and rapid games only'));
+  assert.ok(html.includes('not a claim that it is objectively the best move'));
+});
+
+test('the free guarantee and non-influence statements ship verbatim-in-substance on both page types', () => {
+  const pack = makePack({});
+  const detail = renderPackDetailPage({ pack, otherPacks: [], nav: NAV });
+  const index = renderPacksIndexPage({ packs: [pack], nav: NAV });
+  for (const html of [detail, index]) {
+    assert.ok(html.includes('have no paid tier'));
+    assert.ok(html.includes('Buying a pack changes nothing on this site') || html.includes('Buying this pack changes nothing'));
+  }
+});

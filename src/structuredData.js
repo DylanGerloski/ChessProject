@@ -263,6 +263,50 @@ function datasetJsonLd({ name, description, url, creatorName = SITE_NAME, licens
   });
 }
 
+/**
+ * Product + Offer JSON-LD for one Repertoire Pack sales page (monetization-
+ * layer spec 1.9). Only the fields Google's own merchant-listing docs
+ * (developers.google.com) mark required or recommended -- REQUIRED name,
+ * image, offers; within offers, price/priceCurrency; recommended
+ * description/brand/sku/category/availability/url. Deliberately NEVER emits
+ * aggregateRating or review -- this site has neither, and inventing either
+ * would violate Google's own policy, Non-Negotiable 1 (no monetization
+ * decision touches a ranking/recommendation), and the no-dark-patterns rule.
+ * A later task must not "helpfully" add them.
+ *
+ * @param {object} opts
+ * @param {string} opts.name pack title, e.g. "White at 1400-1600"
+ * @param {string} opts.description
+ * @param {string} opts.image absolute URL of the pack's own OG image
+ * @param {string} opts.url this pack page's own canonical URL
+ * @param {string} opts.offerUrl the STORE link this offer resolves to --
+ *   the real merchant URL once live, never emitted while it's still the
+ *   PLACEHOLDER sentinel (callers must check isPlaceholderStoreUrl() first
+ *   and omit productJsonLd entirely for a not-yet-listed pack, same as the
+ *   visible CTA does -- see renderPackPages.js).
+ * @param {number} opts.price plain number, e.g. 9
+ * @param {string} [opts.sku]
+ */
+function productJsonLd({ name, description, image, url, offerUrl, price, sku }) {
+  return jsonLdScript({
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name,
+    description,
+    image,
+    brand: { '@type': 'Brand', name: SITE_NAME },
+    category: 'Chess opening repertoire',
+    ...(sku ? { sku } : {}),
+    offers: {
+      '@type': 'Offer',
+      url: offerUrl,
+      price: String(price),
+      priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
+    },
+  });
+}
+
 module.exports = {
   jsonLdScript,
   stripHtmlToText,
@@ -273,4 +317,5 @@ module.exports = {
   definedTermSetJsonLd,
   itemListJsonLd,
   datasetJsonLd,
+  productJsonLd,
 };

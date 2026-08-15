@@ -19,6 +19,7 @@ const {
   repertoireFragmentUrl,
   copyAggregateShardsToDist,
   assertNoTokenLeak,
+  assertNoPlaceholderLeak,
   assertFilenamesUnique,
 } = require('../src/buildStatic');
 const { RATING_BANDS } = require('../src/processRepertoire');
@@ -389,6 +390,33 @@ test('assertNoTokenLeak is a no-op when no token was available to leak', () => {
   }
 });
 
+test('assertNoPlaceholderLeak throws if a written .html file contains the literal PLACEHOLDER string (monetization-layer spec 1.4)', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lichess-placeholder-leak-test-'));
+  try {
+    fs.writeFileSync(path.join(tmpDir, 'oops.html'), '<a href="https://PLACEHOLDER/l/x">Buy</a>', 'utf8');
+    assert.throws(() => assertNoPlaceholderLeak(tmpDir), /PLACEHOLDER/);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('assertNoPlaceholderLeak is a no-op when nothing in dist/ carries the sentinel string, and ignores non-html files', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lichess-placeholder-leak-test-'));
+  try {
+    fs.writeFileSync(path.join(tmpDir, 'fine.html'), '<p>nothing to see here</p>', 'utf8');
+    // A PLACEHOLDER string in a non-.html file (e.g. a source map or a
+    // downloaded .pgn) is out of this check's scope -- it only guards
+    // rendered pages, the same "only .html" scope assertNoTokenLeak
+    // deliberately does NOT apply (that one checks every file) -- stated
+    // explicitly here so a future edit doesn't silently widen or narrow
+    // this check without a test catching it.
+    fs.writeFileSync(path.join(tmpDir, 'notes.txt'), 'PLACEHOLDER', 'utf8');
+    assert.doesNotThrow(() => assertNoPlaceholderLeak(tmpDir));
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
 test('buildPlayerLookupBundle esbuild-bundles fetchLichess.js, process.js, render.js, and the browser controller into one self-contained IIFE that runs with no global require/module/exports (file:// invariant)', () => {
   const bundle = buildPlayerLookupBundle();
   assert.match(bundle, /function fetchRatingHistory/);
@@ -537,7 +565,7 @@ test('indexPage embeds WebSite + Organization JSON-LD', () => {
 test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pages) and robots.txt pointing at it', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();
-    const { outDir, repertoireStubs, contentWritten, ecoWritten, ecoExplorerResult, pageFilenames } = await buildStatic({ fetchImpl, useCache: false });
+    const { outDir, repertoireStubs, contentWritten, ecoWritten, ecoExplorerResult, packWritten, pageFilenames } = await buildStatic({ fetchImpl, useCache: false });
 
     assert.ok(fs.existsSync(path.join(outDir, 'sitemap.xml')));
     assert.ok(fs.existsSync(path.join(outDir, 'robots.txt')));
@@ -549,21 +577,27 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     // index + player + drill + 404 + repertoire.html + 8 redirect stubs
     // + 10 openings + hub + 8 guides + hub + FAQ + privacy/about/contact/methodology
     // + (Phase 7d) 64 T1 family hubs + 5 T2 volume pages + 2 T2 browse-index pages
-    // + (Phase 7e) 1 ECO explorer page.
-    // pageFilenames includes 404.html and the 8 redirect stubs (for the
-    // filename-uniqueness check), but the sitemap itself must exclude all 9
-    // -- see the separate assertion below, and src/sitemap.js's
-    // buildSitemapEntries/REDIRECT_STUBS.
-    const expectedPageCount = 4 + 1 + repertoireStubs.length + contentWritten.length + ecoWritten.length + 4 + 1;
+    // + (Phase 7e) 1 ECO explorer page + (M2) 3 Repertoire Pack pages.
+    // pageFilenames includes 404.html, the 8 redirect stubs, and the 3 pack
+    // pages (for the filename-uniqueness check), but the sitemap itself
+    // must exclude all 12 -- 404.html/the redirect stubs always, the pack
+    // pages only while still noindex (this test's STORE constant is still
+    // the shipped PLACEHOLDER sentinel, so all 3 currently qualify) -- see
+    // the separate assertion below, and src/sitemap.js's
+    // buildSitemapEntries/REDIRECT_STUBS plus src/buildStatic.js's own
+    // noindexPackFiles filter.
+    const expectedPageCount = 4 + 1 + repertoireStubs.length + contentWritten.length + ecoWritten.length + 4 + 1 + packWritten.length;
     assert.equal(pageFilenames.length, expectedPageCount);
     assert.ok(pageFilenames.includes('404.html'));
     assert.ok(pageFilenames.includes('eco-explorer.html'));
     assert.ok(pageFilenames.includes('repertoire.html'));
+    assert.ok(packWritten.every((p) => p.noindex), 'STORE is still the shipped PLACEHOLDER sentinel, so every pack page should be noindex in this test');
 
     const sitemapXml = fs.readFileSync(path.join(outDir, 'sitemap.xml'), 'utf8');
     assert.match(sitemapXml, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
     const locMatches = [...sitemapXml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
-    assert.equal(locMatches.length, expectedPageCount - 1 - repertoireStubs.length, '404.html and the 8 redirect stubs must be excluded from the sitemap');
+    assert.equal(locMatches.length, expectedPageCount - 1 - repertoireStubs.length - packWritten.length, '404.html, the 8 redirect stubs, and the (currently noindex) pack pages must be excluded from the sitemap');
+    assert.ok(!locMatches.some((loc) => loc.includes('repertoire-packs')), 'no noindex pack page should appear in the sitemap');
     assert.ok(locMatches.includes('https://repertoire-builder.com/'), 'home should canonicalize to the directory form');
     assert.ok(locMatches.includes('https://repertoire-builder.com/repertoire.html'), 'the collapsed repertoire page must be in the sitemap');
     assert.ok(locMatches.includes('https://repertoire-builder.com/italian-game.html'));
