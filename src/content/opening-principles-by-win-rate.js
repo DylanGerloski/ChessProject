@@ -26,8 +26,8 @@ const meta = {
 
 const CATEGORIES = [
   { key: 'king-safety', label: 'King safety', rule: 'the move is castling (O-O or O-O-O)' },
-  { key: 'development', label: 'Development', rule: 'the move is a knight or bishop move (SAN starts with N or B) -- develops a minor piece off the back rank' },
-  { key: 'center-control', label: 'Center control', rule: 'the move is a pawn push straight to a central file -- c, d, or e (SAN is exactly a c/d/e file letter plus a rank, e.g. "d4" or "e5"; pawn captures and flank pawn moves like a3/h6/g6 don\'t count -- see "What this doesn\'t classify" below)' },
+  { key: 'development', label: 'Development', rule: 'the move is a knight or bishop move (SAN starts with N or B) — develops a minor piece off the back rank' },
+  { key: 'center-control', label: 'Center control', rule: 'the move is a pawn push straight to a central file — c, d, or e (SAN is exactly a c/d/e file letter plus a rank, e.g. "d4" or "e5"; pawn captures and flank pawn moves like a3/h6/g6 don\'t count — see "What this doesn\'t classify" below)' },
 ];
 
 /**
@@ -147,8 +147,8 @@ function render(ctx) {
     ${bandTableRows
       ? wrapTable(`<table><caption class="sr-only">Score range across rating bands, with principle-pattern reply counts</caption><thead><tr><th scope="col">Opening</th><th scope="col">Principle-pattern replies found</th><th scope="col">Lowest band</th><th scope="col">Highest band</th><th scope="col">Range</th></tr></thead><tbody>${bandTableRows}</tbody></table>`, 'Score range across rating bands, with principle-pattern reply counts')
       : '<p class="empty-note">Not enough band data was available in this build to compute a range.</p>'}
-    ${avgWith != null && avgWithout != null
-      ? `<p>Among the ${withMatches.length} openings with at least one principle-pattern reply found, the average score range across rating bands is <strong>${avgWith} points</strong>; among the ${withoutMatches.length} with none found, it&rsquo;s <strong>${avgWithout} points</strong>. That&rsquo;s a real comparison from this build&rsquo;s own numbers, not a claim that principle adherence causes the difference &mdash; a sample this size (${bandRows.length} openings total) can show a pattern without proving what drives it.</p>`
+${avgWith != null && avgWithout != null
+      ? `    <p>Among the ${withMatches.length} openings with at least one principle-pattern reply found, the average score range across rating bands is <strong>${avgWith} points</strong>; among the ${withoutMatches.length} with none found, it&rsquo;s <strong>${avgWithout} points</strong>. That&rsquo;s a real comparison from this build&rsquo;s own numbers, not a claim that principle adherence causes the difference &mdash; a sample this size (${bandRows.length} openings total) can show a pattern without proving what drives it.</p>`
       : ''}
 
     <h2>What this doesn&rsquo;t show</h2>
