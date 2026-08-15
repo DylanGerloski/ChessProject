@@ -66,7 +66,18 @@ class AggregateBuilder {
   constructor() {
     // Map<band, Map<pool, Map<posKey, record>>>
     this.counts = new Map();
-    // Map<posKey, {minPly: number, epd: string, familyVotes: Map<slug, count>}>
+    // Map<posKey, {minPly: number, familyVotes: Map<slug, count>}>
+    //
+    // Deliberately does NOT retain the position's EPD string here (it did,
+    // until the 2026-08-15 full-scale-ingest OOM fix -- see this class's
+    // header comment and scripts/ingestDump.js's header comment for the
+    // incident). Nothing downstream ever reads it: _familyForPosKey and
+    // _shardForPosKey only use minPly/familyVotes, and _toJsonRecord (the
+    // only thing that reaches writeShards.js) never touches posMeta at all.
+    // At millions of distinct positions, that was one dead ~30-70 byte
+    // string retained per entry for the entire run's lifetime for no reason
+    // -- real waste, not a rounding error, though on its own not the whole
+    // OOM story (see the workflow's heap-ceiling change for the rest).
     this.posMeta = new Map();
     // Map<path (comma-joined uci list), posKey> -- ply 1..ROOT_MAX_PLY only.
     this.pathIndex = new Map();
@@ -84,9 +95,9 @@ class AggregateBuilder {
     return bucket.get(posKey);
   }
 
-  _touchMeta(posKey, ply, epd, familySlug) {
+  _touchMeta(posKey, ply, familySlug) {
     if (!this.posMeta.has(posKey)) {
-      this.posMeta.set(posKey, { minPly: ply, epd, familyVotes: new Map() });
+      this.posMeta.set(posKey, { minPly: ply, familyVotes: new Map() });
     }
     const meta = this.posMeta.get(posKey);
     if (ply < meta.minPly) meta.minPly = ply;
@@ -115,7 +126,7 @@ class AggregateBuilder {
       const record = this._record(bucket, node.posKey);
       record[resultLetter] += 1;
       if (balanced) record[`b${resultLetter}`] += 1;
-      this._touchMeta(node.posKey, node.ply, node.epd, familySlug);
+      this._touchMeta(node.posKey, node.ply, familySlug);
 
       if (i > 0) {
         const prev = nodes[i - 1];

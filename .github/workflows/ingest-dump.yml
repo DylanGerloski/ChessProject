@@ -13,7 +13,7 @@ on:
         required: true
         type: string
       games:
-        description: 'Game budget for this run -- the connection is destroyed the moment this many games have been scanned. Use 500000 for the first run against any never-before-ingested month (a cheap smoke test of the real header format and throughput) before ever using a larger value such as 8000000.'
+        description: 'Game budget for this run -- the connection is destroyed the moment this many games have been scanned. Use 500000 for the first run against any never-before-ingested month (a cheap smoke test of the real header format and throughput). A 2026-08-15 games=8000000 run OOM''d (aggregate memory use is NOT bounded by games scanned -- see scripts/ingestDump.js''s header comment); until a real fix for that lands, step up gradually from a verified-good run rather than jumping straight to a large number, and watch the run''s own progress/heap log lines.'
         required: true
         type: string
         default: '500000'
@@ -65,6 +65,23 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # Added after the 2026-08-15 OOM (see scripts/ingestDump.js's header
+      # comment): Node's own default old-space ceiling is conservative
+      # (observed ~4128MB on this runner regardless of actual free memory),
+      # not a real reflection of what's available. Rather than hardcode a
+      # number that silently goes stale if GitHub changes the standard
+      # runner's spec, size the heap from what this run's own runner
+      # actually reports at the time -- 80% of total, leaving headroom for
+      # the OS plus the curl/zstd/git/tar subprocesses this workflow also
+      # runs, which don't count against Node's own heap flag but do share
+      # the same physical memory.
+      - name: Configure Node heap ceiling from this runner's actual memory
+        run: |
+          TOTAL_MB=$(free -m | awk '/^Mem:/{print $2}')
+          HEAP_MB=$(( TOTAL_MB * 80 / 100 ))
+          echo "NODE_OPTIONS=--max-old-space-size=${HEAP_MB}" >> "$GITHUB_ENV"
+          echo "runner total memory: ${TOTAL_MB}MB -> Node old-space ceiling: ${HEAP_MB}MB" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Ingest dump prefix
         run: |
