@@ -184,7 +184,11 @@ Every origin loaded or called by the live site, and why:
   for the player-lookup feature (rating history, recent games). Keyless, no
   account required.
 - `explorer.lichess.org` -- the Lichess Opening Explorer API, called at build
-  time for the pre-rendered repertoire pages. Keyless, no account required.
+  time for the pre-rendered repertoire pages, and by the separate, run-by-hand
+  `scripts/buildBandShards.js` crawler (WS-1's band-meta shard dataset,
+  `data/rep/`, copied into `dist/data/rep/` at build time -- see that
+  script's own header comment). Requires a personal access token as of
+  2026-08-11 (see "Running it," below).
 - `pagead2.googlesyndication.com` -- Google AdSense, the site's ad script.
 - `gc.zgo.at` -- GoatCounter, privacy-friendly visit-count analytics (no
   cookies, no personal data collected).

@@ -146,7 +146,7 @@ function withTempDist(fn) {
 // write this file's FAKE fixture responses into the project's real
 // .cache/explorer/ directory, where a later real `npm run build:static`
 // could silently read them back instead of hitting the live API.
-test('buildStatic writes the collapsed repertoire.html + repertoire.js, all 8 redirect stubs, an index, and the player-lookup page+bundle', () =>
+test('buildStatic writes the collapsed repertoire.html + repertoire.js, all 8 redirect stubs, an index, and the WS-1 placeholder pages', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();
     const { outDir, repertoireFile, repertoireStubs } = await buildStatic({ fetchImpl, useCache: false });
@@ -169,12 +169,26 @@ test('buildStatic writes the collapsed repertoire.html + repertoire.js, all 8 re
     }
 
     assert.ok(fs.existsSync(path.join(outDir, 'index.html')));
+    // player.html and italian-game-drill.html are now redirect stubs (spec
+    // WS-1 spec sections 3.2/3.3) -- their real content moved to
+    // the new WS-1 placeholder pages below, no player-lookup.js/drill.js
+    // bundle is written for them any more.
     assert.ok(fs.existsSync(path.join(outDir, 'player.html')));
-    assert.ok(fs.existsSync(path.join(outDir, 'player-lookup.js')));
+    assert.ok(fs.existsSync(path.join(outDir, 'italian-game-drill.html')));
+    assert.ok(!fs.existsSync(path.join(outDir, 'player-lookup.js')));
+    for (const [page, bundle] of [
+      ['repertoire-builder.html', 'repertoire-builder.js'],
+      ['opening-report.html', 'opening-report.js'],
+      ['drill.html', 'drill-hub.js'],
+      ['drill-reference.html', null],
+    ]) {
+      assert.ok(fs.existsSync(path.join(outDir, page)), `expected ${page} to exist on disk`);
+      if (bundle) assert.ok(fs.existsSync(path.join(outDir, bundle)), `expected ${bundle} to exist on disk`);
+    }
   })
 );
 
-test('repertoire.html carries a canonical link, a title ending in the site suffix, and a full OpenGraph block; player.html carries the same', () =>
+test('repertoire.html carries a canonical link, a title ending in the site suffix, and a full OpenGraph block; player.html is now a redirect stub to opening-report.html', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();
     const { outDir } = await buildStatic({ fetchImpl, useCache: false });
@@ -189,9 +203,14 @@ test('repertoire.html carries a canonical link, a title ending in the site suffi
     assert.match(repertoireHtml, /<meta name="twitter:card" content="summary_large_image">/);
 
     const playerHtml = fs.readFileSync(path.join(outDir, 'player.html'), 'utf8');
-    assert.match(playerHtml, /<title>Player lookup \| Repertoire Builder<\/title>/);
-    assert.match(playerHtml, /<link rel="canonical" href="https:\/\/repertoire-builder\.com\/player\.html">/);
-    assert.match(playerHtml, /<meta property="og:image" content="https:\/\/repertoire-builder\.com\/og-default\.png">/);
+    assert.match(playerHtml, /<meta http-equiv="refresh" content="0; url=\/opening-report\.html">/);
+    assert.match(playerHtml, /<link rel="canonical" href="https:\/\/repertoire-builder\.com\/opening-report\.html">/);
+    assert.match(playerHtml, /<meta name="robots" content="noindex, follow">/);
+
+    const openingReportHtml = fs.readFileSync(path.join(outDir, 'opening-report.html'), 'utf8');
+    assert.match(openingReportHtml, /<title>Opening report \| Repertoire Builder<\/title>/);
+    assert.match(openingReportHtml, /<link rel="canonical" href="https:\/\/repertoire-builder\.com\/opening-report\.html">/);
+    assert.match(openingReportHtml, /<meta name="robots" content="noindex">/);
   })
 );
 
@@ -468,9 +487,9 @@ test('bundleBrowserEntry throws loudly on a syntax error in the entry point, sam
   }
 });
 
-test('indexPage links to player.html and the collapsed repertoire.html (band+color in the fragment), with no server-only routes', () => {
+test('indexPage links to opening-report.html and the collapsed repertoire.html (band+color in the fragment), with no server-only routes', () => {
   const html = indexPage([]);
-  assert.match(html, /href="player\.html"/);
+  assert.match(html, /href="opening-report\.html"/);
   assert.match(html, /href="repertoire\.html#band=1400-1600&amp;color=white"/);
   assert.match(html, /href="repertoire\.html#band=1400-1600&amp;color=black"/);
   assert.doesNotMatch(html, /href="\/repertoire/);
@@ -574,19 +593,22 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     assert.ok(fs.existsSync(path.join(outDir, 'eco-reverse-lookup.json')), 'Phase 7e: the FEN reverse-lookup asset must be written');
     assert.ok(ecoExplorerResult.reverseLookupCount > 0);
 
-    // index + player + drill + 404 + repertoire.html + 8 redirect stubs
-    // + 10 openings + hub + 8 guides + hub + FAQ + privacy/about/contact/methodology
-    // + (Phase 7d) 64 T1 family hubs + 5 T2 volume pages + 2 T2 browse-index pages
-    // + (Phase 7e) 1 ECO explorer page + (M2) 3 Repertoire Pack pages.
-    // pageFilenames includes 404.html, the 8 redirect stubs, and the 3 pack
-    // pages (for the filename-uniqueness check), but the sitemap itself
-    // must exclude all 12 -- 404.html/the redirect stubs always, the pack
-    // pages only while still noindex (this test's STORE constant is still
-    // the shipped PLACEHOLDER sentinel, so all 3 currently qualify) -- see
-    // the separate assertion below, and src/sitemap.js's
-    // buildSitemapEntries/REDIRECT_STUBS plus src/buildStatic.js's own
-    // noindexPackFiles filter.
-    const expectedPageCount = 4 + 1 + repertoireStubs.length + contentWritten.length + ecoWritten.length + 4 + 1 + packWritten.length;
+    // index + player.html (stub) + italian-game-drill.html (stub) +
+    // repertoire-builder.html + opening-report.html + drill-reference.html
+    // (WS-1 placeholders) + privacy/about/contact/methodology + 404 +
+    // drill.html (the WS-1 hub, drillFile) + repertoire.html = 13 fixed
+    // entries + 8 redirect stubs + 10 openings + hub + 8 guides + hub + FAQ
+    // + (Phase 7d) 64 T1 family hubs + 5 T2 volume pages + 2 T2
+    // browse-index pages + (Phase 7e) 1 ECO explorer page + (M2) 3
+    // Repertoire Pack pages.
+    // pageFilenames includes 404.html, the 8 repertoire redirect stubs,
+    // player.html/italian-game-drill.html (also now redirect stubs), the 4
+    // WS-1 placeholder pages (still noindex), and the 3 pack pages (for
+    // the filename-uniqueness check), but the sitemap itself must exclude
+    // all of those -- see src/sitemap.js's buildSitemapEntries/
+    // REDIRECT_STUBS plus src/buildStatic.js's own noindexPackFiles/
+    // noindexPlaceholderFiles filters.
+    const expectedPageCount = 13 + 1 + repertoireStubs.length + contentWritten.length + ecoWritten.length + packWritten.length;
     assert.equal(pageFilenames.length, expectedPageCount);
     assert.ok(pageFilenames.includes('404.html'));
     assert.ok(pageFilenames.includes('eco-explorer.html'));
@@ -596,7 +618,12 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     const sitemapXml = fs.readFileSync(path.join(outDir, 'sitemap.xml'), 'utf8');
     assert.match(sitemapXml, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
     const locMatches = [...sitemapXml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
-    assert.equal(locMatches.length, expectedPageCount - 1 - repertoireStubs.length - packWritten.length, '404.html, the 8 redirect stubs, and the (currently noindex) pack pages must be excluded from the sitemap');
+    // Excluded from the sitemap: 404.html (1), the 8 repertoire redirect
+    // stubs, the (currently noindex) pack pages, player.html +
+    // italian-game-drill.html (2, now redirect stubs), and the 4 WS-1
+    // placeholder pages (still noindex).
+    const excludedCount = 1 + repertoireStubs.length + packWritten.length + 2 + 4;
+    assert.equal(locMatches.length, expectedPageCount - excludedCount, '404.html, the redirect stubs, the noindex pack pages, and the still-placeholder WS-1 pages must all be excluded from the sitemap');
     assert.ok(!locMatches.some((loc) => loc.includes('repertoire-packs')), 'no noindex pack page should appear in the sitemap');
     assert.ok(locMatches.includes('https://repertoire-builder.com/'), 'home should canonicalize to the directory form');
     assert.ok(locMatches.includes('https://repertoire-builder.com/repertoire.html'), 'the collapsed repertoire page must be in the sitemap');
@@ -604,15 +631,26 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     assert.ok(locMatches.includes('https://repertoire-builder.com/chess-opening-faq.html'));
     assert.ok(locMatches.includes('https://repertoire-builder.com/privacy.html'));
     assert.ok(locMatches.includes('https://repertoire-builder.com/methodology.html'));
-    assert.ok(locMatches.includes('https://repertoire-builder.com/italian-game-drill.html'));
+    // Redirect sources and still-placeholder pages must NOT appear.
+    assert.ok(!locMatches.includes('https://repertoire-builder.com/italian-game-drill.html'), 'a redirect source must never appear in the sitemap');
+    assert.ok(!locMatches.includes('https://repertoire-builder.com/player.html'), 'a redirect source must never appear in the sitemap');
+    assert.ok(!locMatches.includes('https://repertoire-builder.com/drill.html'), 'the WS-1 drill hub is still a placeholder (noindex) in this test');
+    assert.ok(!locMatches.includes('https://repertoire-builder.com/repertoire-builder.html'), 'the WS-1 repertoire builder is still a placeholder (noindex) in this test');
+    assert.ok(!locMatches.includes('https://repertoire-builder.com/opening-report.html'), 'the WS-1 opening report is still a placeholder (noindex) in this test');
+    assert.ok(!locMatches.includes('https://repertoire-builder.com/drill-reference.html'), 'the WS-1 drill reference is still a placeholder (noindex) in this test');
     assert.equal(ecoWritten.length, 64 + 5 + 2, 'Phase 7d: 64 T1 hubs + 5 T2 volume pages + 2 T2 browse-index pages');
     assert.ok(locMatches.includes('https://repertoire-builder.com/sicilian-defense-variations.html'));
     assert.ok(locMatches.includes('https://repertoire-builder.com/eco-volume-b.html'));
     assert.ok(locMatches.includes('https://repertoire-builder.com/eco-openings.html'));
     assert.ok(locMatches.includes('https://repertoire-builder.com/eco-explorer.html'));
-    // player-lookup.js/drill.js/repertoire.js/eco-explorer.js/eco-reverse-lookup.json/ads.txt/CNAME are not pages and must not appear.
+    // player-lookup.js/drill.js/repertoire-builder.js/opening-report.js/
+    // drill-hub.js/repertoire.js/eco-explorer.js/eco-reverse-lookup.json/
+    // ads.txt/CNAME are not pages and must not appear.
     assert.ok(!sitemapXml.includes('player-lookup.js'));
     assert.ok(!sitemapXml.includes('drill.js'));
+    assert.ok(!sitemapXml.includes('repertoire-builder.js'));
+    assert.ok(!sitemapXml.includes('opening-report.js'));
+    assert.ok(!sitemapXml.includes('drill-hub.js'));
     assert.ok(!sitemapXml.includes('repertoire.js'));
     assert.ok(!sitemapXml.includes('eco-explorer.js'));
     assert.ok(!sitemapXml.includes('eco-reverse-lookup.json'));
@@ -667,60 +705,63 @@ test('buildStatic never emits an internal href="index.html" link -- the repertoi
   })
 );
 
-test('buildStatic writes italian-game-drill.html and drill.js, with the drill data baked in and drill.js a self-contained esbuild bundle (file:// invariant)', () =>
+test('buildStatic writes italian-game-drill.html as a redirect stub to drill.html, and drill.html + drill-hub.js as the new WS-1 placeholder hub', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();
     const { outDir, pageFilenames } = await buildStatic({ fetchImpl, useCache: false });
 
     assert.ok(fs.existsSync(path.join(outDir, 'italian-game-drill.html')));
-    assert.ok(fs.existsSync(path.join(outDir, 'drill.js')));
+    assert.ok(fs.existsSync(path.join(outDir, 'drill.html')));
+    assert.ok(fs.existsSync(path.join(outDir, 'drill-hub.js')));
     assert.ok(pageFilenames.includes('italian-game-drill.html'));
-    assert.ok(!pageFilenames.includes('drill.js'), 'drill.js is a script, not a page');
+    assert.ok(pageFilenames.includes('drill.html'));
+    assert.ok(!pageFilenames.includes('drill-hub.js'), 'drill-hub.js is a script, not a page');
 
-    const drillHtml = fs.readFileSync(path.join(outDir, 'italian-game-drill.html'), 'utf8');
-    assert.match(drillHtml, /<h1 class="page-title">Italian Game drill/);
-    assert.match(drillHtml, /play the Italian Game from move 1/);
-    assert.match(drillHtml, /id="drill-data"/);
-    assert.match(drillHtml, /<script src="drill\.js" defer><\/script>/);
-    const boardSquareCount = (drillHtml.match(/class="board-sq /g) || []).length;
-    assert.equal(boardSquareCount, 64);
+    const stubHtml = fs.readFileSync(path.join(outDir, 'italian-game-drill.html'), 'utf8');
+    assert.match(stubHtml, /<meta http-equiv="refresh" content="0; url=\/drill\.html">/);
+    assert.match(stubHtml, /<link rel="canonical" href="https:\/\/repertoire-builder\.com\/drill\.html">/);
+
+    const drillHtml = fs.readFileSync(path.join(outDir, 'drill.html'), 'utf8');
+    assert.match(drillHtml, /<h1 class="page-title">Opening drill<\/h1>/);
+    assert.match(drillHtml, /<meta name="robots" content="noindex">/);
 
     // See buildDrillBundle's own test above for why this is a sandboxed
     // execution check rather than a textual require()/module.exports ban.
-    const drillJs = fs.readFileSync(path.join(outDir, 'drill.js'), 'utf8');
-    assert.doesNotThrow(() => runBundleInSandbox(drillJs));
+    const drillHubJs = fs.readFileSync(path.join(outDir, 'drill-hub.js'), 'utf8');
+    assert.doesNotThrow(() => runBundleInSandbox(drillHubJs));
   })
 );
 
-test('assertFilenamesUnique still passes with italian-game-drill.html and drill.js in the full static build filename list', () =>
+test('assertFilenamesUnique still passes with the WS-1 placeholder pages/bundles in the full static build filename list', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();
     // buildStatic() already runs assertFilenamesUnique() internally and
-    // would have thrown during the build above if the new drill filenames
+    // would have thrown during the build above if the new filenames
     // collided with anything -- a successful build IS the assertion here.
     await assert.doesNotReject(() => buildStatic({ fetchImpl, useCache: false }));
   })
 );
 
-test('the home page links to the drill, and player lookup is still linked too', () =>
+test('the home page links to the (now WS-1 hub) drill, and the opening report is still linked too', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();
     const { outDir } = await buildStatic({ fetchImpl, useCache: false });
 
     const homeHtml = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
-    assert.match(homeHtml, /href="italian-game-drill\.html"/);
+    assert.match(homeHtml, /href="drill\.html"/);
     assert.match(homeHtml, /Drill it: play the move your rating band plays/);
-    assert.match(homeHtml, /href="player\.html"/);
+    assert.match(homeHtml, /href="opening-report\.html"/);
   })
 );
 
-test('the nav on an existing static page now includes the drill link', () =>
+test('the nav on an existing static page now includes the (WS-1 hub) drill link and the new builder link', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();
     const { outDir } = await buildStatic({ fetchImpl, useCache: false });
 
     const openingsHtml = fs.readFileSync(path.join(outDir, 'openings.html'), 'utf8');
-    assert.match(openingsHtml, /href="italian-game-drill\.html"/);
+    assert.match(openingsHtml, /href="drill\.html"/);
+    assert.match(openingsHtml, /href="repertoire-builder\.html"/);
   })
 );
 

@@ -63,6 +63,15 @@ jobs:
       - name: Verify data-sanity gates
         run: node scripts/verifyAggregates.js dist
 
+      # WS-1 band-meta shards (dist/data/rep/, scripts/buildBandShards.js) --
+      # a separate, run-by-hand dataset from data/aggregates/ above, checked
+      # the same way. A genuinely missing dist/data/rep/manifest.json is a
+      # non-gating WARN (the crawler hasn't been run/committed yet), same
+      # convention as scripts/verifyAggregates.js's own missing-manifest
+      # handling -- see that script's own header comment.
+      - name: Verify band-shard data-sanity gates
+        run: node scripts/verifyBandShards.js dist/data/rep
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:

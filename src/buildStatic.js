@@ -50,7 +50,7 @@ const path = require('path');
 const esbuild = require('esbuild');
 const { buildRepertoireTree } = require('./buildRepertoire');
 const { RATING_BANDS } = require('./processRepertoire');
-const { renderRepertoireExplorerPage, renderRedirectStubPage, escapeHtml, formatPct, renderDocumentHead, renderHeader, renderFooter, renderPageHead } = require('./render');
+const { renderRepertoireExplorerPage, renderRedirectStubPage, renderGenericRedirectStub, escapeHtml, formatPct, renderDocumentHead, renderHeader, renderFooter, renderPageHead } = require('./render');
 const { renderOpeningStatCard, renderMethodologyPage } = require('./renderContent');
 const { MISTAKE_THRESHOLDS } = require('./processOpenings');
 const { loadAggregates } = require('./aggregateSource');
@@ -70,9 +70,17 @@ const { renderSitemapXml, robotsTxtContent } = require('./sitemap');
 const { renderRssXml } = require('./rss');
 const { homeJsonLd } = require('./structuredData');
 const { SITE_NAME, SITE_TAGLINE, absoluteUrl, pageTitle } = require('./site');
-const { buildDrillData } = require('./buildDrill');
-const { renderDrillPage } = require('./renderDrill');
 const { aggregatesAvailable, AGGREGATES_DIR } = require('./explorerSource');
+// WS-1 placeholder-page renderers + IS_PLACEHOLDER flags (WS-1 spec section 6.2's binding shared-file mitigation --
+// see each renderer's own header comment). buildDrillData/renderDrillPage
+// (the OLD single-opening drill pilot's build/render functions) are
+// deliberately no longer required here -- src/buildDrill.js and
+// src/renderDrill.js are untouched on disk and still export those
+// functions, simply unused by this file's main build sequence until the
+// Drill Engine v2 follow-on task rewrites them into the new hub.
+const { renderRepertoireBuilderPage, IS_PLACEHOLDER: BUILDER_IS_PLACEHOLDER } = require('./renderRepertoireBuilder');
+const { renderOpeningReportPage, IS_PLACEHOLDER: OPENING_REPORT_IS_PLACEHOLDER } = require('./renderOpeningReport');
+const { renderDrillHubPage, renderDrillReferencePage, IS_PLACEHOLDER: DRILL_HUB_IS_PLACEHOLDER } = require('./renderDrillHub');
 
 // Pre-rendering all 8 band/color combinations issues many sequential
 // Explorer API requests (each combination expands several plies), which can
@@ -135,20 +143,39 @@ const FONT_ASSET_FILES = ['fraunces-variable.woff2'];
 // `home` is deliberately NOT in NAV_ORDER (render.js), so it never adds a
 // visible "Home" link to the top nav bar itself -- only the brand logo and
 // breadcrumbs use it.
-const STATIC_NAV = { home: '/', player: 'player.html', repertoire: 'repertoire.html', packs: packsIndexFilename(), openings: 'openings.html', eco: ECO_INDEX_FILE, drill: 'italian-game-drill.html', guides: 'guides.html', faq: 'chess-opening-faq.html' };
+// WS-1 page filenames (the WS-1 spec section 3.6):
+// flat filenames matching the site's existing convention, not a
+// directory-style path. BUILDER_FILE/OPENING_REPORT_FILE/DRILL_HUB_FILE/
+// DRILL_REFERENCE_FILE are what 'builder'/'player'/'drill' point at below
+// now that WS-1's placeholder pages exist -- player.html and
+// italian-game-drill.html (their PREVIOUS targets) become redirect stubs
+// to OPENING_REPORT_FILE/DRILL_HUB_FILE respectively (spec 3.2/3.3), never
+// deleted.
+const BUILDER_FILE = 'repertoire-builder.html';
+const OPENING_REPORT_FILE = 'opening-report.html';
+const DRILL_HUB_FILE = 'drill.html';
+const DRILL_REFERENCE_FILE = 'drill-reference.html';
+const PLAYER_STUB_FILE = 'player.html';
+const DRILL_PILOT_STUB_FILE = 'italian-game-drill.html';
 
-// The one opening this drill pilot covers, and the rating band its
-// server-rendered starting position and candidate table default to. Kept
-// here (not hardcoded inside renderDrill.js) so a future second-opening
-// pilot only has to change this one call site.
+const STATIC_NAV = { home: '/', builder: BUILDER_FILE, player: OPENING_REPORT_FILE, repertoire: 'repertoire.html', packs: packsIndexFilename(), openings: 'openings.html', eco: ECO_INDEX_FILE, drill: DRILL_HUB_FILE, guides: 'guides.html', faq: 'chess-opening-faq.html' };
+
+// The one opening the OLD single-opening drill pilot covered, and the
+// rating band its server-rendered starting position and candidate table
+// default to (still used by render404Page's repertoireLink below). Kept
+// here (not hardcoded inside renderDrill.js) so a future change only has
+// to touch this one call site.
 const DRILL_OPENING_SLUG = 'italian-game';
 const DRILL_DEFAULT_BAND = '1600-1800';
 
 // Maps an opening slug to its drill page filename, so buildContentPages()
-// can thread a "Drill this opening" CTA into that opening's page without
-// buildContent.js needing to know the drill pilot is single-opening -- a
-// future second-opening pilot only needs another entry here.
-const DRILL_PAGES = { [DRILL_OPENING_SLUG]: 'italian-game-drill.html' };
+// can thread a "Drill this opening" CTA into that opening's page. Points
+// at the new hub (DRILL_HUB_FILE) rather than the old single-opening
+// pilot's own filename -- the hub is what a visitor should land on now
+// that italian-game-drill.html is a redirect stub (spec 3.3); Drill Engine
+// v2's follow-on task is expected to make this map cover more than one
+// opening.
+const DRILL_PAGES = { [DRILL_OPENING_SLUG]: DRILL_HUB_FILE };
 
 // Compliance pages: privacy policy, about, and
 // contact, linked from every page's footer via renderFooter()'s optional
@@ -162,6 +189,12 @@ const BROWSER_ENTRY = path.join(__dirname, 'browser', 'playerLookup.client.js');
 const DRILL_ENTRY = path.join(__dirname, 'browser', 'drill.client.js');
 const ECO_EXPLORER_ENTRY = path.join(__dirname, 'browser', 'ecoExplorer.client.js');
 const REPERTOIRE_ENTRY = path.join(__dirname, 'browser', 'repertoire.client.js');
+// WS-1 placeholder client entry points (spec section 6.2) -- each
+// follow-on task (W1a/W2/W3) rewrites the FILE at this path, never this
+// constant or the bundle function below it.
+const REPERTOIRE_BUILDER_ENTRY = path.join(__dirname, 'browser', 'repertoireBuilder.client.js');
+const OPENING_REPORT_ENTRY = path.join(__dirname, 'browser', 'openingReport.client.js');
+const DRILL_HUB_ENTRY = path.join(__dirname, 'browser', 'drillHub.client.js');
 
 // The 8 old repertoire-<band>-<color>.html filenames (RATING_BANDS x
 // white/black) -- now redirect stubs (spec WS-3.2 section 2.2), never
@@ -317,6 +350,51 @@ function buildEcoExplorerBundle() {
   return bundleBrowserEntry(ECO_EXPLORER_ENTRY, header);
 }
 
+/**
+ * WS-1 placeholder bundle for repertoire-builder.html (WS-1 spec section 6.2). Bundles whatever
+ * src/browser/repertoireBuilder.client.js currently contains -- a trivial
+ * placeholder today, the real Repertoire Builder v1 client once the
+ * follow-on task rewrites that one file. This function and its call site
+ * in buildStatic() below never change when that happens.
+ */
+function buildRepertoireBuilderBundle() {
+  const header = [
+    '/* Auto-generated by src/buildStatic.js (esbuild) from',
+    ' * src/browser/repertoireBuilder.client.js. Do not edit this file',
+    ' * directly -- edit the source file above and re-run `node',
+    ' * src/buildStatic.js`. */',
+  ].join('\n');
+  return bundleBrowserEntry(REPERTOIRE_BUILDER_ENTRY, header);
+}
+
+/**
+ * WS-1 placeholder bundle for opening-report.html. Same pattern as
+ * buildRepertoireBuilderBundle() above -- see that function's own comment.
+ */
+function buildOpeningReportBundle() {
+  const header = [
+    '/* Auto-generated by src/buildStatic.js (esbuild) from',
+    ' * src/browser/openingReport.client.js. Do not edit this file',
+    ' * directly -- edit the source file above and re-run `node',
+    ' * src/buildStatic.js`. */',
+  ].join('\n');
+  return bundleBrowserEntry(OPENING_REPORT_ENTRY, header);
+}
+
+/**
+ * WS-1 placeholder bundle for drill.html (the hub). Same pattern as
+ * buildRepertoireBuilderBundle() above -- see that function's own comment.
+ */
+function buildDrillHubBundle() {
+  const header = [
+    '/* Auto-generated by src/buildStatic.js (esbuild) from',
+    ' * src/browser/drillHub.client.js. Do not edit this file',
+    ' * directly -- edit the source file above and re-run `node',
+    ' * src/buildStatic.js`. */',
+  ].join('\n');
+  return bundleBrowserEntry(DRILL_HUB_ENTRY, header);
+}
+
 // Drill CTA card for the home page. Kept as its own additive block (a new
 // section, appended without touching any of indexPage()'s existing copy)
 // since a separate, later pass is expected to rework the rest of this
@@ -450,8 +528,8 @@ ${renderDocumentHead({
 
     ${openingsSection}
 
-    <h2>Player lookup</h2>
-    <p><a href="player.html">Look up any Lichess username &rarr;</a> (fetches live data
+    <h2>Opening report</h2>
+    <p><a href="${OPENING_REPORT_FILE}">Look up any Lichess username &rarr;</a> (fetches live data
        directly in your browser when you open this page; nothing is pre-baked).</p>
   </main>
   ${renderFooter('Data source: <a href="https://lichess.org/api">lichess.org/api</a>.', LEGAL_LINKS)}
@@ -622,6 +700,53 @@ function copyAggregateShardsToDist(aggregatesDir = AGGREGATES_DIR) {
   return { copied: true, files };
 }
 
+// data/rep/ (scripts/buildBandShards.js's committed output -- see that
+// script's own header comment for why this is a committed source
+// directory rather than a write straight into dist/) -- copied verbatim
+// into dist/data/rep/ here, same convention as copyAggregateShardsToDist()
+// just above for the (differently-sourced, differently-committed)
+// data/aggregates/ dataset.
+const REP_DATA_DIR = path.join(__dirname, '..', 'data', 'rep');
+
+/**
+ * Copies data/rep/ (WS-1 band-meta shards) verbatim into dist/data/rep/,
+ * when it exists -- mirrors copyAggregateShardsToDist() above exactly,
+ * except data/rep/ IS committed to git (spec section
+ * 2.1: "Shard output is COMMITTED to the repo ... the deploy build must
+ * not depend on a live crawl"), so a missing manifest here means the
+ * crawler (scripts/buildBandShards.js) simply hasn't been run/committed
+ * yet -- a no-op, not a build failure (same "expected until it's run"
+ * reasoning as the aggregates copy above, and the same reasoning
+ * scripts/verifyBandShards.js applies to its own missing-manifest check).
+ *
+ * @param {string} [repDir]
+ * @returns {{copied: boolean, files: string[]}}
+ */
+function copyBandShardsToDist(repDir = REP_DATA_DIR) {
+  const manifestSrc = path.join(repDir, 'manifest.json');
+  if (!fs.existsSync(manifestSrc)) {
+    return { copied: false, files: [] };
+  }
+  const repOutDir = path.join(OUT_DIR, 'data', 'rep');
+  fs.mkdirSync(repOutDir, { recursive: true });
+  fs.copyFileSync(manifestSrc, path.join(repOutDir, 'manifest.json'));
+  const manifest = JSON.parse(fs.readFileSync(manifestSrc, 'utf8'));
+  const files = ['data/rep/manifest.json'];
+  for (const band of manifest.bands || []) {
+    for (const shard of band.shards || []) {
+      const shardSrc = path.join(repDir, shard.file);
+      if (!fs.existsSync(shardSrc)) {
+        throw new Error(`copyBandShardsToDist: manifest lists shard "${shard.file}" which is missing at ${shardSrc}`);
+      }
+      const shardDest = path.join(repOutDir, shard.file);
+      fs.mkdirSync(path.dirname(shardDest), { recursive: true });
+      fs.copyFileSync(shardSrc, shardDest);
+      files.push(path.join('data', 'rep', shard.file).replace(/\\/g, '/'));
+    }
+  }
+  return { copied: true, files };
+}
+
 /**
  * Reads back every file just written to outDir (recursively, including any
  * subdirectory -- e.g. a future nested output) and fails loudly if the
@@ -739,23 +864,42 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     ecoIndexLink,
   });
 
-  // Single-opening drill pilot (beta): baked at build time from the same
-  // rate-limited, cached Explorer endpoint as the content pages above --
-  // see src/buildDrill.js for the request-count budget (25 per band, 100
-  // total). Points at the collapsed repertoire.html (spec WS-3.2 section
-  // 2.2) rather than one of the 8 now-stubbed repertoire-<band>-<color>.html
-  // files -- no reason to bounce a real visitor through a redirect stub.
-  const drillData = await buildDrillData({ openingSlug: DRILL_OPENING_SLUG, fetchImpl: cachedFetchImpl });
-  const drillFile = 'italian-game-drill.html';
-  const drillHtml = renderDrillPage({
-    drillData,
-    nav: STATIC_NAV,
-    legalLinks: LEGAL_LINKS,
-    openingLink: `${DRILL_OPENING_SLUG}.html`,
-    repertoireLink: repertoireFragmentUrl(DRILL_DEFAULT_BAND, 'white'),
-  });
-  fs.writeFileSync(path.join(OUT_DIR, drillFile), drillHtml, 'utf8');
-  fs.writeFileSync(path.join(OUT_DIR, 'drill.js'), buildDrillBundle(), 'utf8');
+  // WS-1 (the WS-1 spec section 6.2's binding
+  // shared-file mitigation): the four new placeholder pages, each wired to
+  // its own renderer + bundle so the follow-on task that builds the real
+  // surface (W1a/W2/W3) only ever edits that renderer/client-entry file,
+  // never this one. See src/renderRepertoireBuilder.js's header comment
+  // for the full reasoning, repeated identically by the other two
+  // renderer modules.
+  fs.writeFileSync(path.join(OUT_DIR, BUILDER_FILE), renderRepertoireBuilderPage({ nav: STATIC_NAV, legalLinks: LEGAL_LINKS }), 'utf8');
+  fs.writeFileSync(path.join(OUT_DIR, 'repertoire-builder.js'), buildRepertoireBuilderBundle(), 'utf8');
+
+  fs.writeFileSync(path.join(OUT_DIR, OPENING_REPORT_FILE), renderOpeningReportPage({ nav: STATIC_NAV, legalLinks: LEGAL_LINKS }), 'utf8');
+  fs.writeFileSync(path.join(OUT_DIR, 'opening-report.js'), buildOpeningReportBundle(), 'utf8');
+
+  fs.writeFileSync(path.join(OUT_DIR, DRILL_HUB_FILE), renderDrillHubPage({ nav: STATIC_NAV, legalLinks: LEGAL_LINKS }), 'utf8');
+  fs.writeFileSync(path.join(OUT_DIR, 'drill-hub.js'), buildDrillHubBundle(), 'utf8');
+  fs.writeFileSync(path.join(OUT_DIR, DRILL_REFERENCE_FILE), renderDrillReferencePage({ nav: STATIC_NAV, legalLinks: LEGAL_LINKS }), 'utf8');
+
+  // The pages these four replace in the NAV become redirect stubs (spec
+  // 3.2/3.3), never deleted -- their real content
+  // (src/browser/playerLookup.client.js's rating-history/recent-games
+  // lookup; src/buildDrill.js/src/renderDrill.js/src/browser/drill.client.js's
+  // single-opening drill pilot) stays on disk, untouched, for the
+  // follow-on tasks (W2/W3) to fold into or rebuild from -- see
+  // src/renderOpeningReport.js and src/renderDrillHub.js's own header
+  // comments.
+  fs.writeFileSync(
+    path.join(OUT_DIR, PLAYER_STUB_FILE),
+    renderGenericRedirectStub({ linkText: 'Continue to the opening report', targetPath: `/${OPENING_REPORT_FILE}`, canonicalUrl: absoluteUrl(OPENING_REPORT_FILE) }),
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(OUT_DIR, DRILL_PILOT_STUB_FILE),
+    renderGenericRedirectStub({ linkText: 'Continue to the opening drill', targetPath: `/${DRILL_HUB_FILE}`, canonicalUrl: absoluteUrl(DRILL_HUB_FILE) }),
+    'utf8'
+  );
+  const drillFile = DRILL_HUB_FILE;
 
   // T1 family hub pages + T2 ECO volume/browse index pages (Phase 7d):
   // same rate-limited, cached Explorer endpoint, one request at a time,
@@ -811,8 +955,13 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   }
 
   fs.writeFileSync(path.join(OUT_DIR, 'index.html'), indexPage(contentEntries, drillFile), 'utf8');
-  fs.writeFileSync(path.join(OUT_DIR, 'player.html'), playerLookupPage(), 'utf8');
-  fs.writeFileSync(path.join(OUT_DIR, 'player-lookup.js'), buildPlayerLookupBundle(), 'utf8');
+  // player.html itself is now the redirect stub written earlier in this
+  // function (spec 3.2) -- playerLookupPage()/buildPlayerLookupBundle()
+  // stay exported (test/buildStatic.test.js exercises them directly) but
+  // are no longer called from this build's main sequence; their real
+  // rating-history/recent-games functionality is expected to move into
+  // src/renderOpeningReport.js's real implementation, not be rebuilt from
+  // scratch (see that file's own header comment).
 
   // Compliance pages: privacy policy, about, contact,
   // and an ads.txt stub. See src/renderCompliance.js for what each contains
@@ -911,15 +1060,24 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   // for why "doesn't exist yet" is expected, not an error, today).
   const aggregateShardsResult = copyAggregateShardsToDist();
 
+  // dist/data/rep/ (WS-1 band-meta shards, spec section 2.1): copies
+  // data/rep/ verbatim when it exists -- see copyBandShardsToDist()'s own
+  // header comment.
+  const bandShardsResult = copyBandShardsToDist();
+
   const pageFilenames = [
     'index.html',
-    'player.html',
+    PLAYER_STUB_FILE,
+    DRILL_PILOT_STUB_FILE,
+    BUILDER_FILE,
+    OPENING_REPORT_FILE,
+    DRILL_REFERENCE_FILE,
     'privacy.html',
     'about.html',
     'contact.html',
     'methodology.html',
     '404.html',
-    drillFile,
+    drillFile, // DRILL_HUB_FILE
     repertoireFile,
     ...repertoireStubs.map((r) => r.file),
     ...contentWritten.map((c) => c.file),
@@ -938,8 +1096,9 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
 
   assertFilenamesUnique([
     ...pageFilenames,
-    'player-lookup.js',
-    'drill.js',
+    'repertoire-builder.js',
+    'opening-report.js',
+    'drill-hub.js',
     'repertoire.js',
     'eco-explorer.js',
     REVERSE_LOOKUP_FILE,
@@ -951,6 +1110,7 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     ...packOgAssetFiles,
     ...packSampleFiles,
     ...aggregateShardsResult.files,
+    ...bandShardsResult.files,
   ]);
   assertNoTokenLeak(OUT_DIR, getApiToken());
   assertNoPlaceholderLeak(OUT_DIR);
@@ -962,7 +1122,19 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
   // merchant urls land, packWritten's own `noindex` flips false and these
   // rejoin the sitemap on the next build with no further code change.
   const noindexPackFiles = new Set(packWritten.filter((p) => p.noindex).map((p) => p.file));
-  const sitemapFilenames = pageFilenames.filter((f) => !noindexPackFiles.has(f));
+  // WS-1 placeholder pages carry `noindex` themselves (renderDocumentHead's
+  // `noindex: true`, set by each renderer while its own module's
+  // IS_PLACEHOLDER export is true) -- excluded from the sitemap for the
+  // same reason as a still-PLACEHOLDER pack page just above. Each renderer
+  // module's IS_PLACEHOLDER flips to false, independently, the moment its
+  // own follow-on task ships the real page -- this file never changes
+  // when that happens.
+  const noindexPlaceholderFiles = new Set([
+    ...(BUILDER_IS_PLACEHOLDER ? [BUILDER_FILE] : []),
+    ...(OPENING_REPORT_IS_PLACEHOLDER ? [OPENING_REPORT_FILE] : []),
+    ...(DRILL_HUB_IS_PLACEHOLDER ? [DRILL_HUB_FILE, DRILL_REFERENCE_FILE] : []),
+  ]);
+  const sitemapFilenames = pageFilenames.filter((f) => !noindexPackFiles.has(f) && !noindexPlaceholderFiles.has(f));
 
   // sitemap.xml / robots.txt (phase 3): generated from the actual list of
   // .html pages just written above, so they can't drift from what's really
@@ -991,19 +1163,22 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     packWritten,
     pageFilenames,
     aggregateShardsCopied: aggregateShardsResult.copied,
+    bandShardsCopied: bandShardsResult.copied,
   };
 }
 
 async function main() {
   const useCache = !process.argv.includes('--no-cache');
   try {
-    const { outDir, repertoireFile, repertoireStubs, contentWritten, ecoWritten, ecoExplorerResult, packWritten, aggregateShardsCopied } = await buildStatic({ useCache });
+    const { outDir, repertoireFile, repertoireStubs, contentWritten, ecoWritten, ecoExplorerResult, packWritten, aggregateShardsCopied, bandShardsCopied } = await buildStatic({ useCache });
     console.log(`Wrote static site to ${outDir}`);
-    console.log(`  - index.html (links to player lookup + ${repertoireFile} + openings)`);
-    console.log('  - player.html + player-lookup.js (client-side player lookup, no token used)');
+    console.log(`  - index.html (links to the opening report + ${repertoireFile} + openings)`);
+    console.log('  - repertoire-builder.html, opening-report.html, drill.html, drill-reference.html (WS-1 placeholder pages, noindex until each ships for real)');
+    console.log('  - player.html, italian-game-drill.html (now redirect stubs to opening-report.html / drill.html)');
     console.log(`  - ${repertoireFile} + repertoire.js (collapsed rating-band repertoire explorer, band+color in the URL fragment)`);
     console.log(`  - ${repertoireStubs.length} redirect stubs for the old repertoire-<band>-<color>.html URLs`);
     console.log(aggregateShardsCopied ? '  - dist/data/ (copied from data/aggregates/)' : '  - dist/data/ skipped: no data/aggregates/ on disk yet (WS-3 B2 has not run)');
+    console.log(bandShardsCopied ? '  - dist/data/rep/ (WS-1 band-meta shards, copied from data/rep/)' : '  - dist/data/rep/ skipped: no data/rep/ on disk yet (scripts/buildBandShards.js has not been run)');
     for (const { file } of repertoireStubs) {
       console.log(`  - ${file}`);
     }
@@ -1014,7 +1189,6 @@ async function main() {
     console.log(`  - ${ecoWritten.length} ECO pages (T1 family hubs + T2 volume/browse indexes, Phase 7d)`);
     console.log(`  - ${ecoExplorerResult.file} + eco-explorer.js + ${ecoExplorerResult.reverseLookupFile} (interactive ECO explorer, Phase 7e, ${ecoExplorerResult.reverseLookupCount.toLocaleString()} reverse-lookup positions)`);
     console.log('  - privacy.html, about.html, contact.html, ads.txt (compliance pages)');
-    console.log('  - italian-game-drill.html + drill.js (single-opening drill pilot, beta)');
     console.log(`  - ${packWritten.length} Repertoire Pack pages (index + detail, M2)${packWritten.some((p) => p.noindex) ? ' -- at least one still noindex (STORE still carries a PLACEHOLDER url, see src/render.js)' : ''}`);
     for (const { file, noindex } of packWritten) {
       console.log(`  - ${file}${noindex ? ' (noindex)' : ''}`);
@@ -1040,9 +1214,13 @@ module.exports = {
   writeRepertoirePage,
   buildRedirectStubs,
   copyAggregateShardsToDist,
+  copyBandShardsToDist,
   buildPlayerLookupBundle,
   buildDrillBundle,
   buildRepertoireBundle,
+  buildRepertoireBuilderBundle,
+  buildOpeningReportBundle,
+  buildDrillHubBundle,
   bundleBrowserEntry,
   indexPage,
   playerLookupPage,
@@ -1054,4 +1232,10 @@ module.exports = {
   assertFilenamesUnique,
   STATIC_NAV,
   LEGAL_LINKS,
+  BUILDER_FILE,
+  OPENING_REPORT_FILE,
+  DRILL_HUB_FILE,
+  DRILL_REFERENCE_FILE,
+  PLAYER_STUB_FILE,
+  DRILL_PILOT_STUB_FILE,
 };
