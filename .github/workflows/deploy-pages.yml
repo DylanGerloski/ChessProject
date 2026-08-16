@@ -38,6 +38,36 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # test/drillHubClient.test.js requires('playwright') directly (a real
+      # browser-driven spoiler-regression test, not a stub) and `npm test`
+      # picks up every test/*.test.js file, so this job needs a real
+      # Chromium install too -- not just the quality job below. Without
+      # this, that test hangs indefinitely trying to launch a browser that
+      # was never installed (confirmed: run 31913876615, cancelled after
+      # 56+ minutes stuck on this exact step). Same cache-then-install
+      # pattern as the quality job's "Resolve installed Playwright version"
+      # / "Cache Playwright browsers" / "Install Playwright Chromium" steps
+      # below -- kept identical rather than reinvented so the two jobs
+      # share the same cache key shape.
+      - name: Resolve installed Playwright version
+        id: playwright-version
+        run: echo "version=$(node -e "console.log(require('./node_modules/playwright/package.json').version)")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright Chromium (cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright OS dependencies only (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
       # Dozens of test files already existed but `npm test` was never wired
       # into CI -- the highest-value single line in this file.
       - name: Run test suite

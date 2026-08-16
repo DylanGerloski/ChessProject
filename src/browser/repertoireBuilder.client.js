@@ -36,6 +36,10 @@ const {
   countNodes,
   size,
   toPgn,
+  fromPgn,
+  importPackJson,
+  mergeTree,
+  isValidNode,
   parseRepertoireList,
   sanitizeFilename,
   STORAGE_KEY,
@@ -74,6 +78,17 @@ const { Chess } = require('chess.js');
   let saveDebounce = null;
   let createBand = readDefaultBand();
   let activeMobilePanel = 'band';
+  // Import (spec 3.1 IMPORT / W1b): the most recently parsed-but-not-yet-
+  // applied import (fromPgn/importPackJson's own `{root, ...}` result plus
+  // hints for prefilling the confirm form). Cleared on cancel/apply/close.
+  let pendingImport = null;
+
+  // A generous client-side pre-check on a CHOSEN FILE's size, before it is
+  // ever read into memory -- distinct from (and in addition to) the real
+  // security gates inside fromPgn/importPackJson themselves (their own
+  // MAX_IMPORT_PGN_BYTES/MAX_PACK_JSON_BYTES, both 2 MB), so an obviously
+  // oversized file is rejected without reading a single byte of it.
+  const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
 
   function readDefaultBand() {
     // Read-only use of the site-wide band state (spec: bandState.client.js
@@ -106,6 +121,21 @@ const { Chess } = require('chess.js');
   const savedPanel = document.getElementById('rb-saved-panel');
   const savedItemsEl = document.getElementById('rb-saved-items');
   const newBtn = document.getElementById('rb-new-btn');
+
+  const importToggleBtn = document.getElementById('rb-import-toggle-btn');
+  const importPanel = document.getElementById('rb-import-panel');
+  const importFileInput = document.getElementById('rb-import-file');
+  const importPasteEl = document.getElementById('rb-import-paste');
+  const importParseBtn = document.getElementById('rb-import-parse-btn');
+  const importStatusEl = document.getElementById('rb-import-status');
+  const importConfirmEl = document.getElementById('rb-import-confirm');
+  const importSummaryEl = document.getElementById('rb-import-summary');
+  const importNameInput = document.getElementById('rb-import-name-input');
+  const importSideFieldset = document.getElementById('rb-import-side-fieldset');
+  const importBandChoiceGroup = document.getElementById('rb-import-band-choice-group');
+  const importTargetSelect = document.getElementById('rb-import-target-select');
+  const importConfirmBtn = document.getElementById('rb-import-confirm-btn');
+  const importCancelBtn = document.getElementById('rb-import-cancel-btn');
 
   const workspaceEl = document.getElementById('rb-workspace');
   const currentNameEl = document.getElementById('rb-current-name');
@@ -724,6 +754,190 @@ const { Chess } = require('chess.js');
     persistNow();
     openRepertoire(rep.id);
   }
+
+  // ---------------------------------------------------------------------
+  // Import (spec 3.1 IMPORT / task title's "builder import" half): a .pgn
+  // file/paste (fromPgn -- full variation tree, see repertoireModel.js) or
+  // a Repertoire Pack pack.json (importPackJson). Both untrusted-on-read
+  // (security-standards.md); this module never re-implements either
+  // parser -- it only reads the chosen file's bytes and calls the model
+  // layer, and renders every returned string via .textContent, never
+  // innerHTML (the model layer explicitly does NOT sanitize a pack's
+  // `title` field -- see importPackJson's own doc comment -- so THIS is
+  // the boundary that makes an HTML-injection payload in a title land as
+  // inert text rather than markup).
+  // ---------------------------------------------------------------------
+
+  function setImportStatus(state, text) {
+    importStatusEl.textContent = text;
+    importStatusEl.setAttribute('data-state', state);
+  }
+
+  function resetImportPanel() {
+    pendingImport = null;
+    importConfirmEl.hidden = true;
+    setImportStatus('idle', '');
+    importFileInput.value = '';
+    importPasteEl.value = '';
+  }
+
+  importToggleBtn.addEventListener('click', () => {
+    const willShow = importPanel.hidden;
+    importPanel.hidden = !willShow;
+    importToggleBtn.setAttribute('aria-expanded', String(willShow));
+    if (!willShow) resetImportPanel();
+  });
+
+  importCancelBtn.addEventListener('click', () => {
+    resetImportPanel();
+  });
+
+  /** Reads the chosen file (if any) as text, else the paste textarea's value. Never throws -- FileReader errors resolve to a { ok:false } shape the caller renders via .textContent. */
+  function readImportSource() {
+    return new Promise((resolve) => {
+      const file = importFileInput.files && importFileInput.files[0];
+      if (!file) {
+        resolve({ ok: true, text: importPasteEl.value });
+        return;
+      }
+      if (file.size > MAX_IMPORT_FILE_BYTES) {
+        resolve({ ok: false, message: `That file is too large (limit ${Math.round(MAX_IMPORT_FILE_BYTES / (1024 * 1024))} MB).` });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => resolve({ ok: true, text: String(reader.result || '') });
+      reader.onerror = () => resolve({ ok: false, message: 'That file could not be read.' });
+      reader.readAsText(file);
+    });
+  }
+
+  /** Format auto-detection: a pack.json is a JSON object; anything else is treated as PGN text. Trying JSON.parse first (rather than sniffing a leading "{") is the same discipline importPackJson itself uses -- never guess a format from a heuristic when an authoritative parse is one call away. */
+  function detectAndParseImport(text) {
+    const trimmed = typeof text === 'string' ? text.trim() : '';
+    if (trimmed.length === 0) {
+      return { kind: 'error', message: 'Choose a file or paste some text to import.' };
+    }
+    let looksLikeJson = false;
+    try {
+      JSON.parse(trimmed);
+      looksLikeJson = true;
+    } catch (err) {
+      looksLikeJson = false;
+    }
+    if (looksLikeJson) {
+      const result = importPackJson(trimmed);
+      if (!result.ok) return { kind: 'error', message: result.message };
+      return { kind: 'pack', result };
+    }
+    const result = fromPgn(trimmed);
+    if (!result.ok) return { kind: 'error', message: result.message };
+    return { kind: 'pgn', result };
+  }
+
+  function populateImportTargetSelect() {
+    importTargetSelect.replaceChildren();
+    const newOption = document.createElement('option');
+    newOption.value = '__new__';
+    newOption.textContent = 'A new repertoire';
+    importTargetSelect.appendChild(newOption);
+    for (const rep of repertoires) {
+      const opt = document.createElement('option');
+      opt.value = rep.id;
+      opt.textContent = `Merge into "${rep.name}"`;
+      importTargetSelect.appendChild(opt);
+    }
+  }
+
+  importParseBtn.addEventListener('click', async () => {
+    setImportStatus('saving', 'Reading…');
+    importConfirmEl.hidden = true;
+    const source = await readImportSource();
+    if (!source.ok) {
+      setImportStatus('error', source.message);
+      return;
+    }
+    const parsed = detectAndParseImport(source.text);
+    if (parsed.kind === 'error') {
+      setImportStatus('error', parsed.message);
+      return;
+    }
+
+    if (!isValidNode(parsed.result.root)) {
+      // Defense in depth -- the model layer already validates this before
+      // returning ok:true, but an import target is untrusted data all the
+      // way to the moment it is actually attached to a real repertoire.
+      setImportStatus('error', 'That import produced a repertoire tree this tool could not accept.');
+      return;
+    }
+
+    pendingImport = parsed;
+    const moveCount = countNodes(parsed.result.root);
+    const skippedNote = parsed.kind === 'pgn' && parsed.result.skippedVariations > 0
+      ? ` (${parsed.result.skippedVariations} variation${parsed.result.skippedVariations === 1 ? '' : 's'} could not be recovered and ${parsed.result.skippedVariations === 1 ? 'was' : 'were'} skipped)`
+      : '';
+    importSummaryEl.textContent = parsed.kind === 'pack'
+      ? `Read "${parsed.result.title}" -- ${moveCount} move${moveCount === 1 ? '' : 's'}, ${parsed.result.side} to prepare, band ${parsed.result.band || 'not specified'}.${skippedNote}`
+      : `Read ${moveCount} move${moveCount === 1 ? '' : 's'} from the PGN.${skippedNote}`;
+    setImportStatus('idle', '');
+
+    // Prefill from a pack's own known side/band; a plain PGN carries
+    // neither, so the visitor picks (defaults to whatever the create
+    // form's own band picker already defaulted to).
+    importNameInput.value = parsed.kind === 'pack' ? parsed.result.title : 'Imported repertoire';
+    const isPack = parsed.kind === 'pack';
+    if (isPack) {
+      $$('input[name="rb-import-side"]', importSideFieldset).forEach((r) => { r.checked = r.value === parsed.result.side; });
+    }
+    if (isPack && parsed.result.band) {
+      $$('.rb-band-choice', importBandChoiceGroup).forEach((b) => {
+        b.setAttribute('aria-pressed', b.getAttribute('data-band') === parsed.result.band ? 'true' : 'false');
+      });
+    }
+
+    populateImportTargetSelect();
+    importConfirmEl.hidden = false;
+  });
+
+  importBandChoiceGroup.addEventListener('click', (e) => {
+    const btn = e.target.closest('.rb-band-choice');
+    if (!btn) return;
+    $$('.rb-band-choice', importBandChoiceGroup).forEach((b) => b.setAttribute('aria-pressed', 'false'));
+    btn.setAttribute('aria-pressed', 'true');
+  });
+
+  importConfirmBtn.addEventListener('click', () => {
+    if (!pendingImport) return;
+    const target = importTargetSelect.value;
+
+    if (target === '__new__') {
+      if (repertoires.length >= MAX_REPERTOIRES) {
+        window.alert(`You already have ${MAX_REPERTOIRES} saved repertoires, the most this tool keeps. Delete one first, or merge this import into an existing one instead.`); // eslint-disable-line no-alert -- same deliberate minimal-UI choice as elsewhere in this file.
+        return;
+      }
+      const side = $('input[name="rb-import-side"]:checked').value;
+      const bandBtn = $('.rb-band-choice[aria-pressed="true"]', importBandChoiceGroup);
+      const band = bandBtn ? bandBtn.getAttribute('data-band') : '1600-1800';
+      const rep = createRepertoire({ name: importNameInput.value, side, band });
+      rep.root = pendingImport.result.root; // already validated (isValidNode, checked again just above) -- replaces the fresh empty root createRepertoire() built
+      repertoires.push(rep);
+      persistNow();
+      resetImportPanel();
+      importPanel.hidden = true;
+      importToggleBtn.setAttribute('aria-expanded', 'false');
+      openRepertoire(rep.id);
+      return;
+    }
+
+    const targetRep = repertoires.find((r) => r.id === target);
+    if (!targetRep) return;
+    const added = mergeTree(targetRep, pendingImport.result.root);
+    persistNow();
+    resetImportPanel();
+    importPanel.hidden = true;
+    importToggleBtn.setAttribute('aria-expanded', 'false');
+    openRepertoire(targetRep.id);
+    setSavedNote('saved', added > 0 ? `Imported -- ${added} new move${added === 1 ? '' : 's'} added.` : 'Imported -- nothing new (already in this repertoire).');
+  });
 
   // ---------------------------------------------------------------------
   // Toolbar: flip, reset, undo, export, rename, close, mobile segmented tabs

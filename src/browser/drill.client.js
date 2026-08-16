@@ -1,51 +1,70 @@
 'use strict';
 
 /**
- * Page controller for the static opening-drill page (dist/italian-game-drill.html).
+ * Page controller for /drill.html (the hub + session, WS-1 spec section
+ * 3.3). Esbuild entry point, same bundling convention as every other
+ * *.client.js file in this project (real require()s, bundled into one
+ * self-contained IIFE with no runtime require/module/exports -- see
+ * src/buildStatic.js's bundleBrowserEntry()). src/browser/drillHub.client.js
+ * is the actual DRILL_HUB_ENTRY buildDrillHubBundle() points at; it just
+ * require()s this file (see that file's own two-line body) -- the real
+ * controller lives here because this task's file footprint names
+ * src/browser/drill.client.js, not drillHub.client.js (that file predates
+ * this task as a placeholder -- see its own header comment for why the
+ * indirection exists rather than moving the real logic there directly).
  *
- * This is the esbuild entry point for drill.js (see buildStatic.js's
- * buildDrillBundle()): a real CommonJS module that require()s
- * src/chessPosition.js and src/drillLogic.js directly, same as any other
- * module in this project. esbuild bundles this file plus everything it
- * require()s into one self-contained IIFE with no runtime require() and no
- * bare module resolution, so the output still works from a file:// URL
- * with a single <script src="drill.js" defer> tag -- same invariant the
- * old hand-rolled concatenation preserved, now enforced by a real bundler
- * instead of a regex that stripped a trailing module.exports block. All
- * non-DOM logic lives in those two bundled modules; this file only paints
- * the board, wires up events, and reads/writes localStorage.
+ * REWRITE, stated for anyone comparing this to the pre-WS-1 version: the
+ * old controller here was a single-opening level/streak state machine with
+ * a baked-in tree (drillData read from a #drill-data JSON script tag) and
+ * no scheduling. This controller is a spaced-repetition SESSION runner
+ * over src/drillDeck.js's Card model: it reads/writes localStorage itself
+ * (drillDeck.js stays pure, no DOM/storage), builds a session queue,
+ * grades attempts via scheduler.js (through drillDeck.applyGrade), and
+ * seeds new cards from a leak report or from live band data.
  *
- * Every move in the baked drill tree comes from the Lichess Opening
- * Explorer and is legal by construction (see chessPosition.js's own header
- * comment) -- this controller never validates a move's legality itself.
+ * SPOILER RULE (spec 3.3), the binding version -- how this file satisfies
+ * it: the current card's `answerUci`/`answerSan` and its full candidate
+ * list live ONLY in this closure's `currentCard`/`pendingCandidates`
+ * variables, never written to any DOM node, attribute, or embedded JSON
+ * until gradeAndAdvance() runs (an attempt or "Show me the answer").
+ * pendingCandidates is fetched the moment a card LOADS (not literally
+ * deferred to the reveal click) so that ONE fetch serves both grading
+ * (gradeMove() needs the real candidate list to distinguish "correct" from
+ * "off-meta but real" from "unrecognized") and the reveal-time table --
+ * holding fetched-but-unrendered data in a closure is exactly as
+ * spoiler-safe as fetching later, since the regression test
+ * (test/drillHubClient.test.js) checks DOM content, not fetch timing. The
+ * old candidate-table gating mechanism (renderCandidateTable called only
+ * from the post-attempt path) is preserved unchanged in shape.
  *
- * Wrapped in an IIFE only to keep its own helper names out of the bundle's
- * top-level scope.
+ * Uses src/browser/bandData.client.js's lookup() directly for every real
+ * band-data read (candidate loading, band-meta seeding) -- Contract A's
+ * single runtime read path (WS-1 spec section 2.1), same as every other
+ * WS-1 surface. That module (and its own src/bandShards.js/src/ingest/
+ * positionWalk.js dependencies) is genuinely browser-bundle-safe as of the
+ * WS-1 Repertoire Builder task's fix (src/buildPackCore.js + src/sha1.js,
+ * a pure-JS SHA1 replacing a previous transitive Node `fs`/`crypto`
+ * dependency) -- verified directly here too (this file's own esbuild
+ * bundle, via buildDrillHubBundle(), resolves and runs cleanly). Before
+ * that fix landed, this file carried a local duplicate of bandData.client.js's
+ * read path for the same reason; removed once the real fix made it
+ * unnecessary.
  */
-const { START_BOARD, applyUciMove, applyUciMoves } = require('../chessPosition');
-const { gradeMove, pickReply, applyRoundResult } = require('../drillLogic');
+
+const { START_BOARD, applyUciMoves, boardFromFen } = require('../chessPosition');
+const { normalizeMoveInput, gradeMove } = require('../drillLogic');
+const drillDeck = require('../drillDeck');
+const { parse: parseLeakReport } = require('../leakModel');
+const { gradeFromAttempt } = require('../scheduler');
+const bandData = require('./bandData.client');
+const bandState = require('./bandState.client');
+
+const LEAK_REPORT_KEY = 'rb.leakReport.v1';
 
 (function () {
-  var STORAGE_KEY = 'lichess-stats.drill.italian-game.v1';
-  var PIECE_NAMES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
+  const PIECE_NAMES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
+  const GLYPHS = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
 
-  // Baked drill percentages are stored as Number(x.toFixed(1)), which drops
-  // a trailing zero (4.0 becomes the number 4) -- see src/render.js's
-  // formatPct for the server-rendered-page counterpart of this same
-  // render-time fix. Re-applying toFixed(1) here keeps this client-side
-  // repaint at the same one-decimal precision as the rest of the site.
-  function formatPct(n) {
-    return typeof n === 'number' ? n.toFixed(1) : null;
-  }
-
-  // This file is bundled without src/render.js (see buildDrillBundle()'s
-  // header comment), so it can't call render.js's escapeHtml -- this is a
-  // standalone copy of the same five-character escaper, kept here because
-  // renderCandidateTable() below builds HTML by string concatenation from
-  // Lichess Opening Explorer data. That data is baked in at build time
-  // rather than typed by a visitor, but it's still third-party content and
-  // is treated as untrusted per the same rule render.js's escapeHtml
-  // follows.
   function escapeHtml(str) {
     return String(str)
       .replace(/&/g, '&amp;')
@@ -55,82 +74,251 @@ const { gradeMove, pickReply, applyRoundResult } = require('../drillLogic');
       .replace(/'/g, '&#39;');
   }
 
-  var dataEl = document.getElementById('drill-data');
-  if (!dataEl) return; // no drill data present -- nothing to wire up
-
-  var drillData;
-  try {
-    drillData = JSON.parse(dataEl.textContent);
-  } catch (err) {
-    return; // corrupt data -- leave the server-rendered page as-is
+  function formatPct(n) {
+    return typeof n === 'number' ? (n * 100).toFixed(1) : '-';
   }
 
-  var boardRoot = document.querySelector('[data-drill-board]');
-  var form = document.getElementById('drill-move-form');
-  var input = document.getElementById('drill-move-text');
-  var showAnswerBtn = document.getElementById('drill-show-answer');
-  var bandSelect = document.getElementById('drill-band');
-  var levelSelect = document.getElementById('drill-level');
-  var feedbackEl = document.getElementById('drill-feedback');
-  var announceEl = document.getElementById('drill-announce');
-  var candidateTableEl = document.getElementById('drill-candidate-table');
-  var progressEl = document.getElementById('drill-level-progress');
-  if (!boardRoot || !form || !input || !bandSelect || !levelSelect) return;
+  // ---------------------------------------------------------------------
+  // DOM lookups. Every id here matches src/renderDrillHub.js's server-
+  // rendered markup exactly.
+  // ---------------------------------------------------------------------
+  const dueCountEl = document.getElementById('drill-due-count');
+  const startSessionBtn = document.getElementById('drill-start-session');
+  const sessionLengthGroup = document.getElementById('drill-session-length');
+  const decksListEl = document.getElementById('drill-decks-list');
+  const stuckListEl = document.getElementById('drill-stuck-list');
+  const seedFromReportEl = document.getElementById('drill-seed-from-report');
+  const seedForm = document.getElementById('drill-seed-form');
+  const seedOpeningSelect = document.getElementById('drill-seed-opening');
+  const seedStatusEl = document.getElementById('drill-seed-status');
 
-  function loadState() {
+  const hubSection = document.getElementById('drill-hub');
+  const sessionSection = document.getElementById('drill-session');
+  const boardRoot = document.querySelector('[data-drill-board]');
+  const moveForm = document.getElementById('drill-move-form');
+  const moveInput = document.getElementById('drill-move-text');
+  const showAnswerBtn = document.getElementById('drill-show-answer');
+  const endSessionBtn = document.getElementById('drill-end-session');
+  const feedbackEl = document.getElementById('drill-feedback');
+  const announceEl = document.getElementById('drill-announce');
+  const candidateTableEl = document.getElementById('drill-candidate-table');
+
+  if (!hubSection || !sessionSection || !boardRoot) return; // markup not present -- nothing to wire up
+
+  // ---------------------------------------------------------------------
+  // Deck persistence
+  // ---------------------------------------------------------------------
+  function loadDeck() {
+    let raw = null;
     try {
-      var raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) throw new Error('none saved yet');
-      var parsed = JSON.parse(raw);
-      if (typeof parsed.level !== 'number' || typeof parsed.cleanStreak !== 'number' || typeof parsed.band !== 'string') {
-        throw new Error('unexpected shape');
+      raw = window.localStorage.getItem(drillDeck.STORAGE_KEY);
+    } catch (err) {
+      // localStorage unavailable -- degrade to a fresh, unsaved deck.
+    }
+    return drillDeck.parseDeck(raw);
+  }
+
+  function saveDeck(nextDeck) {
+    try {
+      window.localStorage.setItem(drillDeck.STORAGE_KEY, drillDeck.serializeDeck(nextDeck));
+    } catch (err) {
+      // Quota exceeded or storage disabled -- the session still works for
+      // this page load, it just won't persist. Surfaced to the visitor via
+      // the seed-status line if it happens during a seed action.
+    }
+  }
+
+  let deck = loadDeck();
+
+  // One-way legacy migration (spec 3.3): read the old key once, seed a
+  // starter deck from band data, mark migrated, never touch the old key
+  // again.
+  async function migrateLegacyIfNeeded() {
+    if (deck.migratedV1) return;
+    let legacyRaw = null;
+    try {
+      legacyRaw = window.localStorage.getItem(drillDeck.LEGACY_KEY);
+    } catch (err) {
+      // ignore
+    }
+    const request = drillDeck.migrationSeedRequest(legacyRaw);
+    deck = { ...deck, migratedV1: true };
+    if (request) {
+      try {
+        const cards = await drillDeck.seedFromBandMeta({
+          band: request.band,
+          pool: 'blitz',
+          openingSlug: 'italian-game',
+          count: request.count,
+          lookupFn: bandData.lookup,
+        });
+        const result = drillDeck.addCards(deck, cards);
+        deck = result.deck;
+      } catch (err) {
+        // A migration failure (e.g. offline) is not fatal -- the visitor
+        // simply starts with an empty deck instead of a migrated one.
       }
-      if (!drillData.bands[parsed.band]) throw new Error('unknown band');
-      return parsed;
-    } catch (err) {
-      var fallbackBand = Object.prototype.hasOwnProperty.call(drillData.bands, '1600-1800')
-        ? '1600-1800'
-        : Object.keys(drillData.bands)[0];
-      return { level: 1, cleanStreak: 0, band: fallbackBand };
     }
+    saveDeck(deck);
   }
 
-  function saveState(state) {
+  // ---------------------------------------------------------------------
+  // Hub rendering
+  // ---------------------------------------------------------------------
+  function renderHub() {
+    const now = new Date();
+    const { due, fresh } = drillDeck.cardsDue(deck, now);
+    if (dueCountEl) dueCountEl.textContent = String(due.length);
+    if (startSessionBtn) startSessionBtn.disabled = due.length + fresh.length === 0;
+
+    if (decksListEl) {
+      const groups = drillDeck.decksByOpening(deck, now);
+      if (groups.length === 0) {
+        decksListEl.innerHTML = '<li class="empty-note">Your deck is empty. Add cards from an opening report or from the band data below.</li>';
+      } else {
+        decksListEl.innerHTML = groups
+          .map((g) => `<li class="drill-deck-row"><span>${escapeHtml(g.openingName)}</span><span>${g.due} due of ${g.total}</span></li>`)
+          .join('');
+      }
+    }
+
+    if (stuckListEl) {
+      const stuck = drillDeck.stuckCards(deck);
+      if (stuck.length === 0) {
+        stuckListEl.innerHTML = '<li class="empty-note">None yet.</li>';
+      } else {
+        stuckListEl.innerHTML = stuck
+          .map((c) => `<li class="drill-stuck-row"><span class="drill-stuck-badge">${escapeHtml(c.openingName)}</span><a href="repertoire-builder.html">Fix it in the Repertoire Builder &rarr;</a></li>`)
+          .join('');
+      }
+    }
+
+    renderSeedFromReport();
+  }
+
+  function renderSeedFromReport() {
+    if (!seedFromReportEl) return;
+    let raw = null;
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      raw = window.localStorage.getItem(LEAK_REPORT_KEY);
     } catch (err) {
-      // localStorage unavailable (private mode, quota, disabled) -- the
-      // drill still works for this page load, it just won't remember
-      // progress on reload.
+      // ignore
+    }
+    if (!raw) {
+      seedFromReportEl.innerHTML = '<h3>Drill your leaks</h3><p class="empty-note" id="drill-seed-report-empty">Get your <a href="opening-report.html">personal opening report</a> first, then come back here to drill exactly the moves it flags.</p>';
+      return;
+    }
+    const parsed = parseLeakReport(raw);
+    if (!parsed.ok) {
+      seedFromReportEl.innerHTML = '<h3>Drill your leaks</h3><p class="empty-note">Your saved opening report could not be read. Generate a fresh one from <a href="opening-report.html">the opening report page</a>.</p>';
+      return;
+    }
+    seedFromReportEl.innerHTML = `<h3>Drill your leaks</h3><p>Your report found ${parsed.report.leaks.length} leak${parsed.report.leaks.length === 1 ? '' : 's'} in the ${escapeHtml(parsed.report.band)} band.</p><button type="button" id="drill-seed-report-btn">Add ${parsed.report.leaks.length} leak card${parsed.report.leaks.length === 1 ? '' : 's'} to your deck</button>`;
+    const btn = document.getElementById('drill-seed-report-btn');
+    if (btn) {
+      btn.addEventListener('click', function () {
+        const cards = drillDeck.seedFromLeakReport(parsed.report);
+        const result = drillDeck.addCards(deck, cards);
+        deck = result.deck;
+        saveDeck(deck);
+        renderHub();
+        if (seedStatusEl) seedStatusEl.textContent = `Added ${result.addedCount} card${result.addedCount === 1 ? '' : 's'} from your report.`;
+      });
     }
   }
 
-  var state = loadState();
-  var round = null; // {board, oppNode, userNode, level, band, movesDone, clean, selected}
+  if (seedForm) {
+    seedForm.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      const slug = seedOpeningSelect ? seedOpeningSelect.value : null;
+      if (!slug) return;
+      const state = bandState.readBandState();
+      if (seedStatusEl) seedStatusEl.textContent = 'Looking at your rating band’s own data…';
+      try {
+        const cards = await drillDeck.seedFromBandMeta({
+          band: state.band,
+          pool: state.pool,
+          openingSlug: slug,
+          count: 6,
+          lookupFn: bandData.lookup,
+        });
+        const result = drillDeck.addCards(deck, cards);
+        deck = result.deck;
+        saveDeck(deck);
+        renderHub();
+        if (seedStatusEl) {
+          seedStatusEl.textContent = cards.length === 0
+            ? 'No band data is covered deeply enough for that opening yet.'
+            : `Added ${result.addedCount} card${result.addedCount === 1 ? '' : 's'} (${result.duplicateCount} already in your deck).`;
+        }
+      } catch (err) {
+        if (seedStatusEl) seedStatusEl.textContent = 'Could not reach the band data. Try again in a moment.';
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Session length picker
+  // ---------------------------------------------------------------------
+  let sessionLimit = 10;
+  if (sessionLengthGroup) {
+    sessionLengthGroup.addEventListener('click', function (event) {
+      const btn = event.target.closest ? event.target.closest('button[data-length]') : null;
+      if (!btn) return;
+      const raw = btn.getAttribute('data-length');
+      sessionLimit = raw === 'all-due' ? 'all-due' : Number(raw);
+      const buttons = sessionLengthGroup.querySelectorAll('button[data-length]');
+      for (let i = 0; i < buttons.length; i += 1) {
+        buttons[i].setAttribute('aria-pressed', buttons[i] === btn ? 'true' : 'false');
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Session runner
+  // ---------------------------------------------------------------------
+  let queue = []; // array of {card, requeued}
+  let currentEntry = null;
+  let currentCard = null;
+  let pendingCandidates = null;
+  let cardStartTime = 0;
+  let attemptedThisCard = false;
+  let correctOnFirstAttempt = false;
+  let selectedSquare = null;
+
+  function boardForCard(card) {
+    if (card.fen) return boardFromFen(card.fen);
+    return applyUciMoves(START_BOARD, card.play || []);
+  }
+
+  function pieceLabel(piece) {
+    if (!piece) return null;
+    const isWhite = piece === piece.toUpperCase();
+    return `${isWhite ? 'white' : 'black'} ${PIECE_NAMES[piece.toLowerCase()] || ''}`.trim();
+  }
 
   function squareButtons() {
     return boardRoot.querySelectorAll('.board-sq');
   }
 
-  function pieceLabel(piece) {
-    if (!piece) return null;
-    var isWhite = piece === piece.toUpperCase();
-    return (isWhite ? 'white ' : 'black ') + (PIECE_NAMES[piece.toLowerCase()] || '');
-  }
-
   function paintBoard(board) {
-    var buttons = squareButtons();
-    for (var i = 0; i < buttons.length; i += 1) {
-      var btn = buttons[i];
-      var sq = btn.getAttribute('data-square');
-      var piece = board[sq];
-      var isWhite = !!piece && piece === piece.toUpperCase();
-      var glyph = piece ? drillData.glyphs[piece.toLowerCase()] : '';
-      btn.innerHTML = glyph ? '<span class="board-pc--' + (isWhite ? 'w' : 'b') + '" aria-hidden="true">' + glyph + '</span>' : '';
-      var label = pieceLabel(piece) ? sq + ', ' + pieceLabel(piece) : sq + ', empty';
-      btn.setAttribute('aria-label', label);
+    const buttons = squareButtons();
+    for (let i = 0; i < buttons.length; i += 1) {
+      const btn = buttons[i];
+      const sq = btn.getAttribute('data-square');
+      const piece = board[sq];
+      const isWhite = !!piece && piece === piece.toUpperCase();
+      const glyph = piece ? GLYPHS[piece.toLowerCase()] : '';
+      btn.innerHTML = glyph ? `<span class="board-pc--${isWhite ? 'w' : 'b'}" aria-hidden="true">${escapeHtml(glyph)}</span>` : '';
+      btn.setAttribute('aria-label', pieceLabel(piece) ? `${sq}, ${pieceLabel(piece)}` : `${sq}, empty`);
       btn.setAttribute('aria-pressed', 'false');
     }
+  }
+
+  function clearSelection() {
+    selectedSquare = null;
+    const buttons = squareButtons();
+    for (let i = 0; i < buttons.length; i += 1) buttons[i].setAttribute('aria-pressed', 'false');
   }
 
   function announce(text) {
@@ -139,220 +327,243 @@ const { gradeMove, pickReply, applyRoundResult } = require('../drillLogic');
 
   function setFeedback(verdict, text) {
     if (!feedbackEl) return;
-    feedbackEl.className = verdict ? 'drill-feedback drill-feedback--' + verdict : 'drill-feedback';
+    feedbackEl.className = verdict ? `drill-feedback drill-feedback--${verdict}` : 'drill-feedback';
     feedbackEl.textContent = text;
   }
 
-  // This table used to repaint with the current position's real candidates
-  // the moment a new position loaded (see the old playOpponentPly(), before
-  // this change), spoiling the band-typical move and its score before the
-  // user had made a guess. It's now gated behind the exact same trigger the
-  // answer feedback panel (#drill-feedback) already used: renderCandidateTable()
-  // is only called from gradeAndAdvance(), after an attempt or a "Show me
-  // the answer" click, alongside setFeedback() -- see resetCandidateTable()
-  // below for what the slot shows before that point.
-  function renderCandidateTable(candidates) {
-    if (!candidateTableEl) return;
-    var rows = candidates
-      .map(function (c) {
-        return '<tr><td>' + escapeHtml(c.san) + '</td><td>' + (c.playedPct != null ? escapeHtml(formatPct(c.playedPct) + '%') : '-') + '</td><td>' +
-          (c.winPct != null ? escapeHtml(formatPct(c.winPct) + '%') : '-') + '</td><td>' + escapeHtml(c.games.toLocaleString()) + '</td></tr>';
-      })
-      .join('');
-    candidateTableEl.innerHTML = '<table><thead><tr><th scope="col">Move</th><th scope="col">Pick %</th><th scope="col">Score %</th><th scope="col">Games</th></tr></thead><tbody>' + rows + '</tbody></table>';
-  }
-
-  // Un-reveals the candidate table for a new position -- called every time
-  // playOpponentPly() lands on a position the user hasn't attempted yet.
-  // Matches the server-rendered placeholder (src/renderDrill.js's
-  // CANDIDATE_TABLE_PLACEHOLDER) so there's no flash of spoiler content
-  // between page load and this script running.
   function resetCandidateTable() {
     if (!candidateTableEl) return;
     candidateTableEl.innerHTML = '<p class="empty-note">Play a move, or click &ldquo;Show me the answer,&rdquo; to reveal the candidates for this position.</p>';
   }
 
-  function applyMoveToBoard(uci) {
-    round.board = applyUciMove(round.board, uci);
-    paintBoard(round.board);
+  /**
+   * Renders the real candidate table -- called ONLY after an attempt or an
+   * explicit reveal (the SPOILER RULE's gating point, unchanged in shape
+   * from the pre-WS-1 pilot).
+   */
+  function renderCandidateTable(candidates) {
+    if (!candidateTableEl) return;
+    // data-uci carries the raw UCI alongside the human-readable SAN --
+    // genuinely useful (a visitor who types UCI, per spec 3.3's "board
+    // click or typed SAN or UCI", can see exactly which string this row
+    // corresponds to), not decoration.
+    const rows = candidates
+      .map((c) => `<tr data-uci="${escapeHtml(c.uci)}"><td>${escapeHtml(c.san)}</td><td>${c.playedPct != null ? escapeHtml(formatPct(c.playedPct)) + '%' : '-'}</td><td>${c.score != null ? escapeHtml(formatPct(c.score)) + '%' : '-'}</td><td>${c.games != null ? escapeHtml(c.games.toLocaleString()) : '-'}</td></tr>`)
+      .join('');
+    candidateTableEl.innerHTML = `<table><thead><tr><th scope="col">Move</th><th scope="col">Pick %</th><th scope="col">Score %</th><th scope="col">Games</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
-  function isWhitePiece(piece) {
-    return !!piece && piece === piece.toUpperCase();
+  /**
+   * Candidates for grading + eventual reveal. Never rendered here -- see
+   * this file's header comment. Falls back to a single-item list (just the
+   * known answer) when there's no richer source, so gradeMove() always has
+   * something to compare against.
+   */
+  /**
+   * gradeMove() (src/drillLogic.js, reused unchanged per spec 3.3) reads
+   * `node.candidates[0]` as THE answer -- it does not itself cross-check
+   * against `node.answerUci`. Since a real band shard's move order is
+   * "most games first," which is not always the same move as the card's
+   * own `answerUci` (band-BEST by confidence-interval lower bound, spec
+   * 3.2.3 -- occasionally a different move from the merely most-played
+   * one), this re-sorts so the card's actual answer is always index 0
+   * before candidates ever reach gradeMove(), regardless of source.
+   */
+  function withAnswerFirst(candidates, answerUci) {
+    const idx = candidates.findIndex((c) => c.uci === answerUci);
+    if (idx <= 0) return candidates;
+    const reordered = candidates.slice();
+    const [answer] = reordered.splice(idx, 1);
+    reordered.unshift(answer);
+    return reordered;
   }
 
-  function updateProgress() {
-    if (!progressEl) return;
-    var moveInRound = round ? round.movesDone + 1 : 1;
-    progressEl.textContent = 'Level ' + state.level + ', move ' + Math.min(moveInRound, state.level) + ' of ' + state.level +
-      '. Clean streak: ' + state.cleanStreak + '/3.';
-  }
-
-  function updateLevelOptions() {
-    var options = levelSelect.options;
-    for (var i = 0; i < options.length; i += 1) {
-      var lvl = Number(options[i].value);
-      options[i].disabled = lvl > state.level;
-      options[i].textContent = 'Level ' + lvl + (lvl > state.level ? ' (locked)' : '');
+  async function loadCandidatesForCard(card) {
+    if (card.source === 'pack' && card.packStats) {
+      return [{ uci: card.answerUci, san: card.answerSan, games: card.packStats.n, playedPct: null, score: card.packStats.score }];
     }
-    levelSelect.value = String(state.level);
-  }
-
-  function clearSelection() {
-    var buttons = squareButtons();
-    for (var i = 0; i < buttons.length; i += 1) {
-      buttons[i].setAttribute('aria-pressed', 'false');
+    if (Array.isArray(card.play)) {
+      try {
+        const result = await bandData.lookup({ play: card.play, band: card.band, pool: card.pool });
+        if (result.coverage === 'in' && result.moves.length > 0) {
+          const candidates = result.moves.map((m) => ({ uci: m.uci, san: m.san, games: m.games, playedPct: m.playedPct, score: m.score }));
+          return withAnswerFirst(candidates, card.answerUci);
+        }
+      } catch (err) {
+        // fall through to the single-item fallback below
+      }
     }
+    return [{ uci: card.answerUci, san: card.answerSan, games: null, playedPct: null, score: null }];
   }
 
-  function playOpponentPly() {
-    var reply = pickReply(round.oppNode.replies, Math.random());
-    applyMoveToBoard(reply.uci);
-    round.userNode = reply.node;
-    announce(
-      'The opponent plays ' + reply.san +
-        (reply.playedPct != null ? ' — ' + formatPct(reply.playedPct) + '% of players at ' + round.band + ' play this here.' : '.')
-    );
+  function sideAnnounceText(card) {
+    return `${card.side === 'white' ? 'White' : 'Black'} to play. Type a move, or tap a piece then a destination square.`;
+  }
+
+  async function loadCard(entry) {
+    currentEntry = entry;
+    currentCard = entry.card;
+    attemptedThisCard = false;
+    correctOnFirstAttempt = false;
+    cardStartTime = Date.now();
+    clearSelection();
+    paintBoard(boardForCard(currentCard));
     resetCandidateTable();
-    updateProgress();
-  }
-
-  function startRound() {
-    round = {
-      board: applyUciMoves(START_BOARD, drillData.prefix.map(function (p) { return p.uci; })),
-      oppNode: drillData.bands[state.band],
-      userNode: null,
-      level: state.level,
-      band: state.band,
-      movesDone: 0,
-      clean: true,
-      selected: null,
-    };
-    paintBoard(round.board);
     setFeedback('', '');
-    playOpponentPly();
+    announce(sideAnnounceText(currentCard));
+    pendingCandidates = await loadCandidatesForCard(currentCard);
   }
 
-  function finishRound() {
-    var next = applyRoundResult({ level: state.level, cleanStreak: state.cleanStreak }, { clean: round.clean });
-    var leveledUp = next.level > state.level;
-    state.level = next.level;
-    state.cleanStreak = next.cleanStreak;
-    saveState(state);
-    updateLevelOptions();
-    announce(
-      (round.clean ? 'Round complete, clean. ' : 'Round complete. ') +
-        (leveledUp ? 'Level ' + state.level + ' unlocked!' : '')
-    );
-    round = null;
-    updateProgress();
+  function updateSessionProgress() {
+    // no-op placeholder for a future progress readout; announce() already
+    // covers the accessible state change per card.
   }
 
-  function gradeAndAdvance(rawInput, usedShowAnswer) {
-    if (!round || !round.userNode) return;
-    var result = gradeMove({ node: round.userNode, input: rawInput });
-    var answer = result.answer;
+  function finishSession() {
+    sessionSection.hidden = true;
+    hubSection.hidden = false;
+    currentEntry = null;
+    currentCard = null;
+    pendingCandidates = null;
+    renderHub();
+  }
 
-    // Reveal the candidate table now -- the same trigger point (an attempt,
-    // real or via "Show me the answer") that populates the feedback panel
-    // just below. Must happen before round.userNode is reassigned further
-    // down, since it's this position's candidate list being revealed.
-    renderCandidateTable(round.userNode.candidates);
-
-    if (usedShowAnswer) {
-      round.clean = false;
-      setFeedback('unknown', 'The move is ' + answer.san + ' — ' + formatPct(answer.playedPct) + '% of players at ' + round.band + ' play this here, scoring ' + formatPct(answer.winPct) + '% for White.');
-    } else if (result.verdict === 'correct') {
-      setFeedback('correct', answer.san + ' — correct. ' + formatPct(answer.playedPct) + '% of ' + round.band + ' players play this here, and it scores ' + formatPct(answer.winPct) + '% for White (n = ' + answer.games.toLocaleString() + ').');
-    } else if (result.verdict === 'offmeta') {
-      round.clean = false;
-      setFeedback('offmeta', result.played.san + ' — a real move, but off-meta here. ' + formatPct(result.played.playedPct) + '% of ' + round.band + ' players choose it and it scores ' + formatPct(result.played.winPct) + '% for White. The band-typical move is ' + answer.san + ': ' + formatPct(answer.playedPct) + '% pick rate, ' + formatPct(answer.winPct) + '% score.');
-    } else {
-      round.clean = false;
-      setFeedback('unknown', 'That is not a move players make in this position at ' + round.band + '. The band-typical move is ' + answer.san + ' — ' + formatPct(answer.playedPct) + '% pick rate, ' + formatPct(answer.winPct) + '% score.');
-    }
-
-    // Only the top candidate's line continues into the baked tree, so every
-    // round advances via the answer move regardless of what was typed --
-    // the user still sees exactly what they played graded against it above.
-    applyMoveToBoard(answer.uci);
-    round.movesDone += 1;
-
-    if (round.movesDone >= round.level || !round.userNode.then) {
-      finishRound();
+  function advance() {
+    if (queue.length === 0) {
+      finishSession();
       return;
     }
-    round.userNode = null;
-    playOpponentPly();
+    const next = queue.shift();
+    loadCard(next);
+  }
+
+  function gradeAndAdvance(rawInput, isReveal) {
+    if (!currentCard || !pendingCandidates) return;
+    const responseMs = Date.now() - cardStartTime;
+    const noAttemptMade = isReveal && !attemptedThisCard;
+
+    let verdict;
+    let answer;
+    let played = null;
+    if (noAttemptMade) {
+      const result = gradeMove({ node: { candidates: pendingCandidates, answerUci: currentCard.answerUci }, input: currentCard.answerUci });
+      verdict = 'unknown';
+      answer = result.answer;
+    } else {
+      const result = gradeMove({ node: { candidates: pendingCandidates, answerUci: currentCard.answerUci }, input: rawInput });
+      verdict = result.verdict;
+      played = result.played;
+      answer = result.answer;
+      attemptedThisCard = true;
+      if (verdict === 'correct' && !isReveal) correctOnFirstAttempt = true;
+    }
+
+    renderCandidateTable(pendingCandidates);
+
+    if (noAttemptMade) {
+      setFeedback('unknown', `The move is ${answer.san}${answer.playedPct != null ? ` — ${formatPct(answer.playedPct)}% of players at ${currentCard.band} play this here.` : '.'}`);
+    } else if (verdict === 'correct') {
+      setFeedback('correct', `${answer.san} — correct.${answer.playedPct != null ? ` ${formatPct(answer.playedPct)}% of players at ${currentCard.band} play this here.` : ''}`);
+    } else if (verdict === 'offmeta') {
+      setFeedback('offmeta', `${played.san} — a real move, but not the band-typical one here. The band-typical move is ${answer.san}.`);
+    } else {
+      setFeedback('unknown', `That is not a move players make in this position. The band-typical move is ${answer.san}.`);
+    }
+
+    const grade = gradeFromAttempt({
+      noAttemptMade,
+      usedReveal: isReveal,
+      correctOnFirstAttempt,
+      responseMs,
+    });
+
+    // Deviation (i), spec 2.3: schedule() is only called once per real
+    // attempt sequence for this card -- a re-queued instance (see below)
+    // skips it, since it's extra in-session practice, not a second graded
+    // event.
+    if (!currentEntry.requeued) {
+      deck = drillDeck.applyGrade(deck, currentCard.id, grade, new Date());
+      saveDeck(deck);
+    }
+
+    if (grade < 3 && !currentEntry.requeued) {
+      // Re-queue this card once more before the session ends (scheduler.js's
+      // documented deviation (i)) -- a few cards later, not immediately
+      // next, so it doesn't feel like an instant repeat.
+      const insertAt = Math.min(queue.length, 3);
+      queue.splice(insertAt, 0, { card: currentCard, requeued: true });
+    }
+
+    window.setTimeout(advance, 1200);
   }
 
   function handleSquareClick(square) {
-    if (!round || !round.userNode) return;
-    var piece = round.board[square];
-    if (round.selected == null) {
-      if (!isWhitePiece(piece)) {
-        announce('No white piece on ' + square + '.');
+    if (!currentCard) return;
+    const piece = boardForCard(currentCard)[square];
+    if (selectedSquare == null) {
+      if (!piece) {
+        announce(`No piece on ${square}.`);
         return;
       }
-      round.selected = square;
+      selectedSquare = square;
       clearSelection();
-      var btn = boardRoot.querySelector('[data-square="' + square + '"]');
+      const btn = boardRoot.querySelector(`[data-square="${square}"]`);
       if (btn) btn.setAttribute('aria-pressed', 'true');
       return;
     }
-    if (round.selected === square) {
-      round.selected = null;
+    if (selectedSquare === square) {
       clearSelection();
       return;
     }
-    var from = round.selected;
-    round.selected = null;
+    const from = selectedSquare;
     clearSelection();
     gradeAndAdvance(from + square, false);
   }
 
   boardRoot.addEventListener('click', function (event) {
-    var target = event.target;
-    while (target && target !== boardRoot && !target.classList.contains('board-sq')) {
+    let target = event.target;
+    while (target && target !== boardRoot && (!target.classList || !target.classList.contains('board-sq'))) {
       target = target.parentNode;
     }
     if (!target || target === boardRoot) return;
     handleSquareClick(target.getAttribute('data-square'));
   });
 
-  form.addEventListener('submit', function (event) {
-    event.preventDefault();
-    var value = input.value.trim();
-    if (!value) return;
-    input.value = '';
-    gradeAndAdvance(value, false);
-  });
-
-  if (showAnswerBtn) {
-    showAnswerBtn.addEventListener('click', function () {
-      if (!round || !round.userNode) return;
-      gradeAndAdvance(round.userNode.answerUci, true);
+  if (moveForm) {
+    moveForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      const value = moveInput ? moveInput.value.trim() : '';
+      if (!value) return;
+      if (moveInput) moveInput.value = '';
+      gradeAndAdvance(value, false);
     });
   }
 
-  bandSelect.addEventListener('change', function () {
-    state.band = bandSelect.value;
-    saveState(state);
-    startRound();
-  });
+  if (showAnswerBtn) {
+    showAnswerBtn.addEventListener('click', function () {
+      gradeAndAdvance(currentCard ? currentCard.answerUci : '', true);
+    });
+  }
 
-  levelSelect.addEventListener('change', function () {
-    var lvl = Number(levelSelect.value);
-    if (lvl > state.level) {
-      levelSelect.value = String(state.level);
-      return;
-    }
-    state.level = lvl;
-    saveState(state);
-    startRound();
-  });
+  if (endSessionBtn) {
+    endSessionBtn.addEventListener('click', finishSession);
+  }
 
-  bandSelect.value = state.band;
-  updateLevelOptions();
-  startRound();
+  if (startSessionBtn) {
+    startSessionBtn.addEventListener('click', function () {
+      const now = new Date();
+      const built = drillDeck.buildSessionQueue(deck, now, sessionLimit);
+      if (built.length === 0) return;
+      queue = built.map((card) => ({ card, requeued: false }));
+      hubSection.hidden = true;
+      sessionSection.hidden = false;
+      advance();
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Init
+  // ---------------------------------------------------------------------
+  migrateLegacyIfNeeded().then(renderHub);
+  renderHub();
 })();

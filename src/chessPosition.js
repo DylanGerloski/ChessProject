@@ -77,10 +77,54 @@ function applyUciMoves(board, ucis) {
   return ucis.reduce((b, uci) => applyUciMove(b, uci), board);
 }
 
+/**
+ * Parses a FEN's piece-placement field (the part before the first space)
+ * into this module's board shape. Added for the WS-1 Drill Engine v2 spec
+ * (section 3.3, seeding source 4): a pack.json position carries only its
+ * resulting `fen`, not the UCI path that reached it, so a pack-seeded
+ * drill card renders its board from FEN directly rather than by replaying
+ * `applyUciMoves` from START_BOARD -- see src/drillDeck.js's own header
+ * comment for the full explanation of that shape gap. No legality
+ * checking (same invariant as the rest of this module): a malformed FEN
+ * either throws (empty/missing ranks) or silently produces a board that
+ * doesn't reflect 64 squares, which is the caller's problem to validate,
+ * same as applyUciMove's "legal by construction" assumption.
+ *
+ * @param {string} fen a full or partial FEN string; only the first
+ *   whitespace-separated field (piece placement) is read.
+ * @returns {Record<string,string>} board shape, same as START_BOARD.
+ */
+function boardFromFen(fen) {
+  if (typeof fen !== 'string' || fen.length === 0) {
+    throw new Error(`boardFromFen: invalid fen "${fen}"`);
+  }
+  const placement = fen.split(' ')[0];
+  const ranks = placement.split('/');
+  if (ranks.length !== 8) {
+    throw new Error(`boardFromFen: expected 8 ranks, got ${ranks.length} in "${fen}"`);
+  }
+  const board = {};
+  ranks.forEach((rankStr, i) => {
+    const rank = RANKS[7 - i]; // FEN's first rank row is rank 8
+    let file = 0;
+    for (const ch of rankStr) {
+      if (/[1-8]/.test(ch)) {
+        file += Number(ch);
+      } else {
+        if (file > 7) throw new Error(`boardFromFen: rank "${rankStr}" overflows 8 files`);
+        board[`${FILES[file]}${rank}`] = ch;
+        file += 1;
+      }
+    }
+  });
+  return board;
+}
+
 module.exports = {
   FILES,
   RANKS,
   START_BOARD,
   applyUciMove,
   applyUciMoves,
+  boardFromFen,
 };
