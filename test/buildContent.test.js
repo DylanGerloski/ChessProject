@@ -33,12 +33,12 @@ function withTempDist(fn) {
     });
 }
 
-test('buildContentPages writes 10 opening pages plus the openings hub, 8 guides, the guides hub, and the FAQ -- all with a unique title/description and one H1', () =>
+test('buildContentPages writes one page per configured opening plus the openings hub, 8 guides, the guides hub, and the FAQ -- all with a unique title/description and one H1', () =>
   withTempDist(async (outDir) => {
     const { fetchImpl } = makeSmartExplorerFetch();
     const { written } = await buildContentPages({ fetchImpl, outDir });
 
-    assert.equal(written.length, 21); // 10 openings + 1 hub + 8 guides + 1 guides hub + 1 FAQ
+    assert.equal(written.length, OPENINGS.length + 1 + 8 + 1 + 1); // openings + hub + 8 guides + guides hub + FAQ
 
     const titles = new Set();
     const descriptions = new Set();
@@ -135,7 +135,7 @@ test('fetchLineWithValidation: aggregate data present but this position missing 
   }
 });
 
-test('the openings hub links to all 10 opening pages', () =>
+test('the openings hub links to every configured opening page', () =>
   withTempDist(async (outDir) => {
     const { fetchImpl } = makeSmartExplorerFetch();
     const { written } = await buildContentPages({ fetchImpl, outDir });

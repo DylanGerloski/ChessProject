@@ -31,9 +31,11 @@
  *   page at all.
  *
  * - Content pages (phases 1-2 of the content-depth
- *   build): 10 opening pages + the openings hub (phase 1), plus an FAQ page
- *   and 7 editorial guide articles + a guides hub (phase 2), all
- *   pre-rendered the same way via buildContentPages() (src/buildContent.js).
+ *   build): one page per opening in src/openings.js (started at 10, grows
+ *   over time -- see that file's own header comment) + the openings hub
+ *   (phase 1), plus an FAQ page and 7 editorial guide articles + a guides
+ *   hub (phase 2), all pre-rendered the same way via buildContentPages()
+ *   (src/buildContent.js).
  *   Also token-gated the same way -- see that module's own header comment.
  *
  * - sitemap.xml / robots.txt / structured data (phase 3): sitemap.xml and
@@ -1394,7 +1396,7 @@ async function main() {
     for (const { file } of repertoireStubs) {
       console.log(`  - ${file}`);
     }
-    console.log(`  - ${contentWritten.length} content pages (10 opening pages + openings hub)`);
+    console.log(`  - ${contentWritten.length} content pages (opening pages + openings hub)`);
     for (const { file } of contentWritten) {
       console.log(`  - ${file}`);
     }

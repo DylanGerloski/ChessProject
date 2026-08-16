@@ -5,7 +5,7 @@ const SLUG = 'best-chess-openings-for-beginners';
 const meta = {
   slug: SLUG,
   title: 'Best Chess Openings for Beginners, by Win Rate',
-  description: 'The 10 openings this site tracks, ranked by measured score at 1400-1600, with the sample size for every number shown.',
+  description: 'The openings this site tracks, ranked by measured score at 1400-1600, with the sample size for every number shown.',
   targetQuery: 'best chess openings for beginners',
   related: [],
 };

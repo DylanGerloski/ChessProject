@@ -2,7 +2,9 @@
 
 /**
  * Orchestrates the content-page build: fetch -> validate -> model -> render
- * -> write, for the 10 opening pages plus the openings hub (phase 1 scope).
+ * -> write, for every opening page in src/openings.js's OPENINGS list plus
+ * the openings hub (phase 1 scope; the list started at 10 and has since
+ * grown -- see openings.js's own header comment).
  * Exports buildContentPages({fetchImpl}) so the
  * whole pipeline is testable with a fake fetch and fixture data, mirroring
  * buildStatic.js's own fetchImpl-injection convention -- no live network
@@ -460,7 +462,7 @@ function buildFaqEntries(entries) {
   return [
     {
       question: 'What is a chess opening?',
-      answerHtml: `<p>An opening is the sequence of moves that starts a chess game, before the position becomes unique to that specific game. This site tracks <a href="openings.html">10 well-known openings &rarr;</a> and shows how they actually score in real games, by rating band.</p>`,
+      answerHtml: `<p>An opening is the sequence of moves that starts a chess game, before the position becomes unique to that specific game. This site tracks <a href="openings.html">${entries.length} well-known openings &rarr;</a> and shows how they actually score in real games, by rating band.</p>`,
     },
     {
       question: 'Do I need to memorize openings to improve?',
@@ -490,7 +492,7 @@ function buildFaqEntries(entries) {
     },
     {
       question: 'How many openings should I learn?',
-      answerHtml: `<p>Most improvement advice suggests one solid response to 1.e4, one to 1.d4, and a small number of systems as White - not a large repertoire. This site deliberately tracks a fixed set of 10 openings rather than trying to cover everything, for the same reason.</p>`,
+      answerHtml: `<p>Most improvement advice suggests one solid response to 1.e4, one to 1.d4, and a small number of systems as White - not a large repertoire. This site deliberately tracks a curated set of ${entries.length} openings rather than trying to cover everything, for the same reason.</p>`,
     },
     {
       question: "What's the difference between the Lichess database and the masters database?",

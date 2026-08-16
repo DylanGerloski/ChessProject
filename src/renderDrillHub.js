@@ -42,7 +42,7 @@ const IS_PLACEHOLDER = false;
  */
 function renderDrillHubPage({ nav, legalLinks }) {
   const title = pageTitle('Opening drill');
-  const description = 'Train the openings your rating band actually plays, spaced-repetition style. Seed a deck from your opening report, a repertoire, or any of ten openings - free, no account, no signup.';
+  const description = 'Train the openings your rating band actually plays, spaced-repetition style. Seed a deck from your opening report, a repertoire, or any tracked opening - free, no account, no signup.';
   const canonical = absoluteUrl('drill.html');
   const breadcrumbItems = [
     { label: 'Home', href: nav.home },

@@ -27,7 +27,7 @@ const {
 } = require('../src/buildStatic');
 const { RATING_BANDS } = require('../src/processRepertoire');
 const { REDIRECT_STUBS } = require('../src/sitemap');
-const { getOpening } = require('../src/openings');
+const { getOpening, OPENINGS } = require('../src/openings');
 const { makeSmartExplorerFetch, fakeResponse } = require('./helpers/fakeExplorer');
 
 const FIXTURES = path.join(__dirname, 'fixtures');
@@ -247,13 +247,13 @@ test('a repertoire redirect stub carries an instant meta refresh, canonical to r
   })
 );
 
-test('buildStatic also writes the 10 opening pages plus the openings hub, and the home page links to them', () =>
+test('buildStatic also writes one page per configured opening plus the openings hub, and the home page links to them', () =>
   withTempDist(async () => {
     const { fetchImpl } = fakeExplorerFetch();
     const { outDir, contentWritten } = await buildStatic({ fetchImpl, useCache: false });
 
-    // 10 openings + openings hub + 8 guides + guides hub + FAQ (phase 2).
-    assert.equal(contentWritten.length, 21);
+    // openings + openings hub + 8 guides + guides hub + FAQ (phase 2).
+    assert.equal(contentWritten.length, OPENINGS.length + 1 + 8 + 1 + 1);
     for (const { file } of contentWritten) {
       assert.ok(fs.existsSync(path.join(outDir, file)), `expected ${file} to exist on disk`);
     }
@@ -744,7 +744,7 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     // drill-reference.html (still WS-1 placeholders) +
     // privacy/about/contact/methodology + 404 +
     // drill.html (the WS-1 hub, drillFile) + repertoire.html = 13 fixed
-    // entries + 8 redirect stubs + 10 openings + hub + 8 guides + hub + FAQ
+    // entries + 8 redirect stubs + one page per configured opening + hub + 8 guides + hub + FAQ
     // + (Phase 7d) 64 T1 family hubs + 5 T2 volume pages + 2 T2
     // browse-index pages + (Phase 7e) 1 ECO explorer page + (M2) 3
     // Repertoire Pack pages.
