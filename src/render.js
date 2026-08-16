@@ -721,6 +721,23 @@ ${designTokensCss(THEME_ROLES.dark)}
   }
 
   .table-scroll {
+    /* position: relative makes this element the CSS containing block for
+       any position: absolute descendant (e.g. renderCI()'s .sr-only span,
+       used in nearly every numeric table cell) -- without it, the nearest
+       positioned ancestor is the document root (no other ancestor in this
+       page sets a position at all except .card), so a .sr-only span deep
+       in a table cell escapes THIS element's own overflow-x: auto clip and
+       renders at its unclipped flow position out past the visible table,
+       inflating the whole document's scrollable width even though the span
+       itself is visually a 1x1px invisible box. This was the real cause of
+       a page-level mobile horizontal-scroll bug on every data-table page:
+       the wrapper's own box was always correctly sized and correctly
+       clipping its VISIBLE content -- the escape was this specific
+       absolute-positioning containment gap, not a width/min-width issue on
+       the wrapper itself. Verified in a real headless-browser check: a
+       page with a wide table and a CI column scrolled sideways at a 360px
+       viewport before this rule, and stayed put after it. */
+    position: relative;
     overflow-x: auto;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);

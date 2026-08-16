@@ -313,11 +313,20 @@ function buildOpeningModel({
  *      not yet run). This is a disclosed degradation, not a silent one:
  *      never claim a control that wasn't actually applied (Non-Negotiable
  *      5) -- callers must render `usedBalanced` honestly, not assume true.
- *   3. Adjacent rows whose score gap is smaller than the sum of their own
- *      CI half-widths share the same rank number (a tie) rather than being
- *      shown as a strict, unsupported ordering -- competition-style
- *      ranking (a tie consumes its rank position, so the next distinct row
- *      is numbered by count, not by 1-more-than-the-tie).
+ *   3. A row ties with (shares the rank of) the CURRENT TIE GROUP'S ANCHOR
+ *      -- the top-scoring row that started that group -- when their score
+ *      gap is smaller than the sum of their own CI half-widths, rather
+ *      than being shown as a strict, unsupported ordering. Comparison is
+ *      against the group anchor, not merely the immediately preceding row:
+ *      chaining ties through a sequence of small adjacent gaps (row 1 ties
+ *      row 2, row 2 ties row 3, ...) can transitively group rows whose own
+ *      CIs never overlap at all -- the same non-transitivity fallacy as
+ *      "A resembles B, B resembles C, therefore A resembles C." Anchoring
+ *      every comparison to the group's top row keeps each tie group
+ *      statistically defensible: every member is directly indistinguishable
+ *      from the group's best score, not just from its neighbor. This is
+ *      competition-style ranking (a tie consumes its rank position, so the
+ *      next distinct row is numbered by count, not by 1-more-than-the-tie).
  *
  * Openings whose band doesn't have enough games at all (see
  * buildOpeningModel's minGamesForPct) are left out entirely rather than
@@ -361,20 +370,29 @@ function rankOpeningsByScore(entries, band) {
     .map((r) => ({ ...r, usedBalanced }))
     .sort((a, b) => rankScore(b) - rankScore(a));
 
-  // Competition-style rank assignment with ties: two adjacent rows tie
-  // (share a rank) when their score gap is smaller than the SUM of their
-  // own CI half-widths -- the gap the data cannot actually distinguish.
+  // Competition-style rank assignment with ties: a row ties (shares a rank)
+  // with the row that ANCHORS its current tie group -- the top-scoring row
+  // since the last real (non-tied) break -- when their score gap is
+  // smaller than the SUM of their own CI half-widths, the gap the data
+  // cannot actually distinguish. Comparing against the group anchor rather
+  // than only the previous row prevents a chain of small adjacent gaps
+  // from transitively tying rows whose own CIs don't overlap at all (see
+  // point 3 in the function doc above).
   let rank = 1;
+  let anchorIndex = 0;
   for (let i = 0; i < sorted.length; i += 1) {
     if (i === 0) {
       sorted[i].rank = rank;
       continue;
     }
-    const prev = sorted[i - 1];
+    const anchor = sorted[anchorIndex];
     const cur = sorted[i];
-    const gap = rankScore(prev) - rankScore(cur);
-    const tie = gap < rankHalf(prev) + rankHalf(cur);
-    if (!tie) rank = i + 1;
+    const gap = rankScore(anchor) - rankScore(cur);
+    const tie = gap < rankHalf(anchor) + rankHalf(cur);
+    if (!tie) {
+      rank = i + 1;
+      anchorIndex = i;
+    }
     sorted[i].rank = rank;
   }
   return sorted;
