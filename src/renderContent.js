@@ -675,7 +675,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(b
       </table>`, 'Opening comparison at 1600-1800')}
 
     <h2>Browse by opening</h2>
-    <p class="repertoire-intro">The same openings, as their win / draw / loss split at 1600-1800 -- open a card to see the full move-by-move breakdown.</p>
+    <p class="repertoire-intro">The same openings, as their win / draw / loss split at 1600-1800. Open a card to see the full move-by-move breakdown.</p>
     <div class="card-grid">${cards}</div>${ecoIndexSection}
   </main>
   ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}.`, CONTENT_LEGAL_LINKS)}
