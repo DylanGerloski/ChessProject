@@ -633,33 +633,36 @@ test('buildStatic also writes sitemap.xml (listing exactly the emitted .html pag
     // Repertoire Pack pages.
     // pageFilenames includes 404.html, the 8 repertoire redirect stubs,
     // player.html/italian-game-drill.html (also now redirect stubs), and
-    // the 3 pack pages (for the filename-uniqueness check), but the
-    // sitemap itself must exclude all of those -- see src/sitemap.js's
+    // the 3 pack pages (for the filename-uniqueness check). The sitemap
+    // itself must exclude only 404.html and the redirect stubs -- all four
+    // WS-1 pages (repertoire-builder.html, opening-report.html, drill.html,
+    // drill-reference.html) have shipped for real and are NOT excluded, and
+    // STORE (src/render.js) now carries real, non-placeholder Gumroad urls
+    // so the pack pages are indexable and DO belong in the sitemap too --
+    // see the separate assertion below, and src/sitemap.js's
     // buildSitemapEntries/REDIRECT_STUBS plus src/buildStatic.js's own
-    // noindexPackFiles/noindexPlaceholderFiles filters. All four WS-1
-    // pages (repertoire-builder.html, opening-report.html, drill.html,
-    // drill-reference.html) have shipped for real now and are NOT
-    // excluded -- see below.
+    // noindexPackFiles/noindexPlaceholderFiles filters.
     const expectedPageCount = 13 + 1 + repertoireStubs.length + contentWritten.length + ecoWritten.length + packWritten.length;
     assert.equal(pageFilenames.length, expectedPageCount);
     assert.ok(pageFilenames.includes('404.html'));
     assert.ok(pageFilenames.includes('eco-explorer.html'));
     assert.ok(pageFilenames.includes('repertoire.html'));
-    assert.ok(packWritten.every((p) => p.noindex), 'STORE is still the shipped PLACEHOLDER sentinel, so every pack page should be noindex in this test');
+    assert.ok(packWritten.every((p) => !p.noindex), 'STORE now carries real Gumroad urls, so no pack page should be noindex');
 
     const sitemapXml = fs.readFileSync(path.join(outDir, 'sitemap.xml'), 'utf8');
     assert.match(sitemapXml, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
     const locMatches = [...sitemapXml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
     // Excluded from the sitemap: 404.html (1), the 8 repertoire redirect
-    // stubs, the (currently noindex) pack pages, player.html +
-    // italian-game-drill.html (2, now redirect stubs). All four WS-1 pages
-    // (repertoire-builder.html [W1a], opening-report.html [W2], drill.html
-    // and drill-reference.html [Drill Engine v2]) have shipped for real
-    // and are no longer excluded, so there are zero remaining WS-1
-    // placeholder pages to subtract.
-    const excludedCount = 1 + repertoireStubs.length + packWritten.length + 2;
-    assert.equal(locMatches.length, expectedPageCount - excludedCount, '404.html, the redirect stubs, the noindex pack pages, and the still-placeholder WS-1 pages must all be excluded from the sitemap');
-    assert.ok(!locMatches.some((loc) => loc.includes('repertoire-packs')), 'no noindex pack page should appear in the sitemap');
+    // stubs, and player.html + italian-game-drill.html (2, now redirect
+    // stubs). All four WS-1 pages (repertoire-builder.html [W1a],
+    // opening-report.html [W2], drill.html and drill-reference.html [Drill
+    // Engine v2]) have shipped for real and are no longer excluded, so
+    // there are zero remaining WS-1 placeholder pages to subtract. The pack
+    // pages are NOT excluded either -- STORE (src/render.js) now carries
+    // real, non-placeholder Gumroad urls, so they're indexable.
+    const excludedCount = 1 + repertoireStubs.length + 2;
+    assert.equal(locMatches.length, expectedPageCount - excludedCount, '404.html and the redirect stubs must be excluded from the sitemap; the now-indexable pack pages and shipped WS-1 pages must be included');
+    assert.ok(locMatches.some((loc) => loc.includes('repertoire-packs')), 'the now-indexable pack pages should appear in the sitemap');
     assert.ok(locMatches.includes('https://repertoire-builder.com/'), 'home should canonicalize to the directory form');
     assert.ok(locMatches.includes('https://repertoire-builder.com/repertoire.html'), 'the collapsed repertoire page must be in the sitemap');
     assert.ok(locMatches.includes('https://repertoire-builder.com/italian-game.html'));

@@ -2090,23 +2090,23 @@ const KOFI_URL = 'https://ko-fi.com/flavaa';
 // Repertoire Pack store links (monetization-layer spec 1.4). Swapping
 // merchants is a one-line edit here -- everything downstream (the pack
 // pages, Product JSON-LD, GoatCounter click paths) reads through this one
-// constant and never assembles a store URL any other way. The two values
-// below are SENTINEL placeholders, not real listings -- the human's merchant
-// decision (account creation, ToS, listing the products) is a separate
-// ALWAYS ESCALATE item this build does not wait on (spec section 5). Every
-// caller MUST check isPlaceholderStoreUrl() before rendering a URL here as
-// an actual <a href> or emitting it into Product JSON-LD -- see
+// constant and never assembles a store URL any other way. These are now the
+// real, human-approved Gumroad listing URLs --
+// isPlaceholderStoreUrl() returns false for both, so the pack pages render
+// live CTAs, real Product JSON-LD Offers, and are no longer noindexed. Every
+// caller still MUST check isPlaceholderStoreUrl() before rendering a URL
+// here as an actual <a href> or emitting it into Product JSON-LD -- see
 // renderPackPages.js's renderPackCta()/renderPackDetailPage() for the one
-// place that check happens. A literal "PLACEHOLDER" string must never reach
-// rendered HTML (test/buildStatic.test.js's assertNoPlaceholderLeak checks
-// this against the real built dist/ output); the honest "not listed yet"
-// copy in renderPackCta() is what ships instead until this constant is
-// updated with real merchant URLs.
+// place that check happens, so a future placeholder swap (a new pack, a
+// merchant change) stays covered by the same honest fallback. A literal
+// "PLACEHOLDER" string must never reach rendered HTML
+// (test/buildStatic.test.js's assertNoPlaceholderLeak checks this against
+// the real built dist/ output).
 const STORE = {
   vendor: 'gumroad', // or 'ko-fi' -- see the monetization spec's section 1.4/2.5
   packs: {
-    'white-1400-1600': 'https://PLACEHOLDER/l/rb-white-1400-1600',
-    'black-vs-e4-1400-1600': 'https://PLACEHOLDER/l/rb-black-e4-1400-1600',
+    'white-1400-1600': 'https://repertoirebuilder.gumroad.com/l/blzarx',
+    'black-vs-e4-1400-1600': 'https://repertoirebuilder.gumroad.com/l/lyjgj',
   },
 };
 

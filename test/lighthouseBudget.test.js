@@ -35,17 +35,8 @@ test('GATED_PAGES includes the homepage, three representative inner pages, and b
   assert.ok(names.includes('repertoire-packs/white-1400-1600.html'));
 });
 
-test('the two Repertoire Pack pages exempt only "seo" (their known noindex-caused gap), never performance/accessibility/best-practices', () => {
-  const packEntries = GATED_PAGES.filter((e) => typeof e === 'object' && e.page.startsWith('repertoire-packs'));
-  assert.equal(packEntries.length, 2);
-  for (const entry of packEntries) {
-    assert.deepEqual(entry.skipCategories, ['seo']);
-  }
-});
-
-test('every non-pack GATED_PAGES entry is a plain string with no category exemption', () => {
-  const nonPackEntries = GATED_PAGES.filter((e) => pageNameOf(e) !== 'repertoire-packs.html' && pageNameOf(e) !== 'repertoire-packs/white-1400-1600.html');
-  for (const entry of nonPackEntries) {
+test('every GATED_PAGES entry, including the two Repertoire Pack pages, is a plain string with no category exemption now that STORE (src/render.js) carries real, non-placeholder merchant urls and the pages are no longer noindexed', () => {
+  for (const entry of GATED_PAGES) {
     assert.equal(typeof entry, 'string');
   }
 });
