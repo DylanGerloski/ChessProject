@@ -25,6 +25,7 @@ const {
   formatPct,
   STORE,
   isPlaceholderStoreUrl,
+  siteRelativeHref,
 } = require('./render');
 const { renderBreadcrumb } = require('./renderContent');
 const { breadcrumbJsonLd, productJsonLd } = require('./structuredData');
@@ -445,7 +446,7 @@ function generationRuleHtml(pack) {
 function renderPackDetailPage({ pack, otherPacks = [], nav, legalLinks }) {
   const breadcrumbItems = [
     { label: 'Home', href: '/' },
-    { label: 'Repertoire packs', href: packsIndexFilename() },
+    { label: 'Repertoire packs', href: siteRelativeHref(packsIndexFilename()) },
     { label: pack.title },
   ];
   const canonical = absoluteUrl(packDetailFilename(pack.id));
@@ -475,7 +476,7 @@ function renderPackDetailPage({ pack, otherPacks = [], nav, legalLinks }) {
   const rowsCapped = allRows.length > MAX_TABLE_ROWS;
 
   const relatedLink = otherPacks.length > 0
-    ? `<p><a href="${escapeHtml(packDetailFilename(otherPacks[0].id))}">Also see: ${escapeHtml(otherPacks[0].title)} &rarr;</a></p>`
+    ? `<p><a href="${escapeHtml(siteRelativeHref(packDetailFilename(otherPacks[0].id)))}">Also see: ${escapeHtml(otherPacks[0].title)} &rarr;</a></p>`
     : '';
 
   const sidebarHtml = `<aside class="pack-detail-sidebar">
@@ -487,7 +488,7 @@ function renderPackDetailPage({ pack, otherPacks = [], nav, legalLinks }) {
       <p class="pack-line-count">${pack.lineCount.toLocaleString()} lines &middot; retrieved ${pack.retrieved}</p>
       ${packCtaHtml(pack)}
       ${packFileListHtml(pack)}
-      <a class="pack-sample-link" href="${escapeHtml(packSampleFilename(pack.id))}" download>Download a free sample (first ${pack.sampleLineCount} lines) &rarr;</a>
+      <a class="pack-sample-link" href="${escapeHtml(siteRelativeHref(packSampleFilename(pack.id)))}" download>Download a free sample (first ${pack.sampleLineCount} lines) &rarr;</a>
     </aside>`;
 
   const cappedNote = rowsCapped
@@ -561,7 +562,7 @@ function renderPacksIndexPage({ packs, nav, legalLinks }) {
         ${renderBoardDiagram(featureBoard, { flip: feature.color === 'black', label: `Position after ${feature.title}'s first move, ${feature.firstMoveSan}` })}
       </figure>
       <div>
-        <h2><a href="${escapeHtml(packDetailFilename(feature.id))}">${escapeHtml(feature.title)}</a></h2>
+        <h2><a href="${escapeHtml(siteRelativeHref(packDetailFilename(feature.id)))}">${escapeHtml(feature.title)}</a></h2>
         <p>${feature.lineCount.toLocaleString()} lines, retrieved ${feature.retrieved}. Every move picked by one published rule from real games in this band.</p>
         <p class="pack-price">$${PRICE_USD} one-time</p>
         ${packCtaHtml(feature)}
@@ -571,7 +572,7 @@ function renderPacksIndexPage({ packs, nav, legalLinks }) {
   const restHtml = rest
     .map((p) => `<div class="pack-quiet-row">
       <span>${escapeHtml(p.title)} - ${p.lineCount.toLocaleString()} lines</span>
-      <a href="${escapeHtml(packDetailFilename(p.id))}">See what&rsquo;s in it &rarr;</a>
+      <a href="${escapeHtml(siteRelativeHref(packDetailFilename(p.id)))}">See what&rsquo;s in it &rarr;</a>
     </div>`)
     .join('');
 
@@ -623,7 +624,7 @@ function renderLeakReportUpsell(pack) {
   if (!pack) return '';
   return `<div class="pack-upsell pack-statement">
     <h2>${escapeHtml(pack.upsellHeadline || `The ${escapeHtml(pack.title)} pack covers this.`)}</h2>
-    <p>${pack.upsellBody || ''} <a class="pack-upsell-link" href="${escapeHtml(packDetailFilename(pack.id))}">See what&rsquo;s in it &rarr;</a></p>
+    <p>${pack.upsellBody || ''} <a class="pack-upsell-link" href="${escapeHtml(siteRelativeHref(packDetailFilename(pack.id)))}">See what&rsquo;s in it &rarr;</a></p>
   </div>`;
 }
 
