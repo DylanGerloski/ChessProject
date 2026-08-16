@@ -185,7 +185,7 @@ function renderFamilyHubPage({ familyEntry, bandStats, nav, t0CrossLink = null, 
   // html-validate's 70-char long-title budget even though the DECODED
   // text (what assertPageMetadata below actually checks, and what a
   // browser/search result actually shows) was comfortably under it.
-  let title = pageTitle(`${family} — All Variations and ECO Codes`);
+  let title = pageTitle(`${family} - All Variations and ECO Codes`);
   if (title.length > 70) title = pageTitle(`${family} Variations and ECO Codes`);
   if (title.length > 70) title = pageTitle(family);
 
@@ -371,7 +371,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd })}
 function renderEcoIndexPage({ pageFamilies, pageNum, totalPages, stats, nav }) {
   const filename = ecoIndexPageFilename(pageNum);
   const title = pageNum === 1
-    ? pageTitle('Chess Opening Explorer — All 500 ECO Codes')
+    ? pageTitle('Chess Opening Explorer - All 500 ECO Codes')
     : pageTitle(`Chess Opening Families, Page ${pageNum} of ${totalPages}`);
   const description = pageNum === 1
     ? `Browse all ${stats.totalFamilies} named chess opening families across all 500 ECO codes, from the standard Encyclopaedia of Chess Openings classification.`

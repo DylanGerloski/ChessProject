@@ -53,7 +53,7 @@ function renderRepertoireExplorerPage({ combos, defaultBand, defaultColor, bandP
   }
 
   const totalGames = defaultCombo.totals ? defaultCombo.totals.white + defaultCombo.totals.draws + defaultCombo.totals.black : null;
-  const openingNote = defaultCombo.opening ? ` &mdash; starting from ${escapeHtml(defaultCombo.opening.name)} (${escapeHtml(defaultCombo.opening.eco)})` : '';
+  const openingNote = defaultCombo.opening ? ` - starting from ${escapeHtml(defaultCombo.opening.name)} (${escapeHtml(defaultCombo.opening.eco)})` : '';
   const totalsNote = defaultCombo.totals
     ? `<p id="repertoire-totals" class="summary-line">${totalGames.toLocaleString()} games played from the starting position in this rating band
         (${defaultCombo.totals.white.toLocaleString()}W / ${defaultCombo.totals.draws.toLocaleString()}D / ${defaultCombo.totals.black.toLocaleString()}L).</p>`
@@ -81,7 +81,7 @@ ${renderDocumentHead({ title, description, canonical })}
         <p class="repertoire-intro">Most-played moves at each ply for players in this rating band, with win/draw/loss rates per move.
            Your color's plies show the top choices actually played at this rating; the opponent's replies show
            only their single most common response, to keep the tree readable. Pick a different rating band or
-           color above &mdash; the whole tree updates without leaving this page.</p>
+           color above - the whole tree updates without leaving this page.</p>
         <aside class="repertoire-board-panel" aria-label="Board for the selected line">
           ${spriteDefsHtml()}
           <div id="repertoire-board-mount" class="repertoire-board-mount"></div>

@@ -534,7 +534,7 @@ ${designTokensCss(THEME_ROLES.dark)}
   }
 
   /* Opt-in wide container for the three data-dense page types (repertoire
-     band pages, the drill, player lookup) — added at those specific call
+     band pages, the drill, player lookup) - added at those specific call
      sites only, never as the default. See design-standards.md 4.5. */
   .page--wide { max-width: var(--width-wide); }
 
@@ -544,7 +544,7 @@ ${designTokensCss(THEME_ROLES.dark)}
      to var(--measure) for running text inside main. Tables, boards, and
      .table-scroll are exempt by not matching this selector at all. The
      repertoire tree's <li> rows are data rows (move chips, WDL bars), not
-     prose sentences, so they're excluded explicitly below — constraining
+     prose sentences, so they're excluded explicitly below - constraining
      them would fight the wide layout those pages just opted into. */
   main p, main li, main .subtitle, main blockquote {
     max-width: var(--measure);
@@ -1172,6 +1172,35 @@ ${designTokensCss(THEME_ROLES.dark)}
     max-width: 60ch;
   }
 
+  /* Muted-note treatment for an in-<main> aside, sized to match its sibling
+     paragraphs' width exactly -- unlike .disclosure-note above (the
+     footer's Ko-fi/affiliate disclosure, deliberately narrower/smaller
+     print), which was wrongly reused here originally.
+     Confound notes (selectionEffectNote() below and
+     best-chess-openings-for-beginners.js) render *inside* <main>, right
+     next to sibling paragraphs (.subtitle, .repertoire-intro, plain <p>)
+     that all get their box width from the "main p" rule below:
+     max-width: var(--measure) (68ch). The first attempt at this fix just
+     dropped .disclosure-note's own max-width: 60ch and left that "main p"
+     rule to size the note instead -- but that still rendered narrower than
+     its siblings, because the ch unit is relative to the CURRENT element's
+     own font-size, not a shared page-wide value: var(--measure) resolves to a
+     real pixel width computed against whatever font-size is in effect on
+     the element it's applied to, and this class was still shrinking that
+     to --text-xs. Two paragraphs both honoring the identical "68ch" rule
+     end up different pixel widths whenever they resolve it at different
+     font sizes (confirmed by measurement: 12px text-xs -> 439.875px vs.
+     16px body text -> 586.5px on the real rendered openings hub page,
+     nowhere near matching). Dropping font-size here too -- keeping ONLY
+     the muted color as this note's visual distinction -- makes it resolve
+     "main p"'s var(--measure) at the exact same font-size its siblings
+     use, which is what actually makes the two widths come out identical
+     rather than merely closer. */
+  .confound-note {
+    color: var(--color-muted);
+    margin: var(--space-3) 0 0;
+  }
+
   .legal-links {
     display: flex;
     flex-wrap: wrap;
@@ -1263,7 +1292,7 @@ ${designTokensCss(THEME_ROLES.dark)}
   /* One primary action per view (design-standards.md hierarchy rule): the
      repertoire-band selector is the homepage's single
      accent-filled primary action. Every other homepage CTA (the drill card,
-     the openings cards) is demoted to an outline card — same link targets,
+     the openings cards) is demoted to an outline card - same link targets,
      lower visual weight. Modifier classes only; markup/link targets
      unchanged. */
   .card--primary {
@@ -1980,7 +2009,7 @@ function renderDocumentHead(arg) {
   // since every page already links "RSS feed" visibly in the shared footer
   // below.
   const feedLink = feedUrl
-    ? `\n  <link rel="alternate" type="application/rss+xml" title="Repertoire Builder — new opening guides and articles" href="${escapeHtml(feedUrl)}">`
+    ? `\n  <link rel="alternate" type="application/rss+xml" title="Repertoire Builder - new opening guides and articles" href="${escapeHtml(feedUrl)}">`
     : '';
 
   return `<head>
@@ -2263,7 +2292,7 @@ function renderNewsletterSignup() {
   if (!NEWSLETTER_FORM_ACTION) {
     return `<div class="newsletter-signup newsletter-signup--pending">
     <h2 class="newsletter-heading">Get new openings and guides by email</h2>
-    <p class="newsletter-description">Email sign-up isn&rsquo;t live yet &mdash; check back soon, or follow the <a href="feed.xml">RSS feed</a> in the meantime.</p>
+    <p class="newsletter-description">Email sign-up isn&rsquo;t live yet - check back soon, or follow the <a href="feed.xml">RSS feed</a> in the meantime.</p>
   </div>`;
   }
   return `<div class="newsletter-signup">
@@ -2593,7 +2622,7 @@ function renderRepertoireTree(tree) {
  */
 function renderRepertoirePage({ ratingBand, color, opening, totals, tree, nav = { player: '/', repertoire: '/repertoire' }, legalLinks, canonical, description }) {
   const totalGames = totals ? totals.white + totals.draws + totals.black : null;
-  const openingNote = opening ? ` &mdash; starting from ${escapeHtml(opening.name)} (${escapeHtml(opening.eco)})` : '';
+  const openingNote = opening ? ` - starting from ${escapeHtml(opening.name)} (${escapeHtml(opening.eco)})` : '';
   const totalsNote = totals
     ? `<p class="summary-line">${totalGames.toLocaleString()} games played from the starting position in this rating band
         (${totals.white.toLocaleString()}W / ${totals.draws.toLocaleString()}D / ${totals.black.toLocaleString()}L).</p>`

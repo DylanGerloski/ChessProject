@@ -583,7 +583,7 @@ const { Chess } = require('chess.js');
       : `Fewer than the tracked minimum games at ${bandLabel} reach this position.`;
     div.appendChild(p);
     const p2 = document.createElement('p');
-    p2.textContent = 'This is fine — keep building your repertoire from your own knowledge. You can still play moves on the board.';
+    p2.textContent = 'This is fine - keep building your repertoire from your own knowledge. You can still play moves on the board.';
     div.appendChild(p2);
     bandTableWrapper.appendChild(div);
   }

@@ -187,7 +187,7 @@ const { START_BOARD, applyUciMoves, fenFromBoard } = require('../chessPosition')
     var subtitleEl = $('#repertoire-subtitle-text');
     if (subtitleEl) {
       var openingNote = combo.opening
-        ? ' — starting from ' + combo.opening.name + ' (' + combo.opening.eco + ')'
+        ? ' - starting from ' + combo.opening.name + ' (' + combo.opening.eco + ')'
         : '';
       subtitleEl.textContent = 'Rating band ' + combo.ratingBand + ', playing as ' + combo.color + openingNote;
     }

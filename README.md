@@ -184,11 +184,16 @@ Every origin loaded or called by the live site, and why:
   for the player-lookup feature (rating history, recent games). Keyless, no
   account required.
 - `explorer.lichess.org` -- the Lichess Opening Explorer API, called at build
-  time for the pre-rendered repertoire pages, and by the separate, run-by-hand
+  time for the pre-rendered repertoire pages when `data/aggregates/` isn't
+  present locally (masters-database lookups always call it; see
+  `src/explorerSource.js`'s header). The separate, run-by-hand
   `scripts/buildBandShards.js` crawler (WS-1's band-meta shard dataset,
-  `data/rep/`, copied into `dist/data/rep/` at build time -- see that
-  script's own header comment). Requires a personal access token as of
-  2026-08-11 (see "Running it," below).
+  `data/rep/`, copied into `dist/data/rep/` at build time) now REQUIRES
+  `data/aggregates/` and refuses to call this API by default -- see that
+  script's own header ("DATA SOURCE, FIXED 2026-08-16") for why: it must
+  always draw from the same dataset the pre-rendered repertoire pages do,
+  never Lichess's differently-scoped all-time cumulative totals. Requires a
+  personal access token as of 2026-08-11 (see "Running it," below).
 - `pagead2.googlesyndication.com` -- Google AdSense, the site's ad script.
 - `gc.zgo.at` -- GoatCounter, privacy-friendly visit-count analytics (no
   cookies, no personal data collected).

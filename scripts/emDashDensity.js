@@ -1,72 +1,60 @@
 'use strict';
 
 /**
- * Measures em-dash density in rendered PROSE only (p/li/h1/h2/h3/summary
- * text, not tables/code/data): em dash characters divided by word count,
- * times 150 -- i.e. em dashes per 150 words, a proxy for "reads like it
- * was written by an AI." A plain phrase grep over source misses this
- * pattern entirely (an em dash isn't a fixed tell phrase), and counting
- * against source misses text assembled from shared fragments (a
- * description string reused across several pages) -- both are why this
- * measures the actual BUILT dist/ output instead.
+ * Flat em-dash ban over rendered BUILT dist/ output (design-standards.md's
+ * zero-tolerance rule, superseding the old density-cap approach this file
+ * used to implement -- see docs/CHANGELOG.md 2026-08-15). Any em dash
+ * character reaching a visitor is a failure: no threshold, no "rare is
+ * fine." Checks both the literal em dash character (—) and the &mdash;
+ * HTML entity, since a browser renders both identically -- a plain
+ * literal-character grep alone would have missed the entity form (this is
+ * exactly how the Gumroad CTA button on the pack pages shipped with a
+ * visible em dash despite this script running post-build: it only scanned
+ * p/li/h1-3/summary text, and the CTA is a bare <a> tag outside that list).
  *
- * Shares its approach with a sibling tool in this author's other projects --
- * kept generic on purpose so it can be dropped into another workspace with
- * only the DIST path needing to match.
+ * Scans ALL visible text in the built HTML (not just a fixed tag
+ * allowlist), after stripping <style>/<script> contents and HTML comments
+ * so inert code/markup never produces a false positive.
  *
- * Usage: node scripts/emDashDensity.js [--fail-over <rate>]
- *   Prints every page's rate and sentence-level 2+-em-dash hits. Exits
- *   non-zero only if --fail-over is passed and any page exceeds it -- so
- *   this can be run informationally (the default) or wired into a hard
- *   gate once the whole site is under threshold.
+ * Usage: node scripts/emDashDensity.js
+ *   Prints every offending page and line-level context, then exits
+ *   non-zero if any em dash (literal or entity) is found anywhere in
+ *   dist/. Always a hard gate -- wired into `postbuild:static` so a
+ *   regression fails the build automatically.
  */
 
 const fs = require('fs');
 const path = require('path');
 
 const DIST = path.join(__dirname, '..', 'dist');
-const THRESHOLD_PER_150_WORDS = 1;
 
 function walk(dir) {
   const out = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, entry.name);
     if (entry.isDirectory()) out.push(...walk(p));
-    else if (entry.name.endsWith('.html')) out.push(p);
+    else if (entry.name.endsWith('.html') || entry.name.endsWith('.xml')) out.push(p);
   }
   return out;
 }
 
-/** Extracts inner text of every <p>, <li>, <h1-3>, <summary> tag, stripping nested markup. */
-function extractProse(html) {
-  // Strip <style>/<script> content FIRST -- this site inlines CSS/JS into
-  // every page's <head> and <body>, and that content's own comments can
-  // contain literal tag-shaped text that would otherwise open a false match
-  // spanning from the CSS/JS all the way to the real element deep in <body>.
-  const withoutNonProse = html
+/** Strips inert (non-visible) content that could produce a false positive. */
+function stripInert(html) {
+  return html
+    .replace(/<!--[\s\S]*?-->/g, ' ')
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ');
-  const chunks = [];
-  const re = /<(p|li|h1|h2|h3|summary)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/gi;
+}
+
+/** Finds every literal em dash or &mdash; entity, with surrounding context. */
+function findEmDashes(html) {
+  const hits = [];
+  const re = /.{0,30}(—|&mdash;).{0,30}/g;
   let m;
-  while ((m = re.exec(withoutNonProse))) {
-    const text = m[2].replace(/<[^>]+>/g, ' ').replace(/&mdash;/g, '—').replace(/&[a-z]+;/gi, ' ');
-    chunks.push(text);
+  while ((m = re.exec(html))) {
+    hits.push(m[0].replace(/\s+/g, ' ').trim());
   }
-  return chunks;
-}
-
-function countEmDashes(text) {
-  return (text.match(/—/g) || []).length;
-}
-
-function wordCount(text) {
-  return (text.trim().match(/\S+/g) || []).length;
-}
-
-/** Splits on sentence-ending punctuation for the "2+ in one sentence" check. */
-function sentences(text) {
-  return text.split(/(?<=[.!?])\s+/).filter(Boolean);
+  return hits;
 }
 
 function main() {
@@ -75,50 +63,36 @@ function main() {
     process.exitCode = 1;
     return;
   }
-  const failOverIdx = process.argv.indexOf('--fail-over');
-  const failOver = failOverIdx !== -1 ? Number(process.argv[failOverIdx + 1]) : null;
 
   const files = walk(DIST).sort();
-  let anyOver = false;
+  let anyFound = false;
   const rows = [];
 
   for (const file of files) {
-    const html = fs.readFileSync(file, 'utf8');
-    const prose = extractProse(html);
-    const fullText = prose.join(' ');
-    const words = wordCount(fullText);
-    const dashes = countEmDashes(fullText);
-    const rate = words ? (dashes / words) * 150 : 0;
-
-    let worstSentenceCount = 0;
-    for (const chunk of prose) {
-      for (const s of sentences(chunk)) {
-        const c = countEmDashes(s);
-        if (c > worstSentenceCount) worstSentenceCount = c;
-      }
+    const raw = fs.readFileSync(file, 'utf8');
+    const visible = stripInert(raw);
+    const hits = findEmDashes(visible);
+    if (hits.length) {
+      anyFound = true;
+      rows.push({ rel: path.relative(DIST, file), hits });
     }
+  }
 
-    const rel = path.relative(DIST, file);
-    const over = rate > THRESHOLD_PER_150_WORDS || worstSentenceCount >= 2;
-    if (over) anyOver = true;
-    rows.push({ rel, words, dashes, rate, worstSentenceCount, over });
+  if (!anyFound) {
+    console.log(`ok -- 0 em dashes (literal or &mdash;) found across ${files.length} built pages.`);
+    return;
   }
 
   for (const r of rows) {
-    const flag = r.over ? 'OVER' : 'ok';
-    console.log(`${flag.padEnd(4)} ${r.rate.toFixed(2)}/150w  (max ${r.worstSentenceCount} em-dash/sentence, ${r.words}w)  ${r.rel}`);
+    console.log(`FAIL ${r.rel} (${r.hits.length} em dash${r.hits.length === 1 ? '' : 'es'})`);
+    for (const h of r.hits) console.log(`     ...${h}...`);
   }
-
-  const overCount = rows.filter((r) => r.over).length;
-  console.log(`\n${overCount}/${rows.length} pages over threshold (${THRESHOLD_PER_150_WORDS}/150 words or 2+ in one sentence).`);
-
-  if (failOver !== null && anyOver) {
-    process.exitCode = 1;
-  }
+  console.log(`\n${rows.length}/${files.length} pages contain a banned em dash. design-standards.md: zero tolerance, no exceptions.`);
+  process.exitCode = 1;
 }
 
 if (require.main === module) {
   main();
 }
 
-module.exports = { extractProse, countEmDashes, wordCount, sentences };
+module.exports = { stripInert, findEmDashes };

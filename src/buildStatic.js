@@ -511,7 +511,7 @@ function indexPage(contentEntries = [], drillFile = null) {
   const openingsSection = contentEntries.length > 0
     ? `<h2 class="section-lead">Openings by real win rate</h2>
     <p class="repertoire-intro">${contentEntries.length} openings, ranked by what they actually score in real games
-       at each rating band &mdash; see <a href="openings.html">all openings &rarr;</a></p>
+       at each rating band - see <a href="openings.html">all openings &rarr;</a></p>
     <div class="card-grid">
       ${contentEntries
         .slice(0, 6)
@@ -544,7 +544,7 @@ ${renderDocumentHead({
     ${dataStripHtml(contentEntries)}
 
     <h2 class="section-lead">Start with your rating band</h2>
-    <p class="repertoire-intro">Openings behave differently at every rating. Pick your band &mdash; everything below is
+    <p class="repertoire-intro">Openings behave differently at every rating. Pick your band - everything below is
        filtered to real games at that level.</p>
     ${bandPickerHtml()}
 
@@ -565,7 +565,7 @@ ${renderDocumentHead({
 
 function playerLookupPage() {
   const title = pageTitle('Player lookup');
-  const description = 'Look up any Lichess username to see rating history and recent games, fetched live and rendered directly in your browser — no account or token needed.';
+  const description = 'Look up any Lichess username to see rating history and recent games, fetched live and rendered directly in your browser - no account or token needed.';
   const canonical = absoluteUrl('player.html');
   return `<!DOCTYPE html>
 <html lang="en">
@@ -576,7 +576,7 @@ ${renderDocumentHead({ title, description, canonical })}
   <main>
     <h1 class="page-title">Player lookup</h1>
     <p class="subtitle">Enter a Lichess username to view rating history and recent games. This runs
-       entirely in your browser, calling Lichess&rsquo;s public API directly &mdash; no token
+       entirely in your browser, calling Lichess&rsquo;s public API directly - no token
        needed and none is used.</p>
     <form id="lookup-form" class="lookup-form">
       <input type="text" id="username" name="username" placeholder="e.g. DrNykterstein" required>
