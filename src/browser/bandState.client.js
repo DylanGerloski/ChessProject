@@ -52,6 +52,22 @@ function isValidState(candidate) {
     && COLORS.indexOf(candidate.color) !== -1;
 }
 
+/**
+ * Parses band/pool/color out of the URL fragment. Tolerant of a PARTIAL
+ * fragment: any of the three keys that is simply absent from the fragment
+ * (never present in the URL at all) is filled in from localStorage-or-
+ * default before validating, so a band-only or band+color-only link (which
+ * is what src/buildContent.js and src/buildStatic.js actually emit -- see
+ * this file's own header comment) resolves to the band/color the visitor
+ * asked for instead of silently falling through to DEFAULT_STATE. This is
+ * deliberately narrower than "any invalid value is tolerated": a key that
+ * IS present but holds an unrecognized value (params.get() returns a
+ * non-null string that fails the enum check) is left as-is and the whole
+ * fragment is still discarded by the isValidState() check below -- that
+ * preserves the existing "malformed/tampered fragment is discarded, not
+ * partially trusted" behavior for a key that's present-but-wrong, and only
+ * changes behavior for a key that's absent-and-therefore-null.
+ */
 function fromFragment() {
   if (typeof window === 'undefined') return null;
   var hash = window.location.hash;
@@ -62,7 +78,20 @@ function fromFragment() {
   } catch (err) {
     return null;
   }
-  var candidate = { band: params.get('band'), pool: params.get('pool'), color: params.get('color') };
+  var band = params.get('band');
+  var pool = params.get('pool');
+  var color = params.get('color');
+  // None of the three keys present at all -- this hash isn't a band/pool/
+  // color deep link (could be an unrelated anchor), so don't manufacture a
+  // state from thin air; let readBandState() fall through to localStorage/
+  // default exactly as it did before this fragment was even read.
+  if (band === null && pool === null && color === null) return null;
+  var fallback = fromLocalStorage() || DEFAULT_STATE;
+  var candidate = {
+    band: band === null ? fallback.band : band,
+    pool: pool === null ? fallback.pool : pool,
+    color: color === null ? fallback.color : color,
+  };
   return isValidState(candidate) ? candidate : null;
 }
 

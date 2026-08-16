@@ -68,6 +68,30 @@ test('readBandState: falls back to localStorage when the fragment is absent', ()
   assert.deepEqual(readBandState(), { band: 'u1200', pool: 'rapid_classical', color: 'black' });
 });
 
+test('readBandState: a band+color-only fragment (pool absent) fills pool from the default and still resolves to the requested band/color -- regression test for the production bug where every emitted deep link (band+color, no pool) silently rendered DEFAULT_STATE instead', () => {
+  const { readBandState } = freshBandState({ hash: '#band=1400-1600&color=white' });
+  assert.deepEqual(readBandState(), { band: '1400-1600', pool: 'blitz', color: 'white' });
+});
+
+test('readBandState: a band+color-only fragment fills the missing pool from localStorage when one is stored, not the hardcoded default', () => {
+  const storage = makeFakeStorage();
+  storage.setItem('rb.state', JSON.stringify({ band: '2000+', pool: 'rapid_classical', color: 'black' }));
+  const { readBandState } = freshBandState({ hash: '#band=1400-1600&color=white', storage });
+  assert.deepEqual(readBandState(), { band: '1400-1600', pool: 'rapid_classical', color: 'white' });
+});
+
+test('readBandState: a band-only fragment fills both pool and color from the default', () => {
+  const { readBandState } = freshBandState({ hash: '#band=u1200' });
+  assert.deepEqual(readBandState(), { band: 'u1200', pool: 'blitz', color: 'white' });
+});
+
+test('readBandState: a fragment with none of band/pool/color present (unrelated hash) is not treated as a deep link at all, falling through to localStorage', () => {
+  const storage = makeFakeStorage();
+  storage.setItem('rb.state', JSON.stringify({ band: 'u1200', pool: 'bullet', color: 'black' }));
+  const { readBandState } = freshBandState({ hash: '#some-other-anchor', storage });
+  assert.deepEqual(readBandState(), { band: 'u1200', pool: 'bullet', color: 'black' });
+});
+
 test('readBandState: an invalid/unknown fragment value is discarded, falling through to localStorage', () => {
   const storage = makeFakeStorage();
   storage.setItem('rb.state', JSON.stringify({ band: '1600-1800', pool: 'blitz', color: 'white' }));
