@@ -72,15 +72,10 @@ function wideIntervalNote(halfWidthPct) {
   return '<span class="wide-interval-note">Wide interval, small sample: treat this number cautiously.</span>';
 }
 
-// Still used by src/buildDrill.js -> src/renderDrill.js for the Italian
-// Game drill's own board (a separate, button-based, keyboard-operable
-// implementation -- see renderDrill.js's renderDrillBoard/pieceSpanHtml).
-// That board is untouched by Phase 7c: it already has its own click/
-// keyboard accessibility story, and swapping its glyphs for the SVG sprite
-// is a reasonable follow-on but a distinct piece of work, not this task's
-// stated scope (the interactive-board component + this file's static
-// diagram). PIECE_GLYPH stays exported for exactly that caller.
-const PIECE_GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
+// PIECE_GLYPH removed: its one
+// remaining consumer was the Italian Game drill's own unicode-glyph board
+// (src/renderDrill.js's now-removed renderDrillBoard/pieceSpanHtml). Grep
+// confirmed zero remaining requires of this export before deleting it.
 
 // This module's pages are always part of the static build (never dynamic
 // dev-server routes -- see this file's own header comment), so unlike
@@ -934,7 +929,6 @@ module.exports = {
   formatGamesAbbrev,
   lichessAnalysisUrl,
   lichessOpeningUrl,
-  PIECE_GLYPH,
   // Exported for src/renderEcoPages.js (Phase 7d family hub pages), which
   // needs the exact same win/draw/loss-bar and 4-band table markup this
   // module already builds for a T0 opening page -- previously private to

@@ -180,6 +180,106 @@ test('drill hub spoiler regression: leak-seeded and band-meta-seeded card answer
   }
 });
 
+test('drill session board: a real click on the interactive cm-chessboard board grades the move, same as the previous unicode-button board', { timeout: 30000 }, async () => {
+  // Starting-position card, so the two squares to click are known ahead of
+  // time from the real committed shard (band-typical reply to nothing
+  // played yet) -- see readRealTopMove(), reused from the test above.
+  const top = readRealTopMove([]);
+  const from = top.uci.slice(0, 2);
+  const to = top.uci.slice(2, 4);
+  const card = makeCard({ id: 'board-click-1', play: [], answerUci: top.uci, answerSan: top.san, side: 'white', source: 'band-meta' });
+
+  const server = await startServer();
+  const { port } = server.address();
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.goto(`http://127.0.0.1:${port}/drill.html`);
+    await page.evaluate(
+      (c) => window.localStorage.setItem('rb.drill.v2', JSON.stringify({ v: 2, cards: [c], migratedV1: true })),
+      card
+    );
+    await page.reload();
+
+    await page.locator('#drill-start-session').click();
+    await page.locator('#drill-session').waitFor({ state: 'visible' });
+
+    // Real cm-chessboard component: prove it actually mounted (not the old
+    // 64-<button class="board-sq"> markup, and not the static SSR diagram
+    // left in place).
+    await page.locator('#drill-board svg.cm-chessboard').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#drill-board button.board-sq').count(), 0, 'the old unicode-glyph board markup must be gone once the real board mounts');
+
+    await page.waitForTimeout(400); // let pendingCandidates resolve, same wait the spoiler test above uses
+
+    // Real click-to-move: the square rect carries data-square, same
+    // attribute on the piece group sitting on an occupied square -- click
+    // the piece group directly (the topmost element at that point) so this
+    // is a genuine "click the pawn, then click the destination" sequence,
+    // not a coordinate hack.
+    await page.locator(`#drill-board [data-square="${from}"]`).first().click();
+    await page.locator(`#drill-board [data-square="${to}"]`).first().click();
+
+    // gradeAndAdvance() ran off the board's own onMove callback -- the
+    // feedback region reflects a real verdict (not empty), the same effect
+    // #drill-show-answer produces in the spoiler test above, but reached
+    // through the actual board this time.
+    await page.locator('#drill-feedback:not(:empty)').waitFor({ state: 'visible', timeout: 5000 });
+    const feedbackClass = await page.locator('#drill-feedback').getAttribute('class');
+    assert.match(feedbackClass, /drill-feedback--(correct|offmeta|unknown)/, 'a real board click must reach gradeAndAdvance and set a real verdict class');
+  } finally {
+    await browser.close();
+    server.close();
+  }
+});
+
+test('drill session board: cm-chessboard\'s Accessibility move-piece form also grades the move -- it calls board.movePiece() directly, bypassing the normal click/drag event path, so this proves boardWidgetDrill.js\'s movePiece wrapper actually works', { timeout: 30000 }, async () => {
+  const top = readRealTopMove([]);
+  const from = top.uci.slice(0, 2);
+  const to = top.uci.slice(2, 4);
+  const card = makeCard({ id: 'board-form-1', play: [], answerUci: top.uci, answerSan: top.san, side: 'white', source: 'band-meta' });
+
+  const server = await startServer();
+  const { port } = server.address();
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.goto(`http://127.0.0.1:${port}/drill.html`);
+    await page.evaluate(
+      (c) => window.localStorage.setItem('rb.drill.v2', JSON.stringify({ v: 2, cards: [c], migratedV1: true })),
+      card
+    );
+    await page.reload();
+
+    await page.locator('#drill-start-session').click();
+    await page.locator('#drill-session').waitFor({ state: 'visible' });
+    await page.locator('#drill-board svg.cm-chessboard').waitFor({ state: 'visible' });
+    await page.waitForTimeout(400);
+
+    // The Accessibility extension's move-piece form is visually-hidden
+    // (screen-reader/braille-only), not display:none, so `.fill()` (which
+    // sets the value/dispatches input events via CDP regardless of
+    // visibility) works normally. The submit click is done in-page via the
+    // DOM's own real `.click()` instead of Playwright's coordinate-based
+    // click -- a synthetic mouse click at a zero-size clipped element's
+    // bounding box does not reliably land on it, whereas element.click()
+    // invokes the browser's real click algorithm (and this form's real
+    // "submit" handling) regardless of layout size.
+    await page.locator('#drill-board .cm-chessboard-accessibility .input-from').fill(from, { force: true });
+    await page.locator('#drill-board .cm-chessboard-accessibility .input-to').fill(to, { force: true });
+    await page.evaluate(() => {
+      document.querySelector('#drill-board .cm-chessboard-accessibility .button-move').click();
+    });
+
+    await page.locator('#drill-feedback:not(:empty)').waitFor({ state: 'visible', timeout: 5000 });
+    const feedbackClass = await page.locator('#drill-feedback').getAttribute('class');
+    assert.match(feedbackClass, /drill-feedback--(correct|offmeta|unknown)/, 'the accessibility move form must also reach gradeAndAdvance and set a real verdict class');
+  } finally {
+    await browser.close();
+    server.close();
+  }
+});
+
 async function assert_notDisabled(locator) {
   const disabled = await locator.isDisabled();
   assert.equal(disabled, false, 'Start session button should be enabled with fresh cards in the deck');

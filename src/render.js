@@ -1411,12 +1411,10 @@ ${designTokensCss(THEME_ROLES.dark)}
   }
   .board-sq--light { background: var(--color-board-light); }
   .board-sq--dark { background: var(--color-board-dark); }
-  .board-pc--w { color: var(--color-surface); text-shadow: 0 0 1px var(--color-text), 0 0 1px var(--color-text), 0 0 2px var(--color-text); }
-  .board-pc--b { color: var(--color-text); }
   /* Phase 7c: real Cburnett SVG piece artwork (src/boardSvg.js), replacing
-     the .board-pc--w/--b Unicode-glyph technique above for the static
-     content-page diagram. .board-pc--w/--b stay defined -- the Italian
-     Game drill's own board (src/renderDrill.js) still uses them. */
+     the old .board-pc--w/--b Unicode-glyph technique everywhere -- the
+     drill session board (its last consumer) was migrated too, so those
+     two classes are gone from here too; grep found no remaining reference. */
   .board-piece { width: 84%; height: 84%; display: block; }
   figure.board-figure { margin: var(--space-4) 0 var(--space-6); }
   figcaption { font-size: var(--text-sm); color: var(--color-muted); margin-top: var(--space-2); }
