@@ -120,6 +120,51 @@ function boardFromFen(fen) {
   return board;
 }
 
+/**
+ * Inverse of boardFromFen: serializes this module's board shape back into a
+ * FEN string. Added for the Opening Explorer synced board panel
+ * (src/browser/repertoire.client.js) -- every #repertoire-data tree node
+ * already carries the `uci` that reached it, so the panel derives a
+ * position with applyUciMoves(START_BOARD, path) and hands the result here
+ * to get a string cm-chessboard's setPosition() can consume, with no chess
+ * engine and no build-time FEN precomputation.
+ *
+ * Only the piece-placement field is real. cm-chessboard's setPosition()
+ * (src/boardWidget.js's mountSyncBoard) only ever reads that first field, so
+ * the remaining five FEN fields are fixed placeholders ("w KQkq - 0 1")
+ * rather than derived from the move path that produced this board.
+ * **Never** treat this output as a legality-grade FEN -- there is no
+ * castling-rights tracking, no en-passant target, and no halfmove/fullmove
+ * counters here. It exists purely to hand a POSITION to a display-only
+ * board, exactly the same "legal by construction, no rules engine needed"
+ * invariant this whole module already documents at its own header.
+ *
+ * @param {Record<string,string>} board square -> FEN piece letter (this
+ *   module's own board shape, e.g. START_BOARD or applyUciMoves()'s output)
+ * @returns {string} a full FEN string, piece-placement field real, the rest
+ *   fixed placeholders
+ */
+function fenFromBoard(board) {
+  const rankRows = [];
+  for (let r = 7; r >= 0; r -= 1) {
+    const rank = RANKS[r];
+    let row = '';
+    let emptyRun = 0;
+    for (let f = 0; f < 8; f += 1) {
+      const piece = board[`${FILES[f]}${rank}`];
+      if (piece) {
+        if (emptyRun > 0) { row += String(emptyRun); emptyRun = 0; }
+        row += piece;
+      } else {
+        emptyRun += 1;
+      }
+    }
+    if (emptyRun > 0) row += String(emptyRun);
+    rankRows.push(row);
+  }
+  return `${rankRows.join('/')} w KQkq - 0 1`;
+}
+
 module.exports = {
   FILES,
   RANKS,
@@ -127,4 +172,5 @@ module.exports = {
   applyUciMove,
   applyUciMoves,
   boardFromFen,
+  fenFromBoard,
 };

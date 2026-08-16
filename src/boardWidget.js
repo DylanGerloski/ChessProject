@@ -3,11 +3,27 @@
 /**
  * Interactive board component (Phase 7c) -- browser-only, bundled by
  * esbuild into a page's own entry point (see src/browser/*.client.js for
- * the pattern; no page mounts this yet, that's follow-on work). This
- * module is the "controller" half of the board component -- one visual
- * component, three modes (static/replay/free), same markup and tokens in
- * all three, only the controller differs. The static (no-JS) markup half
- * is src/boardSvg.js, used directly by renderContent.js at build time.
+ * the pattern). This module is the "controller" half of the board
+ * component -- one visual component, four modes (static/replay/free/sync),
+ * same markup and tokens in all of them, only the controller differs. The
+ * static (no-JS) markup half is src/boardSvg.js, used directly by
+ * renderContent.js at build time. "sync" (added for the Opening Explorer's
+ * synced board panel) is display-only with no owned controls -- see
+ * mountSyncBoard's own doc comment below.
+ *
+ * "Replay" mode lives in src/boardWidgetReplay.js and "free" mode
+ * (full legal-move input, needs chess.js) lives in src/boardWidgetFree.js
+ * -- both SEPARATE modules, not here, deliberately, as of task B1. Every
+ * page that require()s THIS module pays for everything in it, because
+ * esbuild's CommonJS bundling includes a whole required module regardless
+ * of which of its exports a caller actually destructures (no per-export
+ * tree-shaking across a CJS require() boundary) -- so this file stays down
+ * to exactly what the leanest consumer (the Explorer's synced panel,
+ * src/browser/repertoire.client.js, which only ever needs createBoard +
+ * mountSyncBoard) needs. Confirmed by measurement, not assumed: this split
+ * is what keeps repertoire.js under its 160KB hard budget (spec section
+ * 2.1.5) -- see boardWidgetReplay.js/boardWidgetFree.js's own header
+ * comments for the other two modes.
  *
  * Contract for any page that mounts a board from this module: the page's
  * server-rendered HTML must already include boardSvg.js's
@@ -32,7 +48,7 @@
  * wired to this project's own design tokens.
  */
 
-const { Chessboard, INPUT_EVENT_TYPE, COLOR, BORDER_TYPE, FEN } = require('cm-chessboard/src/Chessboard.js');
+const { Chessboard, COLOR, BORDER_TYPE, FEN } = require('cm-chessboard/src/Chessboard.js');
 const { Accessibility } = require('cm-chessboard/src/extensions/accessibility/Accessibility.js');
 
 // cm-chessboard's animationDuration is a plain JS number (milliseconds), not
@@ -56,9 +72,11 @@ function prefersReducedMotion() {
 }
 
 /**
- * Low-level mount shared by mountReplayBoard/mountFreeBoard below. Not
- * exported -- callers pick a mode-specific function so "free" mode can't
- * accidentally be built without its chess.js legality wiring.
+ * Low-level mount shared by mountSyncBoard here, mountReplayBoard in
+ * src/boardWidgetReplay.js, and mountFreeBoard in src/boardWidgetFree.js.
+ * Exported (not private) so those sibling modules can reuse it without
+ * duplicating cm-chessboard's setup -- see this file's own header comment
+ * for why those two modes had to move out rather than just calling in.
  *
  * @param {HTMLElement} container
  * @param {{position?: string, orientation?: string, inputEnabled?: boolean}} opts
@@ -94,143 +112,32 @@ function createBoard(container, { position = FEN.start, orientation = COLOR.whit
 }
 
 /**
- * "Replay" mode: steps through a precomputed FEN array
- * with first/prev/next/last controls. No chess.js, no free move input --
- * the position at every step is already known, same as the static diagram
- * this data comes from at build time. Returns a handle so a caller can
- * `.destroy()` it (e.g. if the page swaps in a different line).
- *
- * @param {HTMLElement} container a wrapper element -- the board mounts into
- *   a child div this function creates, and the replay controls append
- *   after it, so `container` itself can carry the figure/aria-label.
- * @param {{fens: string[], labels?: string[], orientation?: string, startIndex?: number}} opts
- *   `labels[i]`, if given, becomes the announced text for step i (e.g. "1. e4"); falls
- *   back to a plain "Move N of M".
- */
-function mountReplayBoard(container, { fens, labels = [], orientation = COLOR.white, startIndex = 0 } = {}) {
-  if (!Array.isArray(fens) || fens.length === 0) {
-    throw new Error('mountReplayBoard: fens must be a non-empty array');
-  }
-  const boardEl = document.createElement('div');
-  container.appendChild(boardEl);
-  const board = createBoard(boardEl, { position: fens[startIndex], orientation, inputEnabled: false });
-
-  const controls = document.createElement('div');
-  controls.className = 'board-replay-controls';
-  controls.setAttribute('role', 'group');
-  controls.setAttribute('aria-label', 'Board replay controls');
-  const status = document.createElement('p');
-  status.className = 'sr-only';
-  status.setAttribute('aria-live', 'polite');
-  const makeBtn = (label, title) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = label;
-    b.setAttribute('aria-label', title);
-    controls.appendChild(b);
-    return b;
-  };
-  const firstBtn = makeBtn('⏮', 'First move');
-  const prevBtn = makeBtn('‹', 'Previous move');
-  const nextBtn = makeBtn('›', 'Next move');
-  const lastBtn = makeBtn('⏭', 'Last move');
-  container.appendChild(controls);
-  container.appendChild(status);
-
-  let index = startIndex;
-
-  function announce() {
-    status.textContent = labels[index] || `Move ${index + 1} of ${fens.length}`;
-  }
-
-  function render(animated) {
-    board.setPosition(fens[index], animated);
-    firstBtn.disabled = index === 0;
-    prevBtn.disabled = index === 0;
-    nextBtn.disabled = index === fens.length - 1;
-    lastBtn.disabled = index === fens.length - 1;
-    announce();
-  }
-
-  firstBtn.addEventListener('click', () => { index = 0; render(true); });
-  prevBtn.addEventListener('click', () => { index = Math.max(0, index - 1); render(true); });
-  nextBtn.addEventListener('click', () => { index = Math.min(fens.length - 1, index + 1); render(true); });
-  lastBtn.addEventListener('click', () => { index = fens.length - 1; render(true); });
-
-  render(false);
-
-  return {
-    board,
-    goTo(i) { index = Math.max(0, Math.min(fens.length - 1, i)); render(true); },
-    destroy() { board.destroy(); },
-  };
-}
-
-/**
- * "Free" mode: full legal-move input, backed by chess.js (BSD-2-Clause,
- * already a devDependency for the build-time data pipeline; see
- * package.json). Every move cm-chessboard's own input state machine
- * proposes is checked against chess.js before being accepted; on
- * acceptance the position is re-synced from chess.js's own FEN
- * (`board.setPosition(chess.fen(), true)`)
- * rather than trusted from cm-chessboard's naive from->to square move, so
- * captures, castling, en passant, and promotion all render correctly (a
- * known, small side effect: a special move animates twice -- once
- * optimistically by cm-chessboard's own input handling, once corrected by
- * this resync -- the standard integration pattern for this library with an
- * external rules engine).
- *
- * Promotion always resolves to a queen for now (no promotion-choice
- * dialog wired up in this task) -- a real limitation, not a stub: a future
- * task adding one only needs to change the `promotion: 'q'` below and
- * surface a choice before calling chess.move().
+ * "Sync" mode: display-only, no move input, no owned control group -- the
+ * position is driven entirely by an external caller. Contrast
+ * mountReplayBoard (src/boardWidgetReplay.js -- owns a fixed fens[] array
+ * plus first/prev/next/last controls) and mountFreeBoard
+ * (src/boardWidgetFree.js -- owns chess.js-backed move input): this mode
+ * owns nothing but the board itself, because its caller
+ * (src/browser/repertoire.client.js's synced panel) already owns the
+ * "which line is selected" state in the move tree and just needs a place to
+ * paint whatever FEN that resolves to. Kept as its own function rather than
+ * bent out of mountReplayBoard: two unrelated state machines don't belong
+ * in one function.
  *
  * @param {HTMLElement} container
- * @param {{fen?: string, orientation?: string, onMove?: (info: {san: string, fen: string, isGameOver: boolean}) => void}} opts
+ * @param {{fen?: string, orientation?: string}} opts
+ * @returns {{board: object, setFen: (fen: string, animate?: boolean) => void,
+ *   setOrientation: (color: string) => void, destroy: () => void}}
  */
-function mountFreeBoard(container, { fen, orientation = COLOR.white, onMove } = {}) {
-  // eslint-disable-next-line global-require -- chess.js only loaded on pages that need free-mode input
-  const { Chess } = require('chess.js');
-  const chess = (fen && fen !== 'start') ? new Chess(fen) : new Chess();
-  const board = createBoard(container, { position: chess.fen(), orientation, inputEnabled: true });
-
-  board.enableMoveInput((event) => {
-    switch (event.type) {
-      case INPUT_EVENT_TYPE.moveInputStarted: {
-        const legalFromHere = chess.moves({ square: event.squareFrom, verbose: true });
-        return legalFromHere.length > 0;
-      }
-      case INPUT_EVENT_TYPE.validateMoveInput: {
-        const legalFromHere = chess.moves({ square: event.squareFrom, verbose: true });
-        return legalFromHere.some((m) => m.to === event.squareTo);
-      }
-      case INPUT_EVENT_TYPE.moveInputFinished: {
-        if (event.legalMove) {
-          const result = chess.move({ from: event.squareFrom, to: event.squareTo, promotion: 'q' });
-          if (result) {
-            board.setPosition(chess.fen(), true);
-            if (typeof onMove === 'function') {
-              onMove({ san: result.san, fen: chess.fen(), isGameOver: chess.isGameOver() });
-            }
-          }
-        }
-        return undefined;
-      }
-      default:
-        return undefined;
-    }
-  });
-
+function mountSyncBoard(container, { fen = FEN.start, orientation = COLOR.white } = {}) {
+  const board = createBoard(container, { position: fen, orientation, inputEnabled: false });
   return {
     board,
-    chess,
-    reset(newFen) {
-      if (!newFen || newFen === 'start') {
-        chess.reset();
-      } else {
-        chess.load(newFen);
-      }
-      board.setPosition(chess.fen(), false);
+    setFen(nextFen, animate = true) {
+      board.setPosition(nextFen, animate && !prefersReducedMotion());
+    },
+    setOrientation(color) {
+      board.setOrientation(color);
     },
     destroy() { board.destroy(); },
   };
@@ -238,6 +145,7 @@ function mountFreeBoard(container, { fen, orientation = COLOR.white, onMove } = 
 
 module.exports = {
   COLOR,
-  mountReplayBoard,
-  mountFreeBoard,
+  FEN,
+  createBoard,
+  mountSyncBoard,
 };

@@ -9,10 +9,11 @@
  * pre-bundled IIFE has no runtime require() and no bare module resolution,
  * so it works from a file:// URL where native ESM `import` is CORS-blocked).
  *
- * require()s src/boardWidget.js (cm-chessboard controller -- mountReplayBoard
- * and mountFreeBoard both manage their own board + controls markup inside
- * whatever single container element they're given, see that module's own
- * header comment), src/pgnWrapper.js (the ONLY place on this entire site
+ * require()s src/boardWidget.js's shared cm-chessboard setup indirectly via
+ * src/boardWidgetReplay.js (mountReplayBoard -- manages its own board +
+ * controls markup inside whatever single container element it's given) and
+ * src/boardWidgetFree.js (mountFreeBoard, needs chess.js) -- both split into
+ * their own modules, along with src/pgnWrapper.js (the ONLY place on this entire site
  * untrusted input reaches a chess engine -- see that file's own header
  * comment for the full security rationale) and chess.js directly, same as
  * any other module in this project -- esbuild inlines the whole graph at
@@ -32,7 +33,8 @@
  *     thrown error.
  */
 
-const { mountReplayBoard, mountFreeBoard } = require('../boardWidget');
+const { mountReplayBoard } = require('../boardWidgetReplay');
+const { mountFreeBoard } = require('../boardWidgetFree');
 const { parsePgnSafe, parseFenSafe } = require('../pgnWrapper');
 const { Chess } = require('chess.js');
 

@@ -3,7 +3,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { renderRepertoireExplorerPage, renderRedirectStubPage } = require('../src/render');
+const { renderRedirectStubPage } = require('../src/render');
+const { renderRepertoireExplorerPage } = require('../src/renderRepertoireExplorer');
 
 function sampleCombos() {
   return {
@@ -69,6 +70,36 @@ test('renderRepertoireExplorerPage: loads repertoire.js as a deferred script', (
     canonical: 'https://repertoire-builder.com/repertoire.html',
   });
   assert.match(html, /<script src="repertoire\.js" defer><\/script>/);
+});
+
+test('renderRepertoireExplorerPage: renders the synced board panel exactly once, with the sprite defs and a live region', () => {
+  const html = renderRepertoireExplorerPage({
+    combos: sampleCombos(),
+    defaultBand: '1600-1800',
+    defaultColor: 'white',
+    bandPickerHtml: '',
+    canonical: 'https://repertoire-builder.com/repertoire.html',
+  });
+  assert.match(html, /<aside class="repertoire-board-panel" aria-label="Board for the selected line">/);
+  assert.match(html, /id="repertoire-board-mount"/);
+  assert.match(html, /id="repertoire-board-hint"/);
+  assert.match(html, /id="repertoire-board-status" class="sr-only" role="status" aria-live="polite"/);
+  // The sprite wrapper (boardSvg.js's SPRITE_WRAPPER_ID) must appear
+  // exactly once per page -- twice would mean two competing DOM ids.
+  const spriteMatches = html.match(/id="cm-chessboard-sprite"/g) || [];
+  assert.equal(spriteMatches.length, 1);
+});
+
+test('renderRepertoireExplorerPage: the move tree is still fully server-rendered inside #repertoire-tree (progressive enhancement, not a JS prerequisite)', () => {
+  const html = renderRepertoireExplorerPage({
+    combos: sampleCombos(),
+    defaultBand: '1600-1800',
+    defaultColor: 'white',
+    bandPickerHtml: '',
+    canonical: 'https://repertoire-builder.com/repertoire.html',
+  });
+  assert.match(html, /<div id="repertoire-tree"><ul class="repertoire-tree">/);
+  assert.match(html, /data-uci-path="e2e4"/);
 });
 
 test('renderRepertoireExplorerPage: throws a clear error if the default band+color has no matching combo', () => {
