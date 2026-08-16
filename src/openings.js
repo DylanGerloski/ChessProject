@@ -1,12 +1,17 @@
 'use strict';
 
 /**
- * The fixed set of 10 opening pages this build produces (spec section 1.2).
- * Deliberately fixed -- see spec section 3.4 ("why templated per-opening
- * pages are not scaled-content abuse here"): no programmatic expansion, no
- * "one page per ECO code". `line` is the defining move sequence from the
- * start position; `ecoHint`/API-returned `opening.eco` are cross-checked at
- * build time (src/buildContent.js), never assumed equal.
+ * The set of opening pages this build produces. Started as a fixed set of
+ * 10 (spec section 1.2) -- deliberately fixed at the time, see spec section
+ * 3.4 ("why templated per-opening pages are not scaled-content abuse
+ * here"): no programmatic expansion, no "one page per ECO code". Since
+ * then, real demand-mining work (docs/SOAK_BACKLOG.md) has grown this list
+ * one hand-vetted, empirically-verified-demand opening at a time -- each
+ * addition still goes through the same manual editorial process spec 3.4
+ * describes, just no longer capped at exactly 10. `line` is the defining
+ * move sequence from the start position; `ecoHint`/API-returned
+ * `opening.eco` are cross-checked at build time (src/buildContent.js),
+ * never assumed equal.
  *
  * Pure data + pure helpers only -- no I/O, unit-testable in isolation.
  */
@@ -123,6 +128,20 @@ const OPENINGS = [
       { uci: 'g8f6', san: 'Nf6' },
       { uci: 'c2c4', san: 'c4' },
       { uci: 'g7g6', san: 'g6' },
+    ],
+  },
+  {
+    slug: 'nimzo-indian-defense',
+    name: 'Nimzo-Indian Defense',
+    ecoHint: 'E20',
+    side: 'black',
+    line: [
+      { uci: 'd2d4', san: 'd4' },
+      { uci: 'g8f6', san: 'Nf6' },
+      { uci: 'c2c4', san: 'c4' },
+      { uci: 'e7e6', san: 'e6' },
+      { uci: 'b1c3', san: 'Nc3' },
+      { uci: 'f8b4', san: 'Bb4' },
     ],
   },
 ];
