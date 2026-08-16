@@ -299,13 +299,16 @@ test('buildStatic also writes the guides hub, all 8 guide articles, and the FAQ 
       assert.ok(fs.existsSync(path.join(outDir, file)), `expected ${file} to exist on disk`);
     }
 
+    // Root-relative (leading slash): src/render.js's siteRelativeHref()
+    // normalizes every nav/legalLinks value at render time, so the same
+    // header/footer markup works from any page depth, not just root.
     const homeHtml = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
-    assert.match(homeHtml, /href="guides\.html"/);
-    assert.match(homeHtml, /href="chess-opening-faq\.html"/);
+    assert.match(homeHtml, /href="\/guides\.html"/);
+    assert.match(homeHtml, /href="\/chess-opening-faq\.html"/);
 
     const openingHtml = fs.readFileSync(path.join(outDir, 'italian-game.html'), 'utf8');
-    assert.match(openingHtml, /href="guides\.html"/);
-    assert.match(openingHtml, /href="chess-opening-faq\.html"/);
+    assert.match(openingHtml, /href="\/guides\.html"/);
+    assert.match(openingHtml, /href="\/chess-opening-faq\.html"/);
   })
 );
 
@@ -321,17 +324,18 @@ test('buildStatic also writes privacy.html, about.html, contact.html, and ads.tx
     const adsTxt = fs.readFileSync(path.join(outDir, 'ads.txt'), 'utf8');
     assert.match(adsTxt, /^# ads\.txt for/);
 
+    // Root-relative (leading slash) -- see this file's comment above.
     const homeHtml = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
-    assert.match(homeHtml, /href="privacy\.html">Privacy policy<\/a>/);
-    assert.match(homeHtml, /href="about\.html">About<\/a>/);
-    assert.match(homeHtml, /href="contact\.html">Contact<\/a>/);
+    assert.match(homeHtml, /href="\/privacy\.html">Privacy policy<\/a>/);
+    assert.match(homeHtml, /href="\/about\.html">About<\/a>/);
+    assert.match(homeHtml, /href="\/contact\.html">Contact<\/a>/);
     assert.match(homeHtml, /class="disclosure-note"/);
 
     const repertoireHtml = fs.readFileSync(path.join(outDir, 'repertoire.html'), 'utf8');
-    assert.match(repertoireHtml, /href="privacy\.html">Privacy policy<\/a>/);
+    assert.match(repertoireHtml, /href="\/privacy\.html">Privacy policy<\/a>/);
 
     const openingHtml = fs.readFileSync(path.join(outDir, 'italian-game.html'), 'utf8');
-    assert.match(openingHtml, /href="privacy\.html">Privacy policy<\/a>/);
+    assert.match(openingHtml, /href="\/privacy\.html">Privacy policy<\/a>/);
   })
 );
 
@@ -349,8 +353,9 @@ test('buildStatic also writes methodology.html (WS-3.3 B4), linked from the foot
     assert.match(html, /"@type":"Dataset"/);
     assert.match(html, /"@type":"Article"/);
 
+    // Root-relative (leading slash) -- see this file's comment above.
     const homeHtml = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
-    assert.match(homeHtml, /href="methodology\.html">Methodology<\/a>/);
+    assert.match(homeHtml, /href="\/methodology\.html">Methodology<\/a>/);
   })
 );
 
@@ -518,10 +523,21 @@ test('bundleBrowserEntry throws loudly on a syntax error in the entry point, sam
 
 test('indexPage links to opening-report.html and the collapsed repertoire.html (band+color in the fragment), with no server-only routes', () => {
   const html = indexPage([]);
+  // The body-content "look up any username" link and the band-picker pills
+  // (bandPickerHtml()) stay bare page-relative filenames -- neither call
+  // site goes through renderHeader()/renderFooter(), and indexPage() itself
+  // always lives at the site root, so a bare filename is correct as-is;
+  // this was never part of the broken-nav-link fix. The NAV link for
+  // "repertoire" (the "Repertoire explorer" item in the header), by
+  // contrast, goes through renderHeader() and is root-relative per
+  // src/render.js's siteRelativeHref() -- checked below.
   assert.match(html, /href="opening-report\.html"/);
   assert.match(html, /href="repertoire\.html#band=1400-1600&amp;color=white"/);
   assert.match(html, /href="repertoire\.html#band=1400-1600&amp;color=black"/);
-  assert.doesNotMatch(html, /href="\/repertoire/);
+  assert.match(html, /href="\/repertoire\.html">Repertoire explorer<\/a>/, 'the nav link must be the real, root-relative static filename');
+  // Must never be the DYNAMIC dev-server route (server.js's SERVER_NAV,
+  // '/repertoire' with no extension).
+  assert.doesNotMatch(html, /href="\/repertoire"/);
 });
 
 test('indexPage carries the meta-framing repositioning: new h1/description/canonical and one pill per band+color combo, all pointing at repertoire.html', () => {
@@ -802,9 +818,11 @@ test('the nav on an existing static page now includes the (WS-1 hub) drill link 
     const { fetchImpl } = fakeExplorerFetch();
     const { outDir } = await buildStatic({ fetchImpl, useCache: false });
 
+    // Root-relative (leading slash) -- see this file's earlier comment on
+    // src/render.js's siteRelativeHref().
     const openingsHtml = fs.readFileSync(path.join(outDir, 'openings.html'), 'utf8');
-    assert.match(openingsHtml, /href="drill\.html"/);
-    assert.match(openingsHtml, /href="repertoire-builder\.html"/);
+    assert.match(openingsHtml, /href="\/drill\.html"/);
+    assert.match(openingsHtml, /href="\/repertoire-builder\.html"/);
   })
 );
 

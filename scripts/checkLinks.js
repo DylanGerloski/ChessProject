@@ -76,17 +76,46 @@ function extractTargets(html) {
 
 /**
  * Resolves an internal target (relative or site-absolute, may carry a
- * ?query and/or #fragment) against distDir under the flat-filename
- * convention. Returns the absolute filesystem path it should exist at, or
- * null for a target this checker doesn't apply to (a same-page fragment or
- * query with nothing else).
+ * ?query and/or #fragment) the same way a real browser would: a
+ * site-absolute target (leading '/') resolves against distDir (the site
+ * root); a genuinely relative target (no leading '/') resolves against the
+ * REFERRING PAGE's own directory, not always against distDir root.
+ *
+ * `referringFile` is optional and defaults to resolving relative targets
+ * against distDir itself -- which is only correct for a page that actually
+ * lives at the site root. Every real caller (checkFile() below) passes the
+ * actual file being scanned, so relative targets are resolved correctly
+ * regardless of that page's own depth. This distinction is what let a real
+ * production bug through this gate undetected: every internal href on the
+ * Repertoire Pack detail pages (src/renderPackPages.js, the first pages
+ * nested one directory deep, /repertoire-packs/<id>.html) was a bare
+ * page-relative filename with no leading slash -- correct only from a
+ * root-level page. The OLD version of this function always resolved a
+ * relative target against distDir root regardless of which file it was
+ * found in, so a relative link like 'eco-openings.html' on the (nested)
+ * pack detail page was checked against dist/eco-openings.html -- which
+ * really does exist at the site root -- and passed, even though a browser
+ * actually resolves that same href, found on a page at
+ * /repertoire-packs/<id>.html, to the nonexistent
+ * /repertoire-packs/eco-openings.html. See src/render.js's
+ * siteRelativeHref() for the render-time fix that makes every internal href
+ * this site emits root-relative going forward; this resolver is fixed
+ * independently so it actually catches a regression of the same bug class
+ * even if a future call site forgets to use that helper.
+ *
+ * @returns {string|null} the absolute filesystem path the target should
+ *   exist at, or null for a target this checker doesn't apply to (a
+ *   same-page fragment or query with nothing else).
  */
-function resolveInternalTarget(distDir, target) {
+function resolveInternalTarget(distDir, target, referringFile = null) {
   const withoutFragment = target.split('#')[0];
   const withoutQuery = withoutFragment.split('?')[0];
   if (!withoutQuery) return null;
-  const relative = withoutQuery.replace(/^\//, '');
-  return path.join(distDir, relative);
+  if (withoutQuery.startsWith('/')) {
+    return path.join(distDir, withoutQuery.replace(/^\//, ''));
+  }
+  const baseDir = referringFile ? path.dirname(referringFile) : distDir;
+  return path.join(baseDir, withoutQuery);
 }
 
 function checkFile(distDir, filePath) {
@@ -113,7 +142,7 @@ function checkFile(distDir, filePath) {
       offenses.push(`${filePath}: link contains "index.html" (this site's canonical URLs never include it): ${target}`);
     }
 
-    const resolved = resolveInternalTarget(distDir, target);
+    const resolved = resolveInternalTarget(distDir, target, filePath);
     if (resolved === null) continue;
     if (!fs.existsSync(resolved)) {
       offenses.push(`${filePath}: broken internal link, target not found: "${target}" (resolved ${resolved})`);

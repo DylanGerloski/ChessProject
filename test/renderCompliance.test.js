@@ -104,9 +104,12 @@ test('renderFooter always includes the affiliate/support-link disclosure, with o
   const withLegal = renderFooter('footer copy', LEGAL_LINKS);
   assert.match(withLegal, /Disclosure:/);
   assert.match(withLegal, /class="legal-links"/);
-  assert.match(withLegal, /href="privacy\.html">Privacy policy<\/a>/);
-  assert.match(withLegal, /href="about\.html">About<\/a>/);
-  assert.match(withLegal, /href="contact\.html">Contact<\/a>/);
+  // Root-relative (leading slash): src/render.js's siteRelativeHref()
+  // normalizes every legalLinks value at render time, so the same footer
+  // markup works correctly from any page depth, not just the site root.
+  assert.match(withLegal, /href="\/privacy\.html">Privacy policy<\/a>/);
+  assert.match(withLegal, /href="\/about\.html">About<\/a>/);
+  assert.match(withLegal, /href="\/contact\.html">Contact<\/a>/);
 });
 
 test('renderDisclosure mentions the current Ko-fi support link, no longer Buy Me a Coffee, and possible future affiliate links', () => {

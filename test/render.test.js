@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { SITE_CSS, DESIGN_TOKENS, renderDocumentHead, renderNewsletterSignup, renderFooter, renderHeader, HEADER_BAND_OPTIONS, HEADER_BAND_DEFAULT, BAND_CONTROL_PAGES } = require('../src/render');
+const { SITE_CSS, DESIGN_TOKENS, renderDocumentHead, renderNewsletterSignup, renderFooter, renderHeader, siteRelativeHref, HEADER_BAND_OPTIONS, HEADER_BAND_DEFAULT, BAND_CONTROL_PAGES } = require('../src/render');
 const { RATING_BANDS } = require('../src/processRepertoire');
 const { BANDS: BAND_STATE_BANDS, DEFAULT_STATE: BAND_STATE_DEFAULT } = require('../src/browser/bandState.client');
 
@@ -136,7 +136,7 @@ test('renderFooter: a legalLinks object WITH methodology renders the fourth link
   const navMatch = html.match(/<nav class="legal-links"[^>]*>([\s\S]*?)<\/nav>/);
   const inner = navMatch[1];
   assert.doesNotMatch(inner, /^[\t ]+\r?\n[\t ]*$/m, 'no line inside the nav should contain only whitespace');
-  assert.match(inner, /href="methodology\.html">Methodology<\/a>/);
+  assert.match(inner, /href="\/methodology\.html">Methodology<\/a>/);
 });
 
 // -----------------------------------------------------------------------
@@ -186,4 +186,64 @@ test('renderHeader: band control markup is well-formed regardless of which nav k
   const html = renderHeader({ player: '/', repertoire: '/repertoire' }, 'player');
   assert.match(html, /data-band-header-control/);
   assert.match(html, /aria-label="Rating band, remembered for your next visit"/);
+});
+
+// -----------------------------------------------------------------------
+// siteRelativeHref() / renderHeader() / renderFooter(): the fix for the
+// broken-nav-link incident on the Repertoire Pack detail pages (the first
+// pages nested one directory deep, /repertoire-packs/<id>.html). Every nav/
+// legal-link filename constant (buildStatic.js's STATIC_NAV/LEGAL_LINKS and
+// siblings) is a bare page-relative filename with no leading slash -- only
+// correct from a page at the site root. renderHeader()/renderFooter() must
+// normalize every one of those to a root-relative absolute path so the same
+// nav/footer markup works unchanged from any page depth.
+// -----------------------------------------------------------------------
+
+test('siteRelativeHref prepends a leading slash to a bare page-relative filename', () => {
+  assert.equal(siteRelativeHref('eco-openings.html'), '/eco-openings.html');
+  assert.equal(siteRelativeHref('repertoire-packs/white-1400-1600-sample.pgn'), '/repertoire-packs/white-1400-1600-sample.pgn');
+});
+
+test('siteRelativeHref is a no-op for values that are already correct as-is (no double slash)', () => {
+  assert.equal(siteRelativeHref('/'), '/');
+  assert.equal(siteRelativeHref('/repertoire'), '/repertoire');
+  assert.equal(siteRelativeHref('/opening-report.html'), '/opening-report.html');
+  assert.equal(siteRelativeHref('https://example.com/x'), 'https://example.com/x');
+  assert.equal(siteRelativeHref('http://example.com/x'), 'http://example.com/x');
+  assert.equal(siteRelativeHref('//example.com/x'), '//example.com/x');
+  assert.equal(siteRelativeHref('#section'), '#section');
+});
+
+test('siteRelativeHref passes through falsy values unchanged', () => {
+  assert.equal(siteRelativeHref(''), '');
+  assert.equal(siteRelativeHref(undefined), undefined);
+  assert.equal(siteRelativeHref(null), null);
+});
+
+test('renderHeader renders every STATIC_NAV-style (bare filename) nav link as a root-relative absolute href, and the brand/home link too', () => {
+  const nav = { home: '/', builder: 'repertoire-builder.html', player: 'opening-report.html', repertoire: 'repertoire.html', packs: 'repertoire-packs.html', openings: 'openings.html', eco: 'eco-openings.html', drill: 'drill.html', guides: 'guides.html', faq: 'chess-opening-faq.html' };
+  const html = renderHeader(nav, 'packs');
+  for (const key of ['builder', 'player', 'repertoire', 'packs', 'openings', 'eco', 'drill', 'guides', 'faq']) {
+    assert.match(html, new RegExp(`href="/${nav[key]}"`), `nav.${key} must render with a leading slash so it resolves correctly from a page nested one directory deep`);
+  }
+  assert.match(html, /class="brand" href="\/"/, 'the brand/home link must resolve to the real site root, not a page-relative "/"');
+});
+
+test('renderHeader leaves an already-absolute nav object (server.js\'s SERVER_NAV) unchanged -- no double slash', () => {
+  const html = renderHeader({ player: '/', repertoire: '/repertoire' }, 'player');
+  // No nav.home in this 2-key server nav -- the brand link falls back to
+  // nav.repertoire (render.js's own `nav.home || nav.repertoire || '/'`),
+  // which is already absolute and must render unchanged.
+  assert.match(html, /class="brand" href="\/repertoire"/);
+  assert.match(html, /href="\/repertoire">Repertoire explorer/);
+  assert.match(html, /href="\/" aria-current="page">Opening report/);
+  assert.doesNotMatch(html, /href="\/\//, 'must never double up a leading slash');
+});
+
+test('renderFooter renders every legalLinks value as a root-relative absolute href', () => {
+  const html = renderFooter('footer copy', { privacy: 'privacy.html', about: 'about.html', contact: 'contact.html', methodology: 'methodology.html' });
+  assert.match(html, /href="\/privacy\.html">Privacy policy/);
+  assert.match(html, /href="\/about\.html">About/);
+  assert.match(html, /href="\/contact\.html">Contact/);
+  assert.match(html, /href="\/methodology\.html">Methodology/);
 });
