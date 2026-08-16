@@ -21,11 +21,25 @@
  * for why this page doesn't use the dist/data/ shard-fetch path WS-1.4's
  * future general position explorer will).
  *
+ * Also drives the synced board panel added for the Board Visibility spec
+ * (task B1): a persistent cm-chessboard instance
+ * (src/boardWidget.js's mountSyncBoard) that shows the position after
+ * whichever tree row is currently selected. Every #repertoire-tree row is a
+ * real <button> carrying its own full `data-uci-path` from the tree root
+ * (src/render.js's renderRepertoireNode) -- selecting one replays that path
+ * with src/chessPosition.js's applyUciMoves()/fenFromBoard() (no chess
+ * engine, no build-time FEN precomputation) and hands the resulting FEN to
+ * the board. Click delegation is wired once on #repertoire-tree itself
+ * (never on individual row buttons), so it keeps working after paint()
+ * below replaces the tree's innerHTML on a band/color change.
+ *
  * Wrapped in an IIFE only to keep its own helper names out of the bundle's
  * top-level scope, matching this project's other browser entry points.
  */
 const { readBandState, writeBandState, onBandStateChange } = require('./bandState.client');
 const { renderRepertoireTree } = require('../render');
+const { mountSyncBoard, COLOR, FEN } = require('../boardWidget');
+const { START_BOARD, applyUciMoves, fenFromBoard } = require('../chessPosition');
 
 (function () {
   function $(selector) {
@@ -42,6 +56,115 @@ const { renderRepertoireTree } = require('../render');
     return; // corrupt data -- leave the server-rendered default as-is
   }
   if (!payload || !payload.combos) return;
+
+  // ---- Synced board panel (Board Visibility spec, task B1) -------------
+  // Untrusted-DOM-readback shape (security-standards.md): data-uci-path
+  // only ever originates from this project's own build-time payload, but
+  // it is still validated here before being replayed, same discipline as
+  // any other DOM-read value -- a malformed/tampered value is rejected
+  // outright (no DOM write, board stays on its previous position).
+  var UCI_PATH_RE = /^([a-h][1-8][a-h][1-8][qrbn]?)( [a-h][1-8][a-h][1-8][qrbn]?)*$/;
+  var boardMountEl = document.getElementById('repertoire-board-mount');
+  var boardHintEl = document.getElementById('repertoire-board-hint');
+  var boardStatusEl = document.getElementById('repertoire-board-status');
+  var boardHandle = boardMountEl ? mountSyncBoard(boardMountEl, { orientation: orientationFor(readBandState().color) }) : null;
+
+  function orientationFor(color) {
+    return color === 'black' ? COLOR.black : COLOR.white;
+  }
+
+  function resetBoard(color) {
+    if (boardHandle) {
+      boardHandle.setOrientation(orientationFor(color));
+      boardHandle.setFen(FEN.start, false);
+    }
+    if (boardHintEl) {
+      boardHintEl.hidden = false;
+      boardHintEl.textContent = 'Pick a move to see the position.';
+    }
+    if (boardStatusEl) boardStatusEl.textContent = '';
+  }
+
+  function clearRowSelection(treeEl) {
+    var rows = treeEl.querySelectorAll('.rep-node-row');
+    for (var i = 0; i < rows.length; i += 1) {
+      rows[i].setAttribute('aria-pressed', 'false');
+      rows[i].classList.remove('rep-node-row--ancestor');
+    }
+  }
+
+  // Walks from `rowEl`'s own <li> up to the tree root, returning every
+  // ancestor node's row button in LEAF-TO-ROOT order. Relies on each row
+  // button being its <li>'s first child in document order (renderRepertoireNode
+  // always emits the button before that node's own <ul> of children), so a
+  // plain (unscoped) querySelector on the ancestor <li> finds that <li>'s
+  // OWN row first -- never a deeper-nested one -- with no extra bookkeeping.
+  function ancestorRows(rowEl) {
+    var rows = [];
+    var li = rowEl.closest('li');
+    while (li) {
+      var ul = li.parentElement;
+      var parentLi = ul && ul.parentElement && ul.parentElement.tagName === 'LI' ? ul.parentElement : null;
+      if (!parentLi) break;
+      var parentRow = parentLi.querySelector('.rep-node-row');
+      if (parentRow) rows.push(parentRow);
+      li = parentLi;
+    }
+    return rows;
+  }
+
+  function moveLabel(rowEl) {
+    var ply = Number(rowEl.getAttribute('data-ply'));
+    var san = rowEl.getAttribute('data-san') || '';
+    var mover = ply % 2 === 0 ? 'white' : 'black';
+    var moveNumber = Math.floor(ply / 2) + 1;
+    return { text: mover === 'white' ? moveNumber + '. ' + san : san, ply: ply };
+  }
+
+  // "After 1. e4 e5 2. Nf3 - white to move" -- the navigation announcement
+  // (spec 2.1.3). This is distinct from, and doesn't duplicate, cm-chessboard's
+  // own Accessibility extension live region (that one describes the BOARD;
+  // this one describes which LINE is now selected).
+  function announceSelection(rowEl) {
+    if (!boardStatusEl) return;
+    var line = ancestorRows(rowEl).reverse().concat([rowEl]).map(moveLabel);
+    var text = line.map(function (m) { return m.text; }).join(' ');
+    var lastPly = line[line.length - 1].ply;
+    var nextMover = (lastPly + 1) % 2 === 0 ? 'white' : 'black';
+    boardStatusEl.textContent = 'After ' + text + ' - ' + nextMover + ' to move';
+  }
+
+  function selectRow(treeEl, rowEl) {
+    var uciPath = rowEl.getAttribute('data-uci-path') || '';
+    if (!UCI_PATH_RE.test(uciPath)) return;
+    var board;
+    try {
+      board = applyUciMoves(START_BOARD, uciPath.split(' '));
+    } catch (err) {
+      return; // leaves the board on its previous position, per security-standards.md
+    }
+    clearRowSelection(treeEl);
+    rowEl.setAttribute('aria-pressed', 'true');
+    ancestorRows(rowEl).forEach(function (ancestor) { ancestor.classList.add('rep-node-row--ancestor'); });
+    if (boardHandle) boardHandle.setFen(fenFromBoard(board), true);
+    if (boardHintEl) boardHintEl.hidden = true;
+    announceSelection(rowEl);
+  }
+
+  // Delegated on #repertoire-tree itself (a stable element across
+  // band/color changes) rather than on individual row buttons, so this
+  // keeps working after paint() below replaces the tree's innerHTML --
+  // guarded so re-wiring the same element twice (e.g. a second paint())
+  // never double-registers the listener.
+  function wireTreeSelection(treeEl) {
+    if (!treeEl || treeEl.dataset.syncBoardWired === 'true') return;
+    treeEl.dataset.syncBoardWired = 'true';
+    treeEl.addEventListener('click', function (event) {
+      var row = event.target && typeof event.target.closest === 'function' ? event.target.closest('.rep-node-row') : null;
+      if (row && treeEl.contains(row)) selectRow(treeEl, row);
+    });
+  }
+  // ------------------------------------------------------------------------
 
   function comboKey(band, color) {
     return band + '|' + color;
@@ -95,7 +218,13 @@ const { renderRepertoireTree } = require('../render');
       // same trust level as the page's own initial server-rendered markup,
       // not a new untrusted-HTML sink.
       treeEl.innerHTML = renderRepertoireTree(combo.tree);
+      wireTreeSelection(treeEl);
     }
+
+    // A band/color change always resets the board -- the previously
+    // selected line no longer exists in the freshly-painted tree (a new
+    // set of <button> rows, every one starting at aria-pressed="false").
+    resetBoard(state.color);
 
     updatePickerActive(state);
   }
@@ -118,9 +247,15 @@ const { renderRepertoireTree } = require('../render');
     // Only repaint if the resolved state differs from the server-rendered
     // default -- the default state's numbers are already correct in the
     // markup (spec 2.1's binding rule), so the common case (a fresh visit,
-    // nothing in the fragment or localStorage) does zero DOM churn.
+    // nothing in the fragment or localStorage) does zero DOM churn. The
+    // board panel still needs wiring either way -- it is new functionality,
+    // not gated by whether a repaint happened (boardHandle above was
+    // already mounted at this same initialState's orientation, so the
+    // default-state path needs no reset(), only the click delegation).
+    var initialTreeEl = $('#repertoire-tree');
     if (isDefaultState(initialState)) {
       updatePickerActive(initialState);
+      wireTreeSelection(initialTreeEl);
     } else {
       paint(initialState);
     }

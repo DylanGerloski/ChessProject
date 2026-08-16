@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { START_BOARD, applyUciMove, applyUciMoves } = require('../src/chessPosition');
+const { START_BOARD, applyUciMove, applyUciMoves, boardFromFen, fenFromBoard } = require('../src/chessPosition');
 
 test('applyUciMove: normal move relocates the piece and clears the origin square', () => {
   const board = applyUciMove(START_BOARD, 'e2e4');
@@ -77,4 +77,40 @@ test('the Italian Game line produces the expected board on a handful of squares'
 
 test('applyUciMove throws a clear error when the origin square is empty', () => {
   assert.throws(() => applyUciMove(START_BOARD, 'e5e6'), /no piece on e5/);
+});
+
+// ---------------------------------------------------------------------
+// fenFromBoard -- the Explorer synced board panel's inverse of
+// boardFromFen (src/render.js's renderRepertoireNode / task B1). Only the
+// piece-placement field is real; see the function's own doc comment.
+// ---------------------------------------------------------------------
+
+test('fenFromBoard: the start position round-trips to the well-known starting FEN placement field', () => {
+  const fen = fenFromBoard(START_BOARD);
+  assert.equal(fen.split(' ')[0], 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR');
+});
+
+test('fenFromBoard: round-trips through boardFromFen for a mid-game position (Italian Game)', () => {
+  const ucis = ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1c4'];
+  const board = applyUciMoves(START_BOARD, ucis);
+  const fen = fenFromBoard(board);
+  // Round-trip through the module's own inverse function -- every occupied
+  // square must come back exactly as it went in.
+  const roundTripped = boardFromFen(fen);
+  assert.deepEqual(roundTripped, board);
+});
+
+test('fenFromBoard: an empty board serializes to eight "8" rank rows', () => {
+  const fen = fenFromBoard({});
+  assert.equal(fen.split(' ')[0], '8/8/8/8/8/8/8/8');
+});
+
+test('fenFromBoard: run-length-encodes gaps correctly around a single piece mid-rank', () => {
+  const fen = fenFromBoard({ e4: 'P' });
+  assert.equal(fen.split(' ')[0], '8/8/8/8/4P3/8/8/8');
+});
+
+test('fenFromBoard: emits fixed placeholder fields after the piece placement (never a legality-grade FEN)', () => {
+  const fen = fenFromBoard(START_BOARD);
+  assert.equal(fen, 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
 });

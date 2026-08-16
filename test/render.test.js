@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { SITE_CSS, DESIGN_TOKENS, renderDocumentHead, renderNewsletterSignup, renderFooter, renderHeader, siteRelativeHref, HEADER_BAND_OPTIONS, HEADER_BAND_DEFAULT, BAND_CONTROL_PAGES } = require('../src/render');
+const { SITE_CSS, DESIGN_TOKENS, THEME_ROLES, renderDocumentHead, renderNewsletterSignup, renderFooter, renderHeader, renderRepertoireTree, siteRelativeHref, HEADER_BAND_OPTIONS, HEADER_BAND_DEFAULT, BAND_CONTROL_PAGES } = require('../src/render');
 const { RATING_BANDS } = require('../src/processRepertoire');
 const { BANDS: BAND_STATE_BANDS, DEFAULT_STATE: BAND_STATE_DEFAULT } = require('../src/browser/bandState.client');
 
@@ -186,6 +186,71 @@ test('renderHeader: band control markup is well-formed regardless of which nav k
   const html = renderHeader({ player: '/', repertoire: '/repertoire' }, 'player');
   assert.match(html, /data-band-header-control/);
   assert.match(html, /aria-label="Rating band, remembered for your next visit"/);
+});
+
+// -----------------------------------------------------------------------
+// renderRepertoireTree/renderRepertoireNode -- the Explorer synced board
+// panel's data plumbing (task B1). Every row is a real <button> carrying
+// its own full data-uci-path from the tree root, so
+// src/browser/repertoire.client.js can replay it through
+// chessPosition.js's applyUciMoves()/fenFromBoard() with no chess engine.
+// -----------------------------------------------------------------------
+
+function sampleRepertoireTree() {
+  return [
+    {
+      uci: 'e2e4', san: 'e4', ply: 0, mover: 'white', games: 100, playedPct: 80,
+      winPct: 55.0, drawPct: 20.0, lossPct: 25.0, averageRating: 1650,
+      children: [
+        {
+          uci: 'e7e5', san: 'e5', ply: 1, mover: 'black', games: 60, playedPct: 60,
+          winPct: 30.0, drawPct: 20.0, lossPct: 50.0, averageRating: 1640,
+          children: null,
+        },
+      ],
+    },
+  ];
+}
+
+test('renderRepertoireTree: each row is a real <button>, not a div, with aria-pressed="false" by default', () => {
+  const html = renderRepertoireTree(sampleRepertoireTree());
+  assert.match(html, /<button type="button" class="rep-node-row" aria-pressed="false"/);
+  assert.doesNotMatch(html, /<div class="rep-node-row">/);
+});
+
+test('renderRepertoireTree: data-uci-path is the full space-joined UCI path from the tree root, per node', () => {
+  const html = renderRepertoireTree(sampleRepertoireTree());
+  assert.match(html, /data-uci-path="e2e4"/, 'the root move\'s own path is just its own uci');
+  assert.match(html, /data-uci-path="e2e4 e7e5"/, 'the child\'s path is the root\'s uci plus its own');
+});
+
+test('renderRepertoireTree: data-san and data-ply are emitted per row', () => {
+  const html = renderRepertoireTree(sampleRepertoireTree());
+  assert.match(html, /data-san="e4" data-ply="0"/);
+  assert.match(html, /data-san="e5" data-ply="1"/);
+});
+
+test('renderRepertoireTree: an empty tree still renders the empty-state message, not a broken button', () => {
+  const html = renderRepertoireTree([]);
+  assert.match(html, /class="empty-note"/);
+  assert.doesNotMatch(html, /rep-node-row/);
+});
+
+// -----------------------------------------------------------------------
+// The two new design tokens this task authorised (design-standards.md /
+// the Board Visibility spec section 3): --color-selected-bg and
+// --board-sticky-max. No other new tokens.
+// -----------------------------------------------------------------------
+
+test('DESIGN_TOKENS: --board-sticky-max is the one new global token, a vh value', () => {
+  assert.equal(DESIGN_TOKENS['--board-sticky-max'], '38vh');
+});
+
+test('THEME_ROLES: --color-selected-bg is defined for both themes and distinct from --color-hover at the same accent percentage', () => {
+  assert.match(THEME_ROLES.light['--color-selected-bg'], /color-mix\(in oklch, var\(--color-accent\) 16%, transparent\)/);
+  assert.match(THEME_ROLES.dark['--color-selected-bg'], /color-mix\(in oklch, var\(--color-accent\) 24%, transparent\)/);
+  assert.notEqual(THEME_ROLES.light['--color-selected-bg'], THEME_ROLES.light['--color-hover']);
+  assert.notEqual(THEME_ROLES.dark['--color-selected-bg'], THEME_ROLES.dark['--color-hover']);
 });
 
 // -----------------------------------------------------------------------

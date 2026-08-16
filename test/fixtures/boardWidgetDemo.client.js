@@ -2,14 +2,16 @@
 
 /**
  * Test-only esbuild entry point (Phase 7c verification) -- mounts
- * src/boardWidget.js's replay and free modes for
- * test/boardWidget.browser.test.js to drive with Playwright. Never part of
- * the real site build (src/buildStatic.js does not reference this file);
- * lives under test/fixtures/ for that reason, same separation
- * public-repo-hygiene.md draws between shipped source and local-only
- * planning/verification artifacts.
+ * src/boardWidgetReplay.js's replay mode and src/boardWidgetFree.js's free
+ * mode (both split out of src/boardWidget.js as of task B1 -- see that
+ * file's own header comment) for test/boardWidget.browser.test.js to drive
+ * with Playwright. Never part of the real site build (src/buildStatic.js
+ * does not reference this file); lives under test/fixtures/ for that
+ * reason, same separation public-repo-hygiene.md draws between shipped
+ * source and local-only planning/verification artifacts.
  */
-const { mountReplayBoard, mountFreeBoard } = require('../../src/boardWidget');
+const { mountReplayBoard } = require('../../src/boardWidgetReplay');
+const { mountFreeBoard } = require('../../src/boardWidgetFree');
 
 const REPLAY_FENS = [
   'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',

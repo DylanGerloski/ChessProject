@@ -294,6 +294,13 @@ const DESIGN_TOKENS = {
   '--grid-gutter-md': '20px',
   '--grid-gutter-sm': '16px',
 
+  // The Explorer synced board panel's tablet/mobile sticky-height clamp
+  // (src/renderRepertoireExplorer.js) -- board-above-list stacks below
+  // 1024px, and this caps how much of the viewport the sticky board holds
+  // onto while the move tree scrolls underneath it, so the tree stays
+  // reachable on a short viewport instead of the board eating the screen.
+  '--board-sticky-max': '38vh',
+
   // Motion (design-standards.md: "all durations from motion tokens, none
   // over 400ms"). -fast/-piece predate this task (Phase 7c's piece-move
   // animation); -standard/-entering/-exiting and the ease-* set are new,
@@ -354,6 +361,13 @@ const THEME_ROLES = {
     '--color-board-dark': '#C2AD82',
     '--color-row-tint': 'rgba(20, 19, 15, 0.035)',
     '--color-hover': 'color-mix(in oklch, var(--color-accent) 8%, transparent)',
+    // The selected tree row on the Explorer's synced board panel
+    // (src/renderRepertoireExplorer.js) -- deliberately a different
+    // percentage than --color-hover (8%/14%) so hover and selected never
+    // resolve to the same value under two names (test/designTokens.test.js
+    // assertion i's spirit, applied by hand since color-mix() percentages
+    // aren't plain ramp values that test can compare).
+    '--color-selected-bg': 'color-mix(in oklch, var(--color-accent) 16%, transparent)',
     '--shadow-sm': '0 1px 2px rgba(35, 39, 31, 0.08)',
     '--shadow-md': '0 8px 24px rgba(35, 39, 31, 0.10)',
   },
@@ -394,6 +408,9 @@ const THEME_ROLES = {
     '--color-board-dark': '#8A7B54',
     '--color-row-tint': 'rgba(245, 241, 230, 0.05)',
     '--color-hover': 'color-mix(in oklch, var(--color-accent) 14%, transparent)',
+    // Dark-theme selected-row tint -- one step up from --color-hover's 14%,
+    // same reasoning as the light theme's entry above.
+    '--color-selected-bg': 'color-mix(in oklch, var(--color-accent) 24%, transparent)',
     // A light-ground shadow (the light-theme rgba above) is invisible on
     // ink-9 -- re-tinted to a hairline (the theme's own border role, so it
     // still reads as a seam rather than a fixed color) plus a much
@@ -937,6 +954,60 @@ ${designTokensCss(THEME_ROLES.dark)}
 
   .repertoire-intro { color: var(--color-muted); margin: 0 0 var(--space-5); }
 
+  /* Explorer synced board panel (src/renderRepertoireExplorer.js) -- board
+     column first / above in source order (mobile-first: this is what a
+     360px visitor sees without scrolling past the tree), tree column
+     second. Same named-two-column-grid technique as .pack-detail (see that
+     rule's own comment) rather than a second, differently-shaped grid
+     system -- board spans columns 1-5, tree spans columns 7-12, column 6
+     stays empty as the deliberate gutter turn spec'd for this panel (wider
+     than the standard --grid-gutter alone). Single column below 1024px,
+     same convention as .explorer-layout/.pack-detail. */
+  .repertoire-explorer-layout { margin: var(--space-4) 0 var(--space-6); }
+  .repertoire-board-col { margin: 0 0 var(--space-5); }
+  @media (min-width: 1024px) {
+    .repertoire-explorer-layout {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: var(--grid-gutter);
+      align-items: start;
+    }
+    .repertoire-board-col { grid-column: 1 / 6; margin: 0; }
+    .repertoire-tree-col { grid-column: 7 / 13; }
+  }
+  main .repertoire-explorer-layout { max-width: none; }
+
+  .repertoire-board-panel {
+    position: sticky;
+    top: var(--space-6);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    box-shadow: var(--shadow-sm);
+  }
+  /* aspect-ratio reserves the board's box in the server-rendered HTML so
+     mounting it causes zero layout shift (CLS <= 0.1) -- the board itself
+     never carries a size token of its own (design-standards.md: no new
+     board-size token authorised), it is simply a grid child at 100% width. */
+  .repertoire-board-mount { width: 100%; aspect-ratio: 1; }
+  .repertoire-board-hint { color: var(--color-muted); font-size: var(--text-sm); margin: var(--space-2) 0 0; min-height: 1.2em; }
+  /* Below 1024px the board sits above a scrolling tree rather than beside
+     it (category convention -- see this file's design-review notes on why
+     board-above-list, not a squeezed side-by-side pair, is the right call
+     at tablet/phone widths). cm-chessboard sizes itself from its mount's
+     own clientWidth, and the board is always square (aspect-ratio: 1), so
+     capping WIDTH to --board-sticky-max (a vh value) is what actually caps
+     the rendered board's height to that fraction of the viewport -- the
+     min() falls back to the column's own width whenever that is already
+     narrower, so a short column never gets artificially widened. This is
+     what keeps the tree reachable under a sticky board on a short viewport
+     (design-standards.md's "primary value object fully visible without
+     scrolling at 360x800"). */
+  @media (max-width: 1023px) {
+    .repertoire-board-mount { width: min(100%, var(--board-sticky-max)); margin: 0 auto; }
+  }
+
   ul.repertoire-tree, ul.repertoire-tree ul {
     list-style: none;
     margin: 0;
@@ -947,6 +1018,9 @@ ${designTokensCss(THEME_ROLES.dark)}
 
   .repertoire-tree li { margin: var(--space-3) 0; }
 
+  /* A real <button> (see renderRepertoireNode's own comment) styled to look
+     exactly like the div it replaces -- these four declarations are the
+     whole cost of that swap; everything below was already true of the div. */
   .rep-node-row {
     display: flex;
     flex-wrap: wrap;
@@ -957,7 +1031,23 @@ ${designTokensCss(THEME_ROLES.dark)}
     border-radius: var(--radius-md);
     padding: var(--space-2) var(--space-4);
     box-shadow: var(--shadow-sm);
+    font: inherit;
+    text-align: left;
+    width: 100%;
+    cursor: pointer;
   }
+  .rep-node-row:hover { background: var(--color-hover); }
+  /* Explorer synced board panel (src/renderRepertoireExplorer.js): selection
+     is never carried by color alone (WCAG 1.4.1) -- aria-pressed, this fill,
+     AND the 3px accent rule below all co-signal it, plus the board itself. */
+  .rep-node-row[aria-pressed="true"] {
+    background: var(--color-selected-bg);
+    border-left: 3px solid var(--color-accent);
+    padding-left: calc(var(--space-4) - 2px); /* the 3px rule replaces 1px of the existing 1px border, so only 2px needs clawing back from the padding */
+  }
+  /* Every ancestor row of the current selection, so the selected line reads
+     as a path through the tree rather than one isolated highlighted row. */
+  .rep-node-row.rep-node-row--ancestor { background: var(--color-hover); }
 
   .rep-node-label {
     font-weight: var(--weight-bold);
@@ -2477,13 +2567,27 @@ ${renderDocumentHead(`${username} | Repertoire Builder`)}
 `;
 }
 
-function renderRepertoireNode(node) {
+/**
+ * @param {object} node a repertoire-tree node (uci/san/games/... -- see
+ *   src/processRepertoire.js's own doc comment for the full shape).
+ * @param {string[]} [path] UCI moves from the tree root down to (but not
+ *   including) this node -- threaded through the recursion so every row can
+ *   emit its own full `data-uci-path` (this node's move appended) without
+ *   any caller needing to walk the DOM back up to reconstruct it. Added for
+ *   the Explorer synced board panel (src/renderRepertoireExplorer.js): the
+ *   panel replays `data-uci-path` through chessPosition.js's
+ *   applyUciMoves()/fenFromBoard() to show the position after the selected
+ *   line with no chess engine and no build-time FEN precomputation, since
+ *   every node already carries the `uci` that reached it.
+ */
+function renderRepertoireNode(node, path = []) {
   const winPct = typeof node.winPct === 'number' ? node.winPct : null;
   const drawPct = typeof node.drawPct === 'number' ? node.drawPct : null;
   const lossPct = typeof node.lossPct === 'number' ? node.lossPct : null;
   const ratingNote = node.averageRating ? `<span class="rep-rating">avg rating ${node.averageRating}</span>` : '';
+  const nodePath = [...path, node.uci];
   const children = node.children && node.children.length > 0
-    ? `<ul>${node.children.map(renderRepertoireNode).join('')}</ul>`
+    ? `<ul>${node.children.map((child) => renderRepertoireNode(child, nodePath)).join('')}</ul>`
     : '';
   const wdlTitle = `${node.mover} win/draw/loss: ${formatPct(winPct)}% / ${formatPct(drawPct)}% / ${formatPct(lossPct)}%`;
   // Same SVG-rect technique as src/renderContent.js's wdlBar() -- see that
@@ -2508,7 +2612,17 @@ function renderRepertoireNode(node) {
   if (wdlBar) rowParts.push(wdlBar);
   if (ratingNote) rowParts.push(ratingNote);
 
-  const liParts = [`<div class="rep-node-row">\n        ${rowParts.join('\n        ')}\n      </div>`];
+  // A real <button>, not a div with a click handler (design-standards.md
+  // WCAG 2.1.1/4.1.2 -- an unreachable-by-keyboard div fails both). Gets
+  // Enter/Space/focus for free; the four extra style resets this costs live
+  // in SITE_CSS's .rep-node-row rule. data-uci-path/data-san/data-ply feed
+  // the Explorer synced board panel's selection handler
+  // (src/browser/repertoire.client.js) -- data-uci-path is validated
+  // against a strict UCI-shape regex there before ever being replayed
+  // (security-standards.md's untrusted-DOM-readback rule), even though this
+  // value only ever originates from this project's own build-time payload.
+  const dataUciPath = escapeHtml(nodePath.join(' '));
+  const liParts = [`<button type="button" class="rep-node-row" aria-pressed="false" data-uci-path="${dataUciPath}" data-san="${escapeHtml(node.san)}" data-ply="${node.ply}">\n        ${rowParts.join('\n        ')}\n      </button>`];
   if (children) liParts.push(children);
 
   return `
@@ -2521,7 +2635,7 @@ function renderRepertoireTree(tree) {
   if (!Array.isArray(tree) || tree.length === 0) {
     return '<p class="empty-note">No repertoire data found for this rating band and color.</p>';
   }
-  return `<ul class="repertoire-tree">${tree.map(renderRepertoireNode).join('')}</ul>`;
+  return `<ul class="repertoire-tree">${tree.map((node) => renderRepertoireNode(node, [])).join('')}</ul>`;
 }
 
 /**
@@ -2569,82 +2683,6 @@ ${renderDocumentHead({ title, description, canonical })}
     ${renderRepertoireTree(tree)}
   </main>
   ${renderFooter('Data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a> (explorer.lichess.ovh, keyless, no account required).', legalLinks)}
-</div>
-</body>
-</html>
-`;
-}
-
-/**
- * The collapsed static repertoire explorer (spec WS-3.2 section 2 -- one
- * repertoire.html replacing the 8 old repertoire-<band>-<color>.html
- * files). Server-renders the default band+color combo's numbers directly
- * into the markup (section 2.1's binding rule: "server-render the default
- * state into HTML; hydrate only alternate states from JSON" -- a crawler
- * with JS disabled sees a complete, indexable page for the default state),
- * and embeds every combo this build produced as a #repertoire-data JSON
- * block that src/browser/repertoire.client.js reads to swap the DOM
- * client-side when the URL fragment or a saved localStorage preference
- * resolves to a different combo (see bandState.client.js).
- *
- * @param {object} data
- * @param {Object<string, {ratingBand:string, color:string,
- *   opening:{eco:string,name:string}|null,
- *   totals:{white:number,draws:number,black:number}|null, tree:Array}>}
- *   data.combos keyed "<band>|<color>" -- every combo this build fetched.
- * @param {string} data.defaultBand a key present in data.combos.
- * @param {string} data.defaultColor 'white'|'black', a key present in data.combos.
- * @param {string} data.bandPickerHtml pre-built band+color picker markup
- *   (src/buildStatic.js's bandPickerHtml()) -- built by the caller so this
- *   function doesn't need to know the picker's own pill-generation details,
- *   same division of labor indexPage() already uses for the home page's
- *   copy of the same picker.
- * @param {object} [data.nav]
- * @param {object} [data.legalLinks]
- * @param {string} [data.canonical]
- * @param {string} [data.description]
- * @returns {string} a full standalone HTML document
- */
-function renderRepertoireExplorerPage({ combos, defaultBand, defaultColor, bandPickerHtml, nav = { player: '/', repertoire: '/repertoire.html' }, legalLinks, canonical, description }) {
-  const defaultKey = `${defaultBand}|${defaultColor}`;
-  const defaultCombo = combos[defaultKey];
-  if (!defaultCombo) {
-    throw new Error(`renderRepertoireExplorerPage: no combo found for default "${defaultKey}"`);
-  }
-
-  const totalGames = defaultCombo.totals ? defaultCombo.totals.white + defaultCombo.totals.draws + defaultCombo.totals.black : null;
-  const openingNote = defaultCombo.opening ? ` - starting from ${escapeHtml(defaultCombo.opening.name)} (${escapeHtml(defaultCombo.opening.eco)})` : '';
-  const totalsNote = defaultCombo.totals
-    ? `<p id="repertoire-totals" class="summary-line">${totalGames.toLocaleString()} games played from the starting position in this rating band
-        (${defaultCombo.totals.white.toLocaleString()}W / ${defaultCombo.totals.draws.toLocaleString()}D / ${defaultCombo.totals.black.toLocaleString()}L).</p>`
-    : '<p id="repertoire-totals" class="summary-line" hidden></p>';
-  const title = 'Opening repertoire explorer, by rating band | Repertoire Builder';
-
-  const payload = { default: { band: defaultBand, color: defaultColor }, combos };
-
-  return `<!DOCTYPE html>
-<html lang="en">
-${renderDocumentHead({ title, description, canonical })}
-<body>
-<div class="page page--wide">
-  ${renderHeader(nav, 'repertoire')}
-  <main>
-    ${renderPageHead({
-      eyebrow: 'Repertoire',
-      title: 'Opening repertoire explorer',
-      subtitle: `<span id="repertoire-subtitle-text">Rating band ${escapeHtml(defaultCombo.ratingBand)}, playing as ${escapeHtml(defaultCombo.color)}${openingNote}</span>`,
-      meta: totalsNote,
-    })}
-    <p class="repertoire-intro">Most-played moves at each ply for players in this rating band, with win/draw/loss rates per move.
-       Your color's plies show the top choices actually played at this rating; the opponent's replies show
-       only their single most common response, to keep the tree readable. Pick a different rating band or
-       color below - the whole tree updates without leaving this page.</p>
-    ${bandPickerHtml}
-    <div id="repertoire-tree">${renderRepertoireTree(defaultCombo.tree)}</div>
-  </main>
-  ${renderFooter('Data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a> (explorer.lichess.ovh, keyless, no account required).', legalLinks)}
-  <script type="application/json" id="repertoire-data">${JSON.stringify(payload)}</script>
-  <script src="repertoire.js" defer></script>
 </div>
 </body>
 </html>
@@ -2741,7 +2779,6 @@ module.exports = {
   renderPlayerPage,
   renderRepertoireTree,
   renderRepertoirePage,
-  renderRepertoireExplorerPage,
   renderRedirectStubPage,
   renderGenericRedirectStub,
   renderGamesTable,

@@ -48,7 +48,8 @@ const {
 } = require('../repertoireModel');
 const { lookup: lookupBandData } = require('./bandData.client');
 const { readBandState } = require('./bandState.client');
-const { mountFreeBoard, COLOR } = require('../boardWidget');
+const { COLOR } = require('../boardWidget');
+const { mountFreeBoard } = require('../boardWidgetFree');
 // buildPackCore.js, not buildPack.js -- see src/repertoireModel.js's own
 // import comment / src/buildPackCore.js's header for why.
 const { applyExplorerUci } = require('../buildPackCore');
