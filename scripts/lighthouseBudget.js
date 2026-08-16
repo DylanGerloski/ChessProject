@@ -75,6 +75,20 @@ function scoreOf(categories, key) {
   return Math.round(cat.score * 100);
 }
 
+// Names the specific audit(s) dragging a failing category below budget --
+// a bare category score (e.g. "best-practices: 75") gives no signal for
+// root-causing a regression; this is what a human/agent actually needs to
+// read next, per this gate's whole purpose. Pure (no browser/Lighthouse
+// call) so it's directly unit-testable against a fixture lhr shape.
+function culpritAuditsFor(lhr, categoryKey) {
+  const cat = lhr.categories && lhr.categories[categoryKey];
+  if (!cat || !Array.isArray(cat.auditRefs)) return [];
+  return cat.auditRefs
+    .map((ref) => lhr.audits[ref.id])
+    .filter((audit) => audit && audit.score !== null && audit.score < 1)
+    .map((audit) => `${audit.id} (${audit.title}): score ${audit.score}${audit.displayValue ? `, ${audit.displayValue}` : ''}`);
+}
+
 async function auditPage(distDir, page, skipCategories = []) {
   const filePath = path.join(distDir, page);
   if (!fs.existsSync(filePath)) {
@@ -86,15 +100,18 @@ async function auditPage(distDir, page, skipCategories = []) {
     const lhr = await runLighthouse(pageUrl, { categories: CATEGORIES, cdpPort: CDP_PORT, skipAudits: SKIP_AUDITS });
     const scores = {};
     const failures = [];
+    const failingAudits = {};
     for (const key of CATEGORIES) {
       const score = scoreOf(lhr.categories, key);
       scores[key] = score;
       if (skipCategories.includes(key)) continue;
       if (score === null || score < BUDGET_MIN_SCORE) {
         failures.push(`${key}: ${score === null ? 'n/a' : score}`);
+        const culprits = culpritAuditsFor(lhr, key);
+        if (culprits.length > 0) failingAudits[key] = culprits;
       }
     }
-    return { page, ok: failures.length === 0, scores, failures, skipCategories };
+    return { page, ok: failures.length === 0, scores, failures, skipCategories, failingAudits };
   } finally {
     await browser.close();
     await cleanup();
@@ -128,6 +145,13 @@ async function main() {
     } else if (!result.ok) {
       anyFail = true;
       console.error(`FAIL  ${result.page}: ${result.failures.join(', ')} (budget: >= ${BUDGET_MIN_SCORE})`);
+      if (result.failingAudits) {
+        for (const [category, culprits] of Object.entries(result.failingAudits)) {
+          for (const culprit of culprits) {
+            console.error(`        ${category} audit failing: ${culprit}`);
+          }
+        }
+      }
     } else {
       const skipNote = result.skipCategories && result.skipCategories.length > 0
         ? ` (${result.skipCategories.join(', ')} exempted -- see GATED_PAGES comment)`
@@ -147,4 +171,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { BUDGET_MIN_SCORE, CATEGORIES, GATED_PAGES, CDP_PORT, scoreOf, auditPage, runAll };
+module.exports = { BUDGET_MIN_SCORE, CATEGORIES, GATED_PAGES, CDP_PORT, scoreOf, culpritAuditsFor, auditPage, runAll };
