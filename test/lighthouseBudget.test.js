@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { BUDGET_MIN_SCORE, CATEGORIES, GATED_PAGES, scoreOf, culpritAuditsFor } = require('../scripts/lighthouseBudget');
+const { BUDGET_MIN_SCORE, CATEGORIES, GATED_PAGES, MAX_ATTEMPTS, scoreOf, culpritAuditsFor, evaluate } = require('../scripts/lighthouseBudget');
 
 // Only the pure, no-browser-required helpers are exercised here -- actually
 // launching Chromium + Lighthouse is heavy and isn't a fit for this
@@ -83,4 +83,46 @@ test('culpritAuditsFor names the specific failing audit(s) in a category, not ju
 test('culpritAuditsFor returns an empty array for a missing category or a category with no auditRefs', () => {
   assert.deepEqual(culpritAuditsFor({ categories: {}, audits: {} }, 'best-practices'), []);
   assert.deepEqual(culpritAuditsFor({ categories: { 'best-practices': {} }, audits: {} }, 'best-practices'), []);
+});
+
+// MAX_ATTEMPTS>1 (retry-once-on-fail) exists specifically because a real,
+// confirmed CI run (methodology.html, 2026-08-16) scored best-practices=75
+// once and 100 on every other attempt with no code change in between --
+// see MAX_ATTEMPTS's own comment in scripts/lighthouseBudget.js.
+test('MAX_ATTEMPTS allows at least one retry, so a single flaky below-budget run does not fail the gate alone', () => {
+  assert.ok(MAX_ATTEMPTS >= 2);
+});
+
+test('evaluate: a passing lhr with no skipped categories is ok with no failures', () => {
+  const lhr = {
+    categories: {
+      performance: { score: 1 },
+      accessibility: { score: 1 },
+      'best-practices': { score: 1 },
+      seo: { score: 1 },
+    },
+    audits: {},
+  };
+  const result = evaluate(lhr, []);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.failures, []);
+  assert.deepEqual(result.failingAudits, {});
+});
+
+test('evaluate: a below-budget category not in skipCategories fails, and a skipped one does not', () => {
+  const lhr = {
+    categories: {
+      performance: { score: 1 },
+      accessibility: { score: 1 },
+      'best-practices': { score: 1 },
+      seo: { score: 0.63 },
+    },
+    audits: {},
+  };
+  const result = evaluate(lhr, ['seo']);
+  assert.equal(result.ok, true);
+
+  const resultUnskipped = evaluate(lhr, []);
+  assert.equal(resultUnskipped.ok, false);
+  assert.deepEqual(resultUnskipped.failures, ['seo: 63']);
 });
