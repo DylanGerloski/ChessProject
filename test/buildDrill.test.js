@@ -120,8 +120,20 @@ test('lookupSync: an unknown band (no shard directory at all) returns "out-of-bo
 // buildReferenceLines / buildDrillReferenceData
 // -----------------------------------------------------------------------
 
-test('buildReferenceLines: the Italian Game at 1600-1800 produces real, multi-ply lines from the committed shards', () => {
-  const opening = getOpening('italian-game');
+test('buildReferenceLines: the Sicilian Defense at 1600-1800 produces real, multi-ply lines from the committed shards', () => {
+  // Was 'italian-game' (5-ply defining line: e4 e5 Nf3 Nc6 Bc4) until the
+  // 2026-08-16 data-source fix (see scripts/buildBandShards.js's own header,
+  // "DATA SOURCE, FIXED 2026-08-16"): data/rep/ is now crawled from this
+  // site's real one-month dump aggregate instead of Lichess's all-time
+  // cumulative Explorer totals, so per-position game counts are honest but
+  // far smaller, and MIN_GAMES/MIN_REACH pruning now stops the crawl short
+  // of Italian Game's 5-ply arrival position at every band -- a real
+  // coverage change, not a regression (buildDrillReferenceData's own
+  // Non-Negotiable-4 omission logic, tested below, is exactly the designed
+  // behavior for this). Sicilian Defense (2-ply defining line) has real,
+  // well-covered continuations in the new data and exercises the same code
+  // path this test is actually about.
+  const opening = getOpening('sicilian-defense');
   const lines = buildReferenceLines({ band: '1600-1800', opening, repDataDir: REAL_REP_DATA_DIR, maxPlies: 4, breadth: 2 });
   assert.ok(lines.length > 0, 'expected at least one real reference line for a well-covered opening/band');
   for (const line of lines) {
