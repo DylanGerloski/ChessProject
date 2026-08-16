@@ -1577,6 +1577,84 @@ ${designTokensCss(THEME_ROLES.dark)}
     margin-right: calc(50% - 50vw);
   }
 
+  /* Board-visibility work -- the homepage hero demo
+     (buildStatic.js's homeDemoMarkup()). Text column first / above in
+     source order (mobile-first, same convention as
+     .repertoire-explorer-layout above: this is what a 360px visitor sees
+     without scrolling past the h1/subtitle), demo column second. Same
+     named-two-column-grid technique, adjacent 1-6 / 7-12 spans (no
+     dedicated empty gutter-turn column here -- the grid's own gap is
+     enough at this narrower two-block layout). Single column below
+     1024px. No new tokens (spec section 3: Piece C is authorised zero --
+     every value below is one of the existing tokens .repertoire-board-panel
+     already uses for the same "self-contained board panel" role). */
+  .home-hero-layout { margin: var(--space-2) 0 0; }
+  @media (min-width: 1024px) {
+    .home-hero-layout {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: var(--grid-gutter);
+      align-items: start;
+    }
+    .home-hero-text { grid-column: 1 / 7; }
+    .home-demo { grid-column: 7 / 13; }
+  }
+  main .home-hero-layout { max-width: none; }
+
+  .home-demo {
+    margin: var(--space-5) 0 0;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    box-shadow: var(--shadow-sm);
+  }
+  @media (min-width: 1024px) {
+    .home-demo { margin-top: 0; }
+  }
+  .home-demo-caption {
+    margin: 0 0 var(--space-3);
+    /* Reserves roughly two lines at --text-sm so swapping in a longer
+       caption after a move never shifts the board below it (CLS). */
+    min-height: calc(1.5 * var(--text-sm) * 2);
+    font-size: var(--text-sm);
+    color: var(--color-text);
+  }
+  /* aspect-ratio reserves the board's box in the server-rendered HTML so
+     mounting it causes zero layout shift (CLS <= 0.1) -- same technique
+     and same reasoning as .repertoire-board-mount, this board never
+     carries a size token of its own either (design-standards.md: no new
+     board-size token authorised). */
+  .home-demo-board-mount { width: 100%; aspect-ratio: 1; }
+  .home-demo-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin: var(--space-3) 0 0;
+    font-size: var(--text-sm);
+  }
+  /* A plain outline control, not a second accent-filled button -- spec
+     section 2.3's one-accent-filled-action rule (design-standards.md: the
+     home page's single accent-filled action is the rating-band picker,
+     unchanged by this piece). Same rest/hover treatment as .theme-toggle
+     above (transparent surface, hover fills --color-hover, hover border
+     turns --color-accent) -- the established "secondary interactive
+     control" language on this site, not a new pattern. */
+  .home-demo-reset {
+    background: transparent;
+    border: var(--border-hairline) solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-4);
+    font: inherit;
+    color: var(--color-text);
+    cursor: pointer;
+    transition: background-color var(--motion-duration-fast) var(--motion-ease-standard),
+                border-color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+  .home-demo-reset:hover { background: var(--color-hover); border-color: var(--color-accent); }
+
   /* Homepage above-the-fold data strip (buildStatic.js's dataStripHtml):
      a full-bleed band immediately under the h1, so the page opens with a
      real number instead of only a claim about one. The outer element does
