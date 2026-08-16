@@ -94,8 +94,27 @@ jobs:
           echo "heap_mb=${HEAP_MB}" >> "$GITHUB_OUTPUT"
           echo "runner total memory: ${TOTAL_MB}MB -> Node old-space ceiling: ${HEAP_MB}MB" | tee -a "$GITHUB_STEP_SUMMARY"
 
+      # ROOT-CAUSE NOTE (2026-08-16, root-caused after 4 consecutive failed
+      # runs): two of those four failures (2026-08-15 08:50 UTC and 10:50
+      # UTC) were genuine OOM crashes in this step -- but the workflow
+      # reported this step as PASSED both times, and the run only failed
+      # ~15-20 minutes later at "Package aggregate shards" with a confusing,
+      # unrelated-looking `tar: data/aggregates: Cannot open: No such file
+      # or directory`. Cause: this step piped node's output to `tee`
+      # without `pipefail`, so bash's `-e` only sees `tee`'s exit code
+      # (always 0), never node's -- confirmed empirically, not assumed: a
+      # real run's own step log literally shows `shell: /usr/bin/bash -e
+      # {0}` (no `-o pipefail`) for this step, alongside a printed `FATAL
+      # ERROR: ... JavaScript heap out of memory` crash in the same step's
+      # output that the step nonetheless reported as a checkmark. Any
+      # future crash here (OOM or otherwise) would be silently swallowed
+      # the same way, costing another 15-20 minutes of runner time before a
+      # misleading failure shows up two steps later. `set -o pipefail`
+      # makes the pipeline's exit status the worst of its parts, so a node
+      # crash now fails this step immediately and visibly.
       - name: Ingest dump prefix
         run: |
+          set -euo pipefail
           node --max-old-space-size="${{ steps.heap.outputs.heap_mb }}" scripts/ingestDump.js \
             --month "${{ inputs.month }}" \
             --games "${{ inputs.games }}" \
@@ -125,11 +144,44 @@ jobs:
       # the automatically-issued, workflow-scoped GITHUB_TOKEN below -- no
       # third-party release-creation Action needed, so there is nothing here
       # to SHA-pin.
+      #
+      # ROOT-CAUSE NOTE (2026-08-16): one of the four consecutive failures
+      # root-caused this date (the run at 2026-08-15 06:51 UTC) had nothing
+      # to do with memory -- ingest/verify/package all genuinely succeeded,
+      # and this step failed outright with `a release with the same tag
+      # name already exists: data-2026-07-smoke`, because an earlier
+      # smoke-test run for the same month (the recommended first run for
+      # any never-before-ingested month, per this workflow's own `games`
+      # input description) had already created that exact tag, and this
+      # step has no idempotency for a rerun. Re-running the recommended
+      # smoke test for a month that already has one is an ordinary,
+      # expected operator action (e.g. re-verifying after a code fix, which
+      # is literally what happened here) -- it should not hard-fail. Smoke
+      # releases are explicitly documented as disposable: this workflow's
+      # `smoke_test` input says a smoke run "does NOT commit manifest.json
+      # back to master, so the live site keeps its current data source",
+      # meaning nothing else depends on a smoke tag's stability, so
+      # replacing it on rerun is safe and matches operator intent. A
+      # non-smoke (full-scale, becomes-the-live-data) tag collision is a
+      # materially different, higher-stakes situation -- likely means this
+      # month was already ingested for real -- so that case fails loudly
+      # with a clear explanation instead of silently overwriting live data.
       - name: Create release and upload aggregate asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ steps.package.outputs.tag }}" \
+          set -euo pipefail
+          TAG="${{ steps.package.outputs.tag }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            if [ "${{ inputs.smoke_test }}" = "true" ]; then
+              echo "smoke-test release $TAG already exists (from a prior smoke run of this month) -- deleting it first; smoke releases are disposable by design (see this step's header comment)." | tee -a "$GITHUB_STEP_SUMMARY"
+              gh release delete "$TAG" --yes --cleanup-tag
+            else
+              echo "::error::a non-smoke release $TAG already exists -- this almost always means this month was already ingested at full scale. Re-running would silently attempt to overwrite a release the live site or other code may already reference. Delete it manually first only if you really mean to redo this month, then re-run."
+              exit 1
+            fi
+          fi
+          gh release create "$TAG" \
             "${{ steps.package.outputs.asset }}" \
             --title "Aggregate data ${{ inputs.month }}${{ inputs.smoke_test == true && ' (smoke test)' || '' }}" \
             --notes "Ingested from database.lichess.org, month ${{ inputs.month }}, game budget ${{ inputs.games }}. See the attached manifest.json for the exact gamesScanned/gamesUsed/observedGameDateRange figures for this run."
