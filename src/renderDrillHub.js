@@ -26,16 +26,15 @@
 
 const { escapeHtml, formatPct, renderDocumentHead, renderHeader, renderFooter, renderPageHead } = require('./render');
 const { renderBreadcrumb } = require('./renderContent');
-const { renderDrillBoard, DRILL_CSS, CANDIDATE_TABLE_PLACEHOLDER } = require('./renderDrill');
+const { DRILL_CSS, CANDIDATE_TABLE_PLACEHOLDER } = require('./renderDrill');
 const { START_BOARD } = require('./chessPosition');
+const { renderBoardDiagram, spriteDefsHtml } = require('./boardSvg');
 const { absoluteUrl, pageTitle } = require('./site');
 const { breadcrumbJsonLd, jsonLdScript } = require('./structuredData');
 const { OPENINGS } = require('./openings');
 const { buildDrillReferenceData, readManifest } = require('./buildDrill');
 
 const IS_PLACEHOLDER = false;
-
-const GLYPHS = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
 
 /**
  * @param {{nav: object, legalLinks: object}} opts
@@ -68,9 +67,16 @@ function renderDrillHubPage({ nav, legalLinks }) {
   // The session board starts painted at the ordinary starting position --
   // never a specific card's position, so there is nothing card-specific
   // (and therefore nothing spoiler-relevant) in this server-rendered
-  // markup. src/browser/drill.client.js repaints it the moment a real
-  // session card is chosen.
-  const startingBoardHtml = renderDrillBoard(START_BOARD, { glyphs: GLYPHS, flip: false });
+  // markup. Real Cburnett SVG piece artwork (src/boardSvg.js), same
+  // component already used for every other board on this site -- this
+  // stays a genuinely readable
+  // no-JS diagram (matching this page's own "server-rendered, real,
+  // readable, no-JS content" header comment above), never an empty mount
+  // div: src/browser/drill.client.js clears this container's markup itself,
+  // only once a session actually starts and mounts the real interactive
+  // cm-chessboard component in its place (see that file's
+  // ensureBoardMounted()).
+  const startingBoardHtml = renderBoardDiagram(START_BOARD, { flip: false, label: 'Starting position' });
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -78,6 +84,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'website', jsonLd,
 <body>
 <div class="page page--wide">
   ${renderHeader(nav, 'drill')}
+  ${spriteDefsHtml()}
   <main>
     ${renderPageHead({
       breadcrumb: renderBreadcrumb(breadcrumbItems),
@@ -142,8 +149,8 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'website', jsonLd,
           <button type="submit" id="drill-submit">Play</button>
         </form>
         <figure class="board-figure">
-          ${startingBoardHtml}
-          <figcaption>Tap a piece, then tap where it should move - or type the move above.</figcaption>
+          <div id="drill-board">${startingBoardHtml}</div>
+          <figcaption>Tap or drag a piece, or type the move above.</figcaption>
         </figure>
         <button type="button" class="drill-show-answer" id="drill-show-answer">Show me the answer</button>
         <p class="drill-feedback" id="drill-feedback" role="status" aria-live="polite"></p>

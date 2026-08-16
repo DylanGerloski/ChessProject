@@ -21,16 +21,20 @@
  * DRILL_PILOT_STUB_FILE); its replacement (src/renderDrillHub.js's hub+
  * session page) never embeds more than the CURRENT card's own play path,
  * fetched from src/browser/bandData.client.js per card, never baked in at
- * build time. Nothing here is deleted: renderDrillBoard() and DRILL_CSS
- * are the exact reusable pieces the old page and the new one both need,
- * kept in this one file so there is still exactly one board renderer and
- * one drill stylesheet, not two.
+ * build time. DRILL_CSS/CANDIDATE_TABLE_PLACEHOLDER are the reusable
+ * pieces the old page and the new one both need, kept in this one file so
+ * there is still exactly one drill stylesheet.
+ *
+ * BOARD RENDERER REMOVED: this
+ * file used to also own renderDrillBoard()/pieceLabel()/pieceSpanHtml(), a
+ * hand-rolled 64-unicode-glyph-button board. drill.html's server-rendered
+ * starting position now comes from src/boardSvg.js's renderBoardDiagram()
+ * (the same real Cburnett SVG artwork every other board on this site
+ * uses -- see src/renderDrillHub.js), and its live interactive session
+ * board is the real cm-chessboard component (src/boardWidgetDrill.js,
+ * mounted by src/browser/drill.client.js). Nothing here renders a board
+ * anymore.
  */
-
-const { escapeHtml } = require('./render');
-const { FILES, RANKS } = require('./chessPosition');
-
-const PIECE_NAMES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
 
 /**
  * Placeholder shown in the candidate-table slot before an attempt or an
@@ -129,10 +133,6 @@ const DRILL_CSS = `
   .drill-move-input input { flex: 1 1 200px; font: inherit; padding: var(--space-3) var(--space-4); border: 1.5px solid var(--color-border-strong); border-radius: var(--radius-md); }
   .drill-move-input button { min-height: 44px; font: inherit; font-weight: 700; padding: var(--space-3) var(--space-5); border: none; border-radius: var(--radius-md); background: var(--color-accent-dark); color: var(--color-accent-contrast); cursor: pointer; }
 
-  button.board-sq { border: none; padding: 0; margin: 0; cursor: pointer; min-width: 44px; min-height: 44px; }
-  button.board-sq[aria-pressed="true"] { outline: 3px solid var(--color-focus); outline-offset: -3px; }
-  button.board-sq:hover { filter: brightness(0.95); }
-
   .drill-feedback { border-radius: var(--radius-md); padding: var(--space-4); margin: var(--space-4) 0; font-size: var(--text-base); min-height: 1.5em; transition: background var(--motion-duration-entering) ease; }
   .drill-feedback--correct { background: var(--color-win-bg); color: var(--color-win-text); }
   .drill-feedback--offmeta { background: var(--color-draw-bg); color: var(--color-draw-text); }
@@ -148,52 +148,7 @@ const DRILL_CSS = `
   }
 `;
 
-function pieceLabel(piece) {
-  if (!piece) return null;
-  const isWhite = piece === piece.toUpperCase();
-  return `${isWhite ? 'white' : 'black'} ${PIECE_NAMES[piece.toLowerCase()] || ''}`.trim();
-}
-
-function pieceSpanHtml(piece, glyphs) {
-  if (!piece) return '';
-  const isWhite = piece === piece.toUpperCase();
-  const glyph = glyphs[piece.toLowerCase()];
-  return `<span class="board-pc--${isWhite ? 'w' : 'b'}" aria-hidden="true">${escapeHtml(glyph)}</span>`;
-}
-
-/**
- * Renders a board as 64 real, individually-focusable buttons (click-to-move
- * plus keyboard, no drag-and-drop -- WCAG 2.2 SC 2.5.7). Every square
- * carries a non-empty aria-label naming the square and, when occupied, the
- * piece on it. Used both server-side (the session view's initial position,
- * so the page is readable before drill-hub.js runs) and repainted
- * client-side on every move (src/browser/drill.client.js's paintBoard()).
- *
- * @param {Record<string,string>} board square -> FEN piece letter
- * @param {{glyphs: Record<string,string>, flip?: boolean}} opts
- */
-function renderDrillBoard(board, { glyphs, flip = false } = {}) {
-  const fileOrder = flip ? [...FILES].reverse() : FILES;
-  const rankOrder = flip ? RANKS : [...RANKS].reverse();
-  const squares = [];
-  for (const rank of rankOrder) {
-    for (const file of fileOrder) {
-      const square = `${file}${rank}`;
-      const isDark = (FILES.indexOf(file) + RANKS.indexOf(rank)) % 2 === 0;
-      const piece = board[square];
-      const label = pieceLabel(piece) ? `${square}, ${pieceLabel(piece)}` : `${square}, empty`;
-      squares.push(
-        `<button type="button" class="board-sq board-sq--${isDark ? 'dark' : 'light'}" data-square="${square}" aria-pressed="false" aria-label="${escapeHtml(label)}">${pieceSpanHtml(piece, glyphs)}</button>`
-      );
-    }
-  }
-  return `<div class="board" data-drill-board role="group" aria-label="Drill board">${squares.join('')}</div>`;
-}
-
 module.exports = {
-  renderDrillBoard,
   DRILL_CSS,
   CANDIDATE_TABLE_PLACEHOLDER,
-  pieceLabel,
-  pieceSpanHtml,
 };

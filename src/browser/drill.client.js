@@ -51,20 +51,18 @@
  * unnecessary.
  */
 
-const { START_BOARD, applyUciMoves, boardFromFen } = require('../chessPosition');
+const { START_BOARD, applyUciMoves, boardFromFen, fenFromBoard } = require('../chessPosition');
 const { normalizeMoveInput, gradeMove } = require('../drillLogic');
 const drillDeck = require('../drillDeck');
 const { parse: parseLeakReport } = require('../leakModel');
 const { gradeFromAttempt } = require('../scheduler');
+const { mountDrillBoard } = require('../boardWidgetDrill');
 const bandData = require('./bandData.client');
 const bandState = require('./bandState.client');
 
 const LEAK_REPORT_KEY = 'rb.leakReport.v1';
 
 (function () {
-  const PIECE_NAMES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
-  const GLYPHS = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
-
   function escapeHtml(str) {
     return String(str)
       .replace(/&/g, '&amp;')
@@ -94,7 +92,7 @@ const LEAK_REPORT_KEY = 'rb.leakReport.v1';
 
   const hubSection = document.getElementById('drill-hub');
   const sessionSection = document.getElementById('drill-session');
-  const boardRoot = document.querySelector('[data-drill-board]');
+  const boardMountEl = document.getElementById('drill-board');
   const moveForm = document.getElementById('drill-move-form');
   const moveInput = document.getElementById('drill-move-text');
   const showAnswerBtn = document.getElementById('drill-show-answer');
@@ -103,7 +101,36 @@ const LEAK_REPORT_KEY = 'rb.leakReport.v1';
   const announceEl = document.getElementById('drill-announce');
   const candidateTableEl = document.getElementById('drill-candidate-table');
 
-  if (!hubSection || !sessionSection || !boardRoot) return; // markup not present -- nothing to wire up
+  if (!hubSection || !sessionSection || !boardMountEl) return; // markup not present -- nothing to wire up
+
+  // ---------------------------------------------------------------------
+  // Interactive board: the
+  // real cm-chessboard component, same as every other board on this site,
+  // replacing the old 64-unicode-glyph-button paint loop. Mounted lazily
+  // (only once a session actually starts, see startSessionBtn's handler
+  // below), not at script init -- boardMountEl sits inside <section
+  // id="drill-session" hidden>, and cm-chessboard sizes itself off the
+  // container's clientWidth at mount time (0 while hidden), the same
+  // "mount on first real need" pattern src/browser/repertoireBuilder.client.js's
+  // rebuildBoardAtPath() already uses for its own initially-hidden board.
+  // ---------------------------------------------------------------------
+  let boardHandle = null;
+
+  function ensureBoardMounted() {
+    if (boardHandle) return;
+    // Discards the server-rendered static diagram (src/renderDrillHub.js) --
+    // real content for a no-JS visitor, but cm-chessboard appends its own
+    // markup into whatever container it's given rather than replacing it,
+    // so this container must be emptied first or the two would render on
+    // top of each other.
+    boardMountEl.innerHTML = '';
+    boardHandle = mountDrillBoard(boardMountEl, {
+      fen: fenFromBoard(START_BOARD),
+      onMove({ squareFrom, squareTo }) {
+        gradeAndAdvance(squareFrom + squareTo, false);
+      },
+    });
+  }
 
   // ---------------------------------------------------------------------
   // Deck persistence
@@ -284,41 +311,19 @@ const LEAK_REPORT_KEY = 'rb.leakReport.v1';
   let cardStartTime = 0;
   let attemptedThisCard = false;
   let correctOnFirstAttempt = false;
-  let selectedSquare = null;
 
   function boardForCard(card) {
     if (card.fen) return boardFromFen(card.fen);
     return applyUciMoves(START_BOARD, card.play || []);
   }
 
-  function pieceLabel(piece) {
-    if (!piece) return null;
-    const isWhite = piece === piece.toUpperCase();
-    return `${isWhite ? 'white' : 'black'} ${PIECE_NAMES[piece.toLowerCase()] || ''}`.trim();
-  }
-
-  function squareButtons() {
-    return boardRoot.querySelectorAll('.board-sq');
-  }
-
+  // Repaints the real board for a new card. No-animate: a card transition
+  // is a jump to an unrelated position, not a move, so sliding pieces
+  // across the board here would misrepresent it as one (same reasoning
+  // src/browser/repertoireBuilder.client.js's rebuildBoardAtPath() already
+  // documents for its own reset(fen) call).
   function paintBoard(board) {
-    const buttons = squareButtons();
-    for (let i = 0; i < buttons.length; i += 1) {
-      const btn = buttons[i];
-      const sq = btn.getAttribute('data-square');
-      const piece = board[sq];
-      const isWhite = !!piece && piece === piece.toUpperCase();
-      const glyph = piece ? GLYPHS[piece.toLowerCase()] : '';
-      btn.innerHTML = glyph ? `<span class="board-pc--${isWhite ? 'w' : 'b'}" aria-hidden="true">${escapeHtml(glyph)}</span>` : '';
-      btn.setAttribute('aria-label', pieceLabel(piece) ? `${sq}, ${pieceLabel(piece)}` : `${sq}, empty`);
-      btn.setAttribute('aria-pressed', 'false');
-    }
-  }
-
-  function clearSelection() {
-    selectedSquare = null;
-    const buttons = squareButtons();
-    for (let i = 0; i < buttons.length; i += 1) buttons[i].setAttribute('aria-pressed', 'false');
+    if (boardHandle) boardHandle.setFen(fenFromBoard(board), false);
   }
 
   function announce(text) {
@@ -406,7 +411,6 @@ const LEAK_REPORT_KEY = 'rb.leakReport.v1';
     attemptedThisCard = false;
     correctOnFirstAttempt = false;
     cardStartTime = Date.now();
-    clearSelection();
     paintBoard(boardForCard(currentCard));
     resetCandidateTable();
     setFeedback('', '');
@@ -497,37 +501,10 @@ const LEAK_REPORT_KEY = 'rb.leakReport.v1';
     window.setTimeout(advance, 1200);
   }
 
-  function handleSquareClick(square) {
-    if (!currentCard) return;
-    const piece = boardForCard(currentCard)[square];
-    if (selectedSquare == null) {
-      if (!piece) {
-        announce(`No piece on ${square}.`);
-        return;
-      }
-      selectedSquare = square;
-      clearSelection();
-      const btn = boardRoot.querySelector(`[data-square="${square}"]`);
-      if (btn) btn.setAttribute('aria-pressed', 'true');
-      return;
-    }
-    if (selectedSquare === square) {
-      clearSelection();
-      return;
-    }
-    const from = selectedSquare;
-    clearSelection();
-    gradeAndAdvance(from + square, false);
-  }
-
-  boardRoot.addEventListener('click', function (event) {
-    let target = event.target;
-    while (target && target !== boardRoot && (!target.classList || !target.classList.contains('board-sq'))) {
-      target = target.parentNode;
-    }
-    if (!target || target === boardRoot) return;
-    handleSquareClick(target.getAttribute('data-square'));
-  });
+  // Board click/drag/keyboard/accessibility-form input all reach here via
+  // ensureBoardMounted()'s onMove callback (src/boardWidgetDrill.js) --
+  // one path for every input method, same shape as the previous
+  // handleSquareClick's "any two squares -> gradeAndAdvance" contract.
 
   if (moveForm) {
     moveForm.addEventListener('submit', function (event) {
@@ -557,6 +534,7 @@ const LEAK_REPORT_KEY = 'rb.leakReport.v1';
       queue = built.map((card) => ({ card, requeued: false }));
       hubSection.hidden = true;
       sessionSection.hidden = false;
+      ensureBoardMounted();
       advance();
     });
   }
