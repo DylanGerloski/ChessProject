@@ -150,7 +150,7 @@ const MAX_RESULTS_RENDERED = 100; // keep the results DOM small regardless of ho
     const sanTokens = sanText.split(' ').filter(Boolean);
     const { fens, labels, finalFen } = replaySanLine(sanTokens);
     replayHandle = mountReplayBoard(boardMount, { fens, labels, startIndex: fens.length - 1 });
-    currentLineEl.textContent = `${name} (${eco}) — ${sanTokens.join(' ')}`;
+    currentLineEl.textContent = `${name} (${eco}) - ${sanTokens.join(' ')}`;
     identifyFen(finalFen);
   }
 
@@ -170,7 +170,7 @@ const MAX_RESULTS_RENDERED = 100; // keep the results DOM small regardless of ho
     freeBoardHandle = mountFreeBoard(boardMount, {
       fen,
       onMove: (info) => {
-        currentLineEl.textContent = `Free play — last move ${info.san}`;
+        currentLineEl.textContent = `Free play - last move ${info.san}`;
         identifyFen(info.fen);
       },
     });
@@ -178,7 +178,7 @@ const MAX_RESULTS_RENDERED = 100; // keep the results DOM small regardless of ho
       currentLineEl.textContent = 'Free play from a pasted position.';
       if (autoIdentify) identifyFen(freeBoardHandle.chess.fen());
     } else {
-      currentLineEl.textContent = 'Free play from the starting position — move a piece to begin.';
+      currentLineEl.textContent = 'Free play from the starting position - move a piece to begin.';
       identifyStatusEl.textContent = '';
     }
   }
@@ -221,7 +221,7 @@ const MAX_RESULTS_RENDERED = 100; // keep the results DOM small regardless of ho
       return;
     }
     resultCountEl.textContent = totalMatched > rows.length
-      ? `Showing ${rows.length} of ${totalMatched} matches — narrow your search to see more.`
+      ? `Showing ${rows.length} of ${totalMatched} matches - narrow your search to see more.`
       : `${totalMatched} match${totalMatched === 1 ? '' : 'es'}.`;
 
     const table = document.createElement('table');

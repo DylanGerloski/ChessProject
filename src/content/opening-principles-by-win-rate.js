@@ -26,8 +26,8 @@ const meta = {
 
 const CATEGORIES = [
   { key: 'king-safety', label: 'King safety', rule: 'the move is castling (O-O or O-O-O)' },
-  { key: 'development', label: 'Development', rule: 'the move is a knight or bishop move (SAN starts with N or B) — develops a minor piece off the back rank' },
-  { key: 'center-control', label: 'Center control', rule: 'the move is a pawn push straight to a central file: c, d, or e (SAN is exactly a c/d/e file letter plus a rank, e.g. "d4" or "e5"; pawn captures and flank pawn moves like a3/h6/g6 don\'t count — see "What this doesn\'t classify" below)' },
+  { key: 'development', label: 'Development', rule: 'the move is a knight or bishop move (SAN starts with N or B) - develops a minor piece off the back rank' },
+  { key: 'center-control', label: 'Center control', rule: 'the move is a pawn push straight to a central file: c, d, or e (SAN is exactly a c/d/e file letter plus a rank, e.g. "d4" or "e5"; pawn captures and flank pawn moves like a3/h6/g6 don\'t count - see "What this doesn\'t classify" below)' },
 ];
 
 /**
@@ -152,7 +152,7 @@ ${avgWith != null && avgWithout != null
       : ''}
 
     <h2>What this doesn&rsquo;t show</h2>
-    <p>This measures whether a move&rsquo;s notation shape correlates with its own score, and whether that shows up in how much an opening&rsquo;s overall score varies by rating. It doesn&rsquo;t measure whether a specific position is objectively sound, and it can&rsquo;t tell you what a strong player would actually recommend in any one of these lines. A move matching &ldquo;development&rdquo; here is only classified by shape &mdash; whether it&rsquo;s actually good in that specific position is a separate question this page doesn&rsquo;t evaluate.</p>
+    <p>This measures whether a move&rsquo;s notation shape correlates with its own score, and whether that shows up in how much an opening&rsquo;s overall score varies by rating. It doesn&rsquo;t measure whether a specific position is objectively sound, and it can&rsquo;t tell you what a strong player would actually recommend in any one of these lines. A move matching &ldquo;development&rdquo; here is only classified by shape - whether it&rsquo;s actually good in that specific position is a separate question this page doesn&rsquo;t evaluate.</p>
 
     <h2>Go deeper</h2>
     <p>See <a href="most-common-opening-mistakes-1600-1800.html">the most common opening mistakes across all tracked openings &rarr;</a>, or the <a href="openings.html">full openings comparison &rarr;</a> for every band at once.</p>

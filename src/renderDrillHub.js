@@ -43,7 +43,7 @@ const GLYPHS = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
  */
 function renderDrillHubPage({ nav, legalLinks }) {
   const title = pageTitle('Opening drill');
-  const description = 'Train the openings your rating band actually plays, spaced-repetition style. Seed a deck from your opening report, a repertoire, or any of ten openings — free, no account, no signup.';
+  const description = 'Train the openings your rating band actually plays, spaced-repetition style. Seed a deck from your opening report, a repertoire, or any of ten openings - free, no account, no signup.';
   const canonical = absoluteUrl('drill.html');
   const breadcrumbItems = [
     { label: 'Home', href: nav.home },
@@ -143,7 +143,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'website', jsonLd,
         </form>
         <figure class="board-figure">
           ${startingBoardHtml}
-          <figcaption>Tap a piece, then tap where it should move &mdash; or type the move above.</figcaption>
+          <figcaption>Tap a piece, then tap where it should move - or type the move above.</figcaption>
         </figure>
         <button type="button" class="drill-show-answer" id="drill-show-answer">Show me the answer</button>
         <p class="drill-feedback" id="drill-feedback" role="status" aria-live="polite"></p>
@@ -163,7 +163,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'website', jsonLd,
 
     <script src="drill-hub.js" defer></script>
   </main>
-  ${renderFooter('Band data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>. Your deck and progress are saved only in your own browser (local storage) &mdash; see the privacy policy.', legalLinks)}
+  ${renderFooter('Band data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>. Your deck and progress are saved only in your own browser (local storage) - see the privacy policy.', legalLinks)}
 </div>
 </body>
 </html>
@@ -200,7 +200,7 @@ function renderReferenceBandSection(bandEntry) {
  */
 function renderDrillReferencePage({ nav, legalLinks }) {
   const title = pageTitle('Drill reference');
-  const description = 'Full opening lines by rating band, with real Lichess win rates on every move — the answers for the opening drill, listed here so a drill attempt is never spoiled.';
+  const description = 'Full opening lines by rating band, with real Lichess win rates on every move - the answers for the opening drill, listed here so a drill attempt is never spoiled.';
   const canonical = absoluteUrl('drill-reference.html');
   const breadcrumbItems = [
     { label: 'Home', href: nav.home },
@@ -237,7 +237,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'website', jsonLd 
       <p><a href="drill.html">Back to the opening drill &rarr;</a></p>
     </section>
   </main>
-  ${renderFooter('Band data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>. Your level and progress in the drill are saved only in your own browser (local storage) &mdash; see the privacy policy.', legalLinks)}
+  ${renderFooter('Band data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>. Your level and progress in the drill are saved only in your own browser (local storage) - see the privacy policy.', legalLinks)}
 </div>
 </body>
 </html>
