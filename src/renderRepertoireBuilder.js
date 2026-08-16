@@ -217,6 +217,29 @@ const BUILDER_CSS = `
 
   .rb-provenance { color: var(--color-muted); font-size: var(--text-xs); margin: var(--space-3) 0; }
   .rb-empty-note { color: var(--color-muted); }
+
+  .rb-import-toggle-wrapper { margin: var(--space-4) 0; }
+  .rb-import-panel {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-5);
+    margin: var(--space-4) 0 var(--space-6);
+    background: var(--color-surface);
+  }
+  .rb-import-panel h2, .rb-import-panel h3 { margin-top: 0; }
+  .rb-import-panel textarea {
+    font: inherit; font-size: var(--text-sm);
+    padding: var(--space-2) var(--space-3); width: 100%; box-sizing: border-box;
+    border: 1.5px solid var(--color-border-strong); border-radius: var(--radius-md);
+    background: var(--color-bg); color: var(--color-text); resize: vertical;
+  }
+  .rb-import-panel input[type="file"] { font: inherit; }
+  .rb-import-confirm { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--color-border); }
+  .rb-import-confirm select {
+    font: inherit; min-height: 44px; padding: var(--space-2) var(--space-3);
+    border: 1.5px solid var(--color-border-strong); border-radius: var(--radius-md);
+    background: var(--color-bg); color: var(--color-text); max-width: 40ch;
+  }
 `;
 
 /**
@@ -306,6 +329,57 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'website', jsonLd,
         <h2>Your saved repertoires</h2>
         <ul class="rb-saved-items" id="rb-saved-items"></ul>
         <button type="button" class="btn-secondary" id="rb-new-btn">Start another repertoire</button>
+      </div>
+
+      <div class="rb-import-toggle-wrapper">
+        <button type="button" class="btn-secondary" id="rb-import-toggle-btn" aria-expanded="false" aria-controls="rb-import-panel">Import a repertoire</button>
+      </div>
+
+      <div class="rb-import-panel" id="rb-import-panel" hidden>
+        <h2>Import a repertoire</h2>
+        <p class="rb-empty-note">Import a .pgn file (including variations) or a Repertoire Pack&rsquo;s pack.json file. Paste the text below, or choose a file. Nothing you import is sent anywhere; it is read entirely in your browser.</p>
+        <div class="rb-field">
+          <label for="rb-import-file">Choose a file (.pgn or .json)</label>
+          <input type="file" id="rb-import-file" accept=".pgn,.json,application/json,text/plain">
+        </div>
+        <div class="rb-field">
+          <label for="rb-import-paste">Or paste PGN or pack.json text</label>
+          <textarea id="rb-import-paste" rows="6" placeholder="[Event &quot;My repertoire&quot;]&#10;&#10;1. e4 e5 2. Nf3 ..."></textarea>
+        </div>
+        <button type="button" class="btn-primary" id="rb-import-parse-btn">Read import</button>
+        <p class="rb-saved-note" id="rb-import-status" role="status" aria-live="polite"></p>
+
+        <div class="rb-import-confirm" id="rb-import-confirm" hidden>
+          <h3>Ready to import</h3>
+          <p id="rb-import-summary"></p>
+          <div class="rb-field">
+            <label for="rb-import-name-input">Name (only used if creating a new repertoire)</label>
+            <input type="text" id="rb-import-name-input" maxlength="80" autocomplete="off">
+          </div>
+          <fieldset class="rb-fieldset" id="rb-import-side-fieldset">
+            <legend>Side</legend>
+            <div class="rb-radio-group">
+              <label><input type="radio" name="rb-import-side" value="white" checked> White</label>
+              <label><input type="radio" name="rb-import-side" value="black"> Black</label>
+            </div>
+          </fieldset>
+          <fieldset class="rb-fieldset" id="rb-import-band-fieldset">
+            <legend>Rating band (only used if creating a new repertoire)</legend>
+            <div class="rb-band-choice-grid" role="group" aria-label="Rating band" id="rb-import-band-choice-group">
+          ${bandChoiceButtons}
+            </div>
+          </fieldset>
+          <div class="rb-field">
+            <label for="rb-import-target-select">Add to</label>
+            <select id="rb-import-target-select">
+              <option value="__new__">A new repertoire</option>
+            </select>
+          </div>
+          <div class="rb-workspace-actions">
+            <button type="button" class="btn-primary" id="rb-import-confirm-btn">Import</button>
+            <button type="button" class="btn-secondary" id="rb-import-cancel-btn">Cancel</button>
+          </div>
+        </div>
       </div>
     </section>
 

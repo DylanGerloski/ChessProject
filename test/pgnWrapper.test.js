@@ -12,6 +12,8 @@ const {
   truncate,
   parsePgnSafe,
   parseFenSafe,
+  splitPgnHeaderAndMovetext,
+  findTopLevelParenSpans,
 } = require('../src/pgnWrapper');
 
 const VALID_PGN = '[Event "Test"]\n[White "Alice"]\n[Black "Bob"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *';
@@ -266,4 +268,60 @@ test('parsePgnSafe/parseFenSafe accept an injected ChessImpl and use it instead 
   parsePgnSafe(VALID_PGN, { ChessImpl: CountingChess });
   parseFenSafe(VALID_FEN, { ChessImpl: CountingChess });
   assert.equal(constructed, 2);
+});
+
+// --- splitPgnHeaderAndMovetext / findTopLevelParenSpans (repertoireModel.js's
+// variation-tree importer -- see that module's fromPgn doc comment) ---------
+
+test('splitPgnHeaderAndMovetext separates the leading tag block from the movetext', () => {
+  const { headerBlock, movetext } = splitPgnHeaderAndMovetext(VALID_PGN);
+  assert.match(headerBlock, /\[Event "Test"\]/);
+  assert.match(headerBlock, /\[Black "Bob"\]/);
+  assert.doesNotMatch(headerBlock, /1\. e4/);
+  assert.match(movetext, /1\. e4 e5/);
+});
+
+test('splitPgnHeaderAndMovetext on movetext-only input (no header lines) returns an empty header block', () => {
+  const { headerBlock, movetext } = splitPgnHeaderAndMovetext('1. e4 e5 *');
+  assert.equal(headerBlock, '');
+  assert.match(movetext, /1\. e4 e5/);
+});
+
+test('splitPgnHeaderAndMovetext does not mistake a "(" inside a tag VALUE for the movetext starting', () => {
+  const pgn = '[Event "Foo (Rd 3)"]\n[Site "?"]\n\n1. e4 e5 *';
+  const { headerBlock, movetext } = splitPgnHeaderAndMovetext(pgn);
+  assert.match(headerBlock, /Foo \(Rd 3\)/);
+  assert.doesNotMatch(movetext, /Foo/);
+});
+
+test('findTopLevelParenSpans finds one span for a single variation', () => {
+  const text = '1. e4 e5 (1... c5 2. Nf3) 2. Nf3 Nc6';
+  const spans = findTopLevelParenSpans(text);
+  assert.equal(spans.length, 1);
+  const [start, end] = spans[0];
+  assert.equal(text[start], '(');
+  assert.equal(text[end], ')');
+  assert.equal(text.slice(start + 1, end), '1... c5 2. Nf3');
+});
+
+test('findTopLevelParenSpans finds only TOP-LEVEL spans, not spans nested inside another variation', () => {
+  const text = '1. e4 c5 2. Nf3 d6 (2... Nc6 3. Bb5 (3. d4 cxd4) g6) 3. d4';
+  const spans = findTopLevelParenSpans(text);
+  assert.equal(spans.length, 1); // the nested (3. d4 cxd4) is NOT reported at this level
+  const [start, end] = spans[0];
+  assert.equal(text.slice(start + 1, end), '2... Nc6 3. Bb5 (3. d4 cxd4) g6');
+});
+
+test('findTopLevelParenSpans finds multiple sibling top-level spans in document order', () => {
+  const text = '1. e4 e5 (1... c5) (1... e6) (1... c6) 2. Nf3';
+  const spans = findTopLevelParenSpans(text);
+  assert.equal(spans.length, 3);
+  assert.deepEqual(spans.map(([s, e]) => text.slice(s + 1, e)), ['1... c5', '1... e6', '1... c6']);
+});
+
+test('findTopLevelParenSpans ignores parentheses inside brace comments (same discipline as scanParenDepth)', () => {
+  const text = '1. e4 {a comment (not a variation)} e5 (1... c5)';
+  const spans = findTopLevelParenSpans(text);
+  assert.equal(spans.length, 1);
+  assert.equal(text.slice(spans[0][0] + 1, spans[0][1]), '1... c5');
 });

@@ -227,6 +227,79 @@ function parseFenSafe(fenText, { ChessImpl = Chess } = {}) {
   }
 }
 
+/**
+ * Splits `pgnText` into its header block (the leading run of `[Key "Value"]`
+ * lines) and everything after it (the movetext). Line-anchored, no regex
+ * with a nested quantifier -- this is a structural split, not a second PGN
+ * grammar: it never decides whether a move is legal or a tag value is
+ * well-formed, it only finds where the tag section ends. Used by
+ * src/repertoireModel.js's variation-tree importer (see that module's
+ * import doc comment for why the split is needed) to isolate the movetext
+ * before hunting for top-level `(...)` variation spans in it, so a `(`
+ * inside a tag VALUE (a legal, if unusual, PGN tag like `[Event "Foo (Rd
+ * 3)"]`) is never mistaken for a variation opener.
+ *
+ * @param {string} pgnText
+ * @returns {{headerBlock: string, movetext: string}}
+ */
+function splitPgnHeaderAndMovetext(pgnText) {
+  const lines = pgnText.split('\n');
+  let i = 0;
+  while (i < lines.length && /^\s*\[.*\]\s*$/.test(lines[i])) i += 1;
+  return { headerBlock: lines.slice(0, i).join('\n'), movetext: lines.slice(i).join('\n') };
+}
+
+/**
+ * Finds every TOP-LEVEL (depth-1, i.e. not nested inside another
+ * variation) `(...)` span in `text`, skipping the contents of `{...}` brace
+ * comments -- the exact same single-pass, no-regex, no-recursion technique
+ * as `scanParenDepth` above (this file's header comment explains why that
+ * shape is what avoids the stack-exhaustion DoS a naive recursive-descent
+ * variation parser would reintroduce), extended to also record span
+ * boundaries rather than only a depth count. This is still purely
+ * STRUCTURAL -- it has no idea what a legal chess move is and never will;
+ * every actual move/legality decision made from a span's contents still
+ * goes back through `parsePgnSafe` (see src/repertoireModel.js's
+ * `importPgnTree`), so this function never becomes a second PGN grammar.
+ *
+ * Only ever called on text that has already passed `parsePgnSafe`'s own
+ * `scanParenDepth` balance/depth check on the FULL original document, so
+ * callers can assume `text` (or any substring of it this function itself
+ * hands back) is already known-balanced and within `MAX_PAREN_DEPTH`.
+ *
+ * @param {string} text movetext (or a substring of it -- called
+ *   recursively on one variation's own inner content to find nested
+ *   variations within it).
+ * @returns {Array<[number, number]>} `[startIndex, endIndex]` pairs, `text[start]`
+ *   is `(` and `text[end]` is its matching `)`, in document order.
+ */
+function findTopLevelParenSpans(text) {
+  const spans = [];
+  let depth = 0;
+  let start = -1;
+  let inComment = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inComment) {
+      if (ch === '}') inComment = false;
+      continue;
+    }
+    if (ch === '{') {
+      inComment = true;
+    } else if (ch === '(') {
+      if (depth === 0) start = i;
+      depth += 1;
+    } else if (ch === ')') {
+      depth -= 1;
+      if (depth === 0 && start !== -1) {
+        spans.push([start, i]);
+        start = -1;
+      }
+    }
+  }
+  return spans;
+}
+
 module.exports = {
   MAX_PGN_BYTES,
   MAX_PAREN_DEPTH,
@@ -237,6 +310,8 @@ module.exports = {
   byteLength,
   truncate,
   scanParenDepth,
+  splitPgnHeaderAndMovetext,
+  findTopLevelParenSpans,
   parsePgnSafe,
   parseFenSafe,
 };
