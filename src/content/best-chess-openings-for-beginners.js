@@ -17,14 +17,40 @@ function render(ctx) {
   const ranked = rankOpeningsByScore(entries, LOWER_BAND);
   const usedBalanced = ranked.length > 0 && ranked[0].usedBalanced;
 
-  const rows = ranked
-    .map((r) => {
+  // rankOpeningsByScore() deliberately drops any opening whose LOWER_BAND
+  // sample doesn't clear the minimum-games threshold (see that function's
+  // own doc comment in src/processOpenings.js) -- correct for the ranking
+  // itself, but `ranked` is not the full opening list, and the intro
+  // paragraph below counts unfiltered `entries.length`. Building `rows`
+  // from `ranked` alone used to silently drop an under-sampled opening from
+  // this table while the heading kept claiming the true total -- the same
+  // production bug (King's Indian Defense, real 1400-1600 games under the
+  // threshold) already fixed in renderOpeningsHub for openings.html. Fix:
+  // every entry gets a row -- ranked entries first, in rank order, then any
+  // entry rankOpeningsByScore left out, in declaration order -- with an
+  // honestly empty rank cell and an 'n/a' score rather than disappearing.
+  const rankedSlugs = new Set(ranked.map((r) => r.slug));
+  const unranked = entries
+    .filter((e) => !rankedSlugs.has(e.openingConfig.slug))
+    .map((e) => {
+      const band = (e.model.bands || []).find((b) => b.band === LOWER_BAND);
+      return {
+        slug: e.openingConfig.slug,
+        name: e.model.name,
+        side: e.model.side,
+        games: band ? band.games : 0,
+      };
+    });
+
+  const rows = [
+    ...ranked.map((r) => {
       const scoreCell = usedBalanced && r.scoreForSideBalanced != null
         ? `${formatPct(r.scoreForSideBalanced)}% <span class="rep-pct">(${formatPct(r.scoreForSide)}% all games)</span>`
         : `${formatPct(r.scoreForSide)}%`;
       return `<tr><td>${r.rank}</td><td><a href="${escapeHtml(r.slug)}.html">${escapeHtml(r.name)}</a></td><td>${escapeHtml(r.side)}</td><td>${formatGamesAbbrev(r.games)}</td><td>${scoreCell}</td></tr>`;
-    })
-    .join('');
+    }),
+    ...unranked.map((u) => `<tr><td></td><td><a href="${escapeHtml(u.slug)}.html">${escapeHtml(u.name)}</a></td><td>${escapeHtml(u.side)}</td><td>${formatGamesAbbrev(u.games)}</td><td>n/a</td></tr>`),
+  ].join('');
 
   return `
     <p>&ldquo;Best opening for beginners&rdquo; gets asked constantly and answered mostly with opinion. This page answers a narrower, checkable version of the question: among the ${entries.length} openings this site tracks, which ones actually score best for the side that plays them at ${escapeHtml(LOWER_BAND)}, based on real Lichess games?</p>
