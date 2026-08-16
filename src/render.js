@@ -1082,6 +1082,35 @@ ${designTokensCss(THEME_ROLES.dark)}
     max-width: 60ch;
   }
 
+  /* Muted-note treatment for an in-<main> aside, sized to match its sibling
+     paragraphs' width exactly -- unlike .disclosure-note above (the
+     footer's Ko-fi/affiliate disclosure, deliberately narrower/smaller
+     print), which was wrongly reused here originally.
+     Confound notes (selectionEffectNote() below and
+     best-chess-openings-for-beginners.js) render *inside* <main>, right
+     next to sibling paragraphs (.subtitle, .repertoire-intro, plain <p>)
+     that all get their box width from the "main p" rule below:
+     max-width: var(--measure) (68ch). The first attempt at this fix just
+     dropped .disclosure-note's own max-width: 60ch and left that "main p"
+     rule to size the note instead -- but that still rendered narrower than
+     its siblings, because the ch unit is relative to the CURRENT element's
+     own font-size, not a shared page-wide value: var(--measure) resolves to a
+     real pixel width computed against whatever font-size is in effect on
+     the element it's applied to, and this class was still shrinking that
+     to --text-xs. Two paragraphs both honoring the identical "68ch" rule
+     end up different pixel widths whenever they resolve it at different
+     font sizes (confirmed by measurement: 12px text-xs -> 439.875px vs.
+     16px body text -> 586.5px on the real rendered openings hub page,
+     nowhere near matching). Dropping font-size here too -- keeping ONLY
+     the muted color as this note's visual distinction -- makes it resolve
+     "main p"'s var(--measure) at the exact same font-size its siblings
+     use, which is what actually makes the two widths come out identical
+     rather than merely closer. */
+  .confound-note {
+    color: var(--color-muted);
+    margin: var(--space-3) 0 0;
+  }
+
   .legal-links {
     display: flex;
     flex-wrap: wrap;

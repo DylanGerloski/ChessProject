@@ -510,9 +510,16 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd:
  * src/aggregateSource.js -- WS-3 B2's live ingest, not yet run).
  */
 function selectionEffectNote(usedBalanced) {
+  // class="confound-note", not "disclosure-note" -- this note renders
+  // inside <main>, next to sibling paragraphs that all get their width
+  // from the "main p" prose-measure rule (src/render.js). "disclosure-note"
+  // carries its own, smaller max-width sized for the footer disclosure it
+  // was originally written for; reusing it here squeezed this note into a
+  // much narrower column than every other paragraph on the page. See
+  // .confound-note's own comment in src/render.js for the full mechanism.
   return usedBalanced
-    ? '<p class="disclosure-note">Ranked by score among games between similarly-rated opponents (rating gap &le;50), which removes the biggest confound in a raw comparison like this: players who choose one opening are not the same players who choose another, so a raw score difference partly reflects who tends to play each opening, not just how it performs. This ranking does not control for anything beyond that rating gap; time-control mix and how each player group prepares are still unmeasured. Rows too close to call given their own sample sizes share a rank.</p>'
-    : '<p class="disclosure-note">This ranking uses each opening&rsquo;s all-games score. It does NOT control for who tends to choose each opening, which is a real confound in any cross-opening comparison like this one (players who pick one opening are not the same players who pick another). A rating-gap-controlled version of this ranking will replace it once this site is built from its own aggregate dataset rather than the live Lichess Explorer API. Rows too close to call given their own sample sizes share a rank.</p>';
+    ? '<p class="confound-note">Ranked by score among games between similarly-rated opponents (rating gap &le;50), which removes the biggest confound in a raw comparison like this: players who choose one opening are not the same players who choose another, so a raw score difference partly reflects who tends to play each opening, not just how it performs. This ranking does not control for anything beyond that rating gap; time-control mix and how each player group prepares are still unmeasured. Rows too close to call given their own sample sizes share a rank.</p>'
+    : '<p class="confound-note">This ranking uses each opening&rsquo;s all-games score. It does NOT control for who tends to choose each opening, which is a real confound in any cross-opening comparison like this one (players who pick one opening are not the same players who pick another). A rating-gap-controlled version of this ranking will replace it once this site is built from its own aggregate dataset rather than the live Lichess Explorer API. Rows too close to call given their own sample sizes share a rank.</p>';
 }
 
 /**
