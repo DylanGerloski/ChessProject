@@ -246,6 +246,32 @@ test('rankOpeningsByScore: adjacent rows within their combined CI half-width tie
   assert.equal(ranked[2].rank, 3);
 });
 
+test('rankOpeningsByScore: a chain of small adjacent gaps does not transitively tie rows whose own CIs never overlap (regression for the 2026-08-16 all-rank-1 bug)', () => {
+  // 9 rows, evenly spaced scores from 54.6 down to 48.9 with shrinking CI
+  // half-widths from 2.5 down to 1.3 -- the exact production numbers that
+  // showed rank 1 for all 9 rows despite row 0's CI (52.1-57.1) and row 8's
+  // CI (47.6-50.2) not overlapping at all.
+  const N = 9;
+  const entries = [];
+  for (let i = 0; i < N; i += 1) {
+    const score = 54.6 - ((54.6 - 48.9) * i) / (N - 1);
+    const ci = 2.5 - ((2.5 - 1.3) * i) / (N - 1);
+    entries.push(fakeEntry({
+      slug: `o${i}`, name: `Opening ${i}`, side: 'white', band: '1600-1800',
+      games: 5000, scoreForSide: score, scoreForSideCI: ci,
+    }));
+  }
+  const ranked = rankOpeningsByScore(entries, '1600-1800');
+  // The extreme rows' CIs are disjoint (52.1 > 50.2) so they must not share a rank.
+  assert.notEqual(ranked[0].rank, ranked[N - 1].rank);
+  // Not every row collapses to rank 1 -- at least one later, distinct group exists.
+  assert.ok(ranked.some((r) => r.rank !== 1), 'expected at least one row ranked below 1');
+  // Ranks are non-decreasing down the sorted (best-first) list.
+  for (let i = 1; i < ranked.length; i += 1) {
+    assert.ok(ranked[i].rank >= ranked[i - 1].rank);
+  }
+});
+
 test('aggregateMistakesAcrossOpenings flattens and sorts every opening\'s mistakes worst-score-first', () => {
   const entries = [
     fakeEntry({

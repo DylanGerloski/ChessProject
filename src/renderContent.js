@@ -150,9 +150,21 @@ function renderRelated(items, heading = 'Related') {
  * @param {{slug: string}} openingConfig
  * @param {{name: string, eco: string, side: string, bands?: Array}} model
  * @param {string} [extraClass] e.g. 'card--outline' for a demoted homepage card
+ * @param {object} [opts]
+ * @param {boolean} [opts.showScoreLine] Set false to omit the `card-score`
+ *   paragraph (the exact "Scores X% ... (N games)" figure) when this card
+ *   renders directly alongside a table that already states that same
+ *   number -- see renderOpeningsHub's card grid, which sits right below a
+ *   ranked comparison table carrying the identical score+games figures per
+ *   row. Restating them a second time per card is redundant; the WDL
+ *   bar's own win/draw/loss split stays because it's a genuinely
+ *   different presentation of the underlying result, not a repeat of the
+ *   table's single combined "score for its side" number. Defaults true so
+ *   every other caller (the homepage's demoted outline cards, which have
+ *   no adjacent table) renders unchanged.
  * @returns {string}
  */
-function renderOpeningStatCard(openingConfig, model, extraClass = '') {
+function renderOpeningStatCard(openingConfig, model, extraClass = '', { showScoreLine = true } = {}) {
   const href = `${escapeHtml(openingConfig.slug)}.html`;
   const band = (model.bands || []).find((b) => b.band === '1600-1800') || null;
   const hasData = band && band.enoughData && band.scoreForSide != null && band.whitePct != null;
@@ -166,10 +178,18 @@ function renderOpeningStatCard(openingConfig, model, extraClass = '') {
     highPct: band.scoreForSideCI != null ? Number((band.scoreForSide + band.scoreForSideCI).toFixed(1)) : null,
     sampleSize: band.games,
   });
+  // Same reasoning as drillCtaHtml/relatedSection elsewhere in this file:
+  // showScoreLine: false legitimately produces '', and interpolating that
+  // at its own indented template line would leave a whitespace-only line
+  // that html-validate's no-trailing-whitespace rule flags -- so the
+  // newline + indent are only added when there's a real line to attach
+  // them to.
+  const scoreLine = showScoreLine
+    ? `\n    <p class="card-score">Scores ${formatPct(band.scoreForSide)}%${scoreCI} for ${escapeHtml(model.side)} at 1600-1800 (${band.games.toLocaleString()} games)</p>`
+    : '';
   return `<div class="${classes}">
     <h3><a href="${href}">${escapeHtml(model.name)}</a></h3>
-    <div class="card-wdl-row">${wdlBar(band.whitePct, band.drawPct, band.blackPct, `White/draw/black at 1600-1800: ${formatPct(band.whitePct)}% / ${formatPct(band.drawPct)}% / ${formatPct(band.blackPct)}%`)}</div>
-    <p class="card-score">Scores ${formatPct(band.scoreForSide)}%${scoreCI} for ${escapeHtml(model.side)} at 1600-1800 (${band.games.toLocaleString()} games)</p>
+    <div class="card-wdl-row">${wdlBar(band.whitePct, band.drawPct, band.blackPct, `White/draw/black at 1600-1800: ${formatPct(band.whitePct)}% / ${formatPct(band.drawPct)}% / ${formatPct(band.blackPct)}%`)}</div>${scoreLine}
   </div>`;
 }
 
@@ -573,11 +593,30 @@ function renderOpeningsHub(entries, { nav, ecoIndexLink = null, ranked = null })
   const usedBalanced = !!(ranked && ranked.length > 0 && ranked[0].usedBalanced);
   const confoundNote = ranked ? selectionEffectNote(usedBalanced) : '';
 
-  // Every card below carries its 1600-1800 WDL bar + score inline
-  // (renderOpeningStatCard, defined above) -- same fallback-to-plain-card
-  // rule as the homepage's equivalent list, never an approximated number.
+  // Same reasoning as drillCtaHtml/relatedSection and renderOpeningStatCard's
+  // scoreLine above: ecoIndexLink is legitimately null for a caller/test
+  // that predates Phase 7d, and interpolating '' at its own indented
+  // template line below would leave a whitespace-only line that
+  // html-validate's no-trailing-whitespace rule flags -- pre-existing gap,
+  // not reachable from the real production build (buildStatic.js always
+  // passes a real ecoIndexLink), but worth closing while this exact
+  // function is already being edited.
+  const ecoIndexSection = ecoIndexLink
+    ? `\n\n    <h2>Browse the full ECO index</h2>
+    <p class="repertoire-intro">Every one of the ${ecoIndexLink.lineCount.toLocaleString()} named lines in the standard Encyclopaedia of Chess Openings
+       classification, grouped into ${ecoIndexLink.familyCount} opening families.
+       <a href="${escapeHtml(ecoIndexLink.href)}">Browse the ECO index &rarr;</a></p>`
+    : '';
+
+  // Every card below carries its 1600-1800 WDL bar (renderOpeningStatCard,
+  // defined above) -- same fallback-to-plain-card rule as the homepage's
+  // equivalent list, never an approximated number. showScoreLine: false
+  // because this grid sits directly under the ranked table above, which
+  // already states each opening's exact score and game count -- see the
+  // showScoreLine doc comment for why the WDL bar itself stays (a
+  // genuinely different win/draw/loss presentation, not a repeat).
   const cards = orderedEntries
-    .map(({ openingConfig, model }) => renderOpeningStatCard(openingConfig, model))
+    .map(({ openingConfig, model }) => renderOpeningStatCard(openingConfig, model, '', { showScoreLine: false }))
     .join('');
 
   return `<!DOCTYPE html>
@@ -604,12 +643,8 @@ ${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(b
       </table>`, 'Opening comparison at 1600-1800')}
 
     <h2>Browse by opening</h2>
-    <div class="card-grid">${cards}</div>
-
-    ${ecoIndexLink ? `<h2>Browse the full ECO index</h2>
-    <p class="repertoire-intro">Every one of the ${ecoIndexLink.lineCount.toLocaleString()} named lines in the standard Encyclopaedia of Chess Openings
-       classification, grouped into ${ecoIndexLink.familyCount} opening families.
-       <a href="${escapeHtml(ecoIndexLink.href)}">Browse the ECO index &rarr;</a></p>` : ''}
+    <p class="repertoire-intro">The same openings, as their win / draw / loss split at 1600-1800 -- open a card to see the full move-by-move breakdown.</p>
+    <div class="card-grid">${cards}</div>${ecoIndexSection}
   </main>
   ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>, retrieved ${BUILD_DATE}.`, CONTENT_LEGAL_LINKS)}
 </div>
