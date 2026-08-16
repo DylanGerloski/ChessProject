@@ -464,7 +464,7 @@ function buildFaqEntries(entries) {
     },
     {
       question: 'Do I need to memorize openings to improve?',
-      answerHtml: `<p>No &mdash; standard improvement advice, especially below about 1500, prioritizes tactics and endgame technique over opening memorization. See <a href="should-you-study-openings-under-1500.html">Should you study openings under 1500? &rarr;</a> for what this site&rsquo;s own data shows about how much opening choice actually moves the needle by rating.</p>`,
+      answerHtml: `<p>No - standard improvement advice, especially below about 1500, prioritizes tactics and endgame technique over opening memorization. See <a href="should-you-study-openings-under-1500.html">Should you study openings under 1500? &rarr;</a> for what this site&rsquo;s own data shows about how much opening choice actually moves the needle by rating.</p>`,
     },
     {
       question: 'What is the best first move for beginners?',
@@ -474,7 +474,7 @@ function buildFaqEntries(entries) {
     },
     {
       question: 'What does ECO mean?',
-      answerHtml: `<p>ECO stands for &ldquo;Encyclopaedia of Chess Openings&rdquo; &mdash; a standard code (like C50 or B20) chess databases use to classify openings. Every opening page on this site shows its ECO code, sourced directly from the Lichess Opening Explorer API.</p>`,
+      answerHtml: `<p>ECO stands for &ldquo;Encyclopaedia of Chess Openings&rdquo; - a standard code (like C50 or B20) chess databases use to classify openings. Every opening page on this site shows its ECO code, sourced directly from the Lichess Opening Explorer API.</p>`,
     },
     {
       question: 'Which openings score best at my rating?',
@@ -482,7 +482,7 @@ function buildFaqEntries(entries) {
     },
     {
       question: 'Why do win rates differ by rating band?',
-      answerHtml: `<p>Different rating bands make different mistakes at different rates in the same position &mdash; see <a href="most-common-opening-mistakes-1600-1800.html">the most common opening mistakes at 1600-1800 &rarr;</a> for concrete examples pulled from this site&rsquo;s own data.</p>`,
+      answerHtml: `<p>Different rating bands make different mistakes at different rates in the same position - see <a href="most-common-opening-mistakes-1600-1800.html">the most common opening mistakes at 1600-1800 &rarr;</a> for concrete examples pulled from this site&rsquo;s own data.</p>`,
     },
     {
       question: 'What is a "system" opening, like the London System?',
@@ -490,23 +490,23 @@ function buildFaqEntries(entries) {
     },
     {
       question: 'How many openings should I learn?',
-      answerHtml: `<p>Most improvement advice suggests one solid response to 1.e4, one to 1.d4, and a small number of systems as White &mdash; not a large repertoire. This site deliberately tracks a fixed set of 10 openings rather than trying to cover everything, for the same reason.</p>`,
+      answerHtml: `<p>Most improvement advice suggests one solid response to 1.e4, one to 1.d4, and a small number of systems as White - not a large repertoire. This site deliberately tracks a fixed set of 10 openings rather than trying to cover everything, for the same reason.</p>`,
     },
     {
       question: "What's the difference between the Lichess database and the masters database?",
-      answerHtml: `<p>The Lichess database aggregates real games played by everyone on Lichess, filterable by rating band &mdash; that&rsquo;s what powers the &ldquo;how it scores at your rating&rdquo; section on every opening page. The masters database is a separate, much smaller set of real games played by titled/master-level players, used for the &ldquo;model games&rdquo; section. This site shows both side by side deliberately, so you can see how masters play a line versus how it actually goes at club level.</p>`,
+      answerHtml: `<p>The Lichess database aggregates real games played by everyone on Lichess, filterable by rating band - that&rsquo;s what powers the &ldquo;how it scores at your rating&rdquo; section on every opening page. The masters database is a separate, much smaller set of real games played by titled/master-level players, used for the &ldquo;model games&rdquo; section. This site shows both side by side deliberately, so you can see how masters play a line versus how it actually goes at club level.</p>`,
     },
     {
       question: 'Are these stats from blitz or classical games?',
-      answerHtml: `<p>Blitz and rapid games from the Lichess database (the two fastest time controls with enough volume to give reliable numbers at every rating band this site tracks). Classical games are not included &mdash; there generally isn&rsquo;t enough volume at most rating bands to compute a trustworthy percentage from them.</p>`,
+      answerHtml: `<p>Blitz and rapid games from the Lichess database (the two fastest time controls with enough volume to give reliable numbers at every rating band this site tracks). Classical games are not included - there generally isn&rsquo;t enough volume at most rating bands to compute a trustworthy percentage from them.</p>`,
     },
     {
       question: 'How often is the data updated?',
-      answerHtml: `<p>Whenever this site is rebuilt from live Lichess data &mdash; there is no live/real-time updating between rebuilds. This build's data was retrieved ${escapeHtml(BUILD_DATE)}.</p>`,
+      answerHtml: `<p>Whenever this site is rebuilt from live Lichess data - there is no live/real-time updating between rebuilds. This build's data was retrieved ${escapeHtml(BUILD_DATE)}.</p>`,
     },
     {
       question: 'How is this site funded?',
-      answerHtml: `<p>Currently through a voluntary support link (Ko-fi) shown in the footer of every page &mdash; no advertising currently runs on this site. See the <a href="about.html">About page &rarr;</a> and <a href="privacy.html">Privacy policy &rarr;</a> for the full, current answer.</p>`,
+      answerHtml: `<p>Currently through a voluntary support link (Ko-fi) shown in the footer of every page - no advertising currently runs on this site. See the <a href="about.html">About page &rarr;</a> and <a href="privacy.html">Privacy policy &rarr;</a> for the full, current answer.</p>`,
     },
   ];
 }

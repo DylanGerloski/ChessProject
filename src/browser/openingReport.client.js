@@ -328,10 +328,10 @@ function formatSanLineFromUci(play) {
           await navigator.clipboard.writeText(url);
           btn.textContent = note ? `Link copied (${note})` : 'Link copied';
         } else {
-          btn.textContent = 'Copy failed — select and copy the address bar';
+          btn.textContent = 'Copy failed - select and copy the address bar';
         }
       } catch (err) {
-        btn.textContent = 'Copy failed — select and copy the address bar';
+        btn.textContent = 'Copy failed - select and copy the address bar';
       }
     });
   }
@@ -341,8 +341,8 @@ function formatSanLineFromUci(play) {
     const top = report.leaks[0];
     const verdict = top
       ? `Your biggest opening leak is ${escapeHtml(top.yourMove.san)}${top.opening && top.opening.name ? ` in the ${escapeHtml(top.opening.name)}` : ''}. It costs you about ${top.costPer100.toFixed(1)} points per 100 games.`
-      : 'No leak cleared our statistical floor — your play is close to what your rating band recommends at the positions we could compare.';
-    const provenance = `${report.gamesUsable.toLocaleString()} games analysed (${report.gamesFetched.toLocaleString()} fetched, ${report.gamesInCoverage.toLocaleString()} reached data we have coverage for), ${escapeHtml(report.band)} band, ${escapeHtml(report.pool)}, retrieved ${escapeHtml(new Date(report.generated).toISOString().slice(0, 10))}.${cancelled ? ' (You cancelled the fetch early — this is based on the games already retrieved.)' : ''}`;
+      : 'No leak cleared our statistical floor - your play is close to what your rating band recommends at the positions we could compare.';
+    const provenance = `${report.gamesUsable.toLocaleString()} games analysed (${report.gamesFetched.toLocaleString()} fetched, ${report.gamesInCoverage.toLocaleString()} reached data we have coverage for), ${escapeHtml(report.band)} band, ${escapeHtml(report.pool)}, retrieved ${escapeHtml(new Date(report.generated).toISOString().slice(0, 10))}.${cancelled ? ' (You cancelled the fetch early - this is based on the games already retrieved.)' : ''}`;
 
     const leakRows = report.leaks.map((leak, i) => renderLeakRow(leak, i)).join('');
 

@@ -44,7 +44,7 @@ function render(ctx) {
     ${wrapTable(`<table><caption class="sr-only">Scandinavian Defense score for Black by rating band</caption><thead><tr><th scope="col">Rating band</th><th scope="col">Games</th><th scope="col">Score for Black</th></tr></thead><tbody>${bandRows}</tbody></table>`, 'Scandinavian Defense score for Black by rating band')}
 
     ${position >= 0
-      ? `<p>Among the ${rankedAtMain.length} Black-side openings this site tracks with enough data at ${escapeHtml(model.defaultBand)}, the Scandinavian ranks <strong>#${position + 1}</strong> by score. That&rsquo;s a concrete, checkable answer to &ldquo;is it actually bad&rdquo; &mdash; see how it compares directly on the <a href="openings.html">full openings comparison &rarr;</a>.</p>`
+      ? `<p>Among the ${rankedAtMain.length} Black-side openings this site tracks with enough data at ${escapeHtml(model.defaultBand)}, the Scandinavian ranks <strong>#${position + 1}</strong> by score. That&rsquo;s a concrete, checkable answer to &ldquo;is it actually bad&rdquo; - see how it compares directly on the <a href="openings.html">full openings comparison &rarr;</a>.</p>`
       : ''}
 
     <h2>What White tries most often</h2>

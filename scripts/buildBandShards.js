@@ -41,7 +41,9 @@
  *   at that node, OR the band's position budget is hit.
  * RATE LIMITING (Non-Negotiable 3, written as code, not a suggestion):
  *   sequential requests only, minimum 1000ms between requests, hard stop
- *   after 3 consecutive 429s, Retry-After honoured on every 429.
+ *   after 3 consecutive 429s, Retry-After honoured on every 429. Only
+ *   exercised on a genuine live-API run (--allow-live-fallback, see below) --
+ *   the default, required data source below issues zero live requests.
  * RESUMABLE: a per-band checkpoint JSON (.cache/band-shards/<band>.checkpoint.json)
  *   of the frontier + already-expanded positions, so an interrupted or
  *   rate-limited run continues instead of re-crawling from scratch. The
@@ -49,25 +51,69 @@
  *   layer of the same protection (spec 2.1) -- even a checkpoint-less
  *   restart re-fetches nothing already cached there.
  *
+ * DATA SOURCE, FIXED 2026-08-16 (incident: repertoire.html and
+ * repertoire-builder.html showed a ~6,900x-different games-count for the
+ * identical band+move -- both numbers were real, correctly rating/pool-
+ * filtered counts, but drawn from two INCOMPARABLE scopes: repertoire.html
+ * (via src/buildRepertoire.js -> src/explorerSource.js) is built against
+ * data/aggregates/, this project's own one-month dump ingest; this crawler,
+ * the first time it ran, found no data/aggregates/ on disk yet and silently
+ * fell through explorerSource.js's documented live-API fallback, so
+ * data/rep/ ended up holding Lichess's own ALL-TIME cumulative Explorer
+ * total for each rating bucket -- correctly filtered by rating and speed,
+ * but scoped over years of games instead of one month, hence the huge
+ * mismatch). This script now REQUIRES data/aggregates/ (or --aggregates-dir)
+ * to be present before it will crawl anything (see requireAggregates()
+ * below) -- it must always draw from the SAME dataset repertoire.html does,
+ * never substitute a differently-scoped live count for it. This also means
+ * fetchMoves() below issues zero live Explorer requests by default; the
+ * rate-limiting/caching machinery stays in this file only for the disclosed
+ * fallback below.
+ *
+ * KNOWN GAP, same limitation src/buildRepertoire.js's own header discloses
+ * for the identical reason: data/aggregates/root.json only covers positions
+ * at ply <= ROOT_MAX_PLY (3, src/ingest/aggregate.js) -- resolving anything
+ * deeper needs a `familySlug` this crawler does not compute (it walks moves
+ * generically across every opening, so there is no single family slug valid
+ * for every branch). Until that's wired up, MAX_PLY below is aspirational
+ * for the aggregate path: positions past ply 3 return zero games (an
+ * unfound aggregate record, not a live miss) and get pruned by MIN_GAMES,
+ * same as any other below-threshold node -- so a run against the aggregate
+ * source populates the 'root' shard (ply 0-2) in full but little beyond it,
+ * until a future task resolves familySlug per branch.
+ *
  * Usage: node scripts/buildBandShards.js [--band <band>] [--budget <n>]
- *   [--no-cache] [--strict-budget]
+ *   [--no-cache] [--strict-budget] [--aggregates-dir <path>]
+ *   [--allow-live-fallback]
  *   --band          crawl only this RATING_BANDS key (repeatable-by-rerun;
  *                   default: all 4 bands, one after another).
  *   --budget        per-band position budget, default 1500.
  *   --no-cache      bypass the on-disk Explorer response cache (forces a
- *                   fresh live request even for a URL already cached).
+ *                   fresh live request even for a URL already cached) --
+ *                   only takes effect with --allow-live-fallback.
  *   --strict-budget throw (fail the run) instead of printing a WARN if a
  *                   shard exceeds the 120 KB per-shard budget or a band
  *                   exceeds the 6 MB per-band-directory budget -- off by
  *                   default so a multi-hour run's very last write doesn't
  *                   discard everything it already produced over one
  *                   oversized shard; every written file is real either way.
+ *   --aggregates-dir defaults to src/explorerSource.js's AGGREGATES_DIR
+ *                   (data/aggregates/) -- override to point at a real ingest
+ *                   output checked out somewhere else, or a fixture.
+ *   --allow-live-fallback  the escape hatch this incident's fix removed as
+ *                   the default: explicitly opt in to crawling the live
+ *                   Explorer API (Lichess's own all-time cumulative totals)
+ *                   when data/aggregates/ isn't available. Produces numbers
+ *                   in a DIFFERENT, larger scope than the rest of the site
+ *                   -- never use this to populate the real committed
+ *                   data/rep/ dataset; it exists for one-off manual
+ *                   comparisons only.
  */
 
 const fs = require('fs');
 const path = require('path');
 const { RATING_BANDS } = require('../src/processRepertoire');
-const { fetchMoves } = require('../src/explorerSource');
+const { fetchMoves, aggregatesAvailable, AGGREGATES_DIR } = require('../src/explorerSource');
 const { withExplorerCache } = require('../src/explorerCache');
 const {
   posKeyFor,
@@ -174,11 +220,39 @@ function newCrawlState() {
 }
 
 /**
+ * Throws unless real per-band data is actually available at `dir` -- the
+ * incident fix (see this file's own header, "DATA SOURCE, FIXED 2026-08-16"):
+ * this crawler must never silently substitute a live, all-time-cumulative
+ * Explorer count for the same dump-derived dataset repertoire.html is built
+ * from. Callers that explicitly want the live fallback pass
+ * `allowLive: true` (the `--allow-live-fallback` CLI flag) and accept that
+ * escape hatch's documented scope mismatch.
+ *
+ * @param {string} dir aggregates directory to check (src/explorerSource.js's
+ *   aggregatesAvailable() shape: manifest.json + root.json both present).
+ * @param {{allowLive?: boolean}} [opts]
+ */
+function requireAggregates(dir, { allowLive = false } = {}) {
+  if (allowLive || aggregatesAvailable(dir)) return;
+  throw new Error(
+    `buildBandShards: no aggregate data at ${dir} (need both manifest.json and root.json). ` +
+    'Refusing to crawl the live Opening Explorer API as a substitute -- that produces ' +
+    "Lichess's own all-time cumulative totals, a different (much larger) scope than " +
+    'this site\'s one-month dump ingest that repertoire.html and every other builder are ' +
+    'built from, which is exactly the 2026-08-16 incident this check exists to prevent. ' +
+    'Check out a real data/aggregates/ (see README.md\'s "Third-party origins" for how to ' +
+    'fetch the current data-<month> release), or pass --aggregates-dir to point at one, or ' +
+    'pass --allow-live-fallback to explicitly opt into the incompatible live-API scope for ' +
+    'a one-off manual comparison (never to populate the committed data/rep/ dataset).'
+  );
+}
+
+/**
  * @param {string} band a RATING_BANDS key.
- * @param {{budget:number, fetchImpl:Function}} opts
+ * @param {{budget:number, fetchImpl:Function, aggregatesDir?:string}} opts
  * @returns {Promise<object>} the final crawl state (entries + stats).
  */
-async function crawlBand(band, { budget, fetchImpl }) {
+async function crawlBand(band, { budget, fetchImpl, aggregatesDir = AGGREGATES_DIR }) {
   const ratings = RATING_BANDS[band];
   const state = loadCheckpoint(band) || newCrawlState();
   if (state.entries.length > 0 || state.frontier.length !== 1) {
@@ -210,7 +284,7 @@ async function crawlBand(band, { budget, fetchImpl }) {
 
     let response;
     try {
-      response = await fetchMoves({ play: node.play, band, ratings, speeds: SPEEDS, pool: POOL, moves: MOVES_PER_REQUEST, fetchImpl });
+      response = await fetchMoves({ play: node.play, band, ratings, speeds: SPEEDS, pool: POOL, moves: MOVES_PER_REQUEST, fetchImpl, dir: aggregatesDir });
     } catch (err) {
       if (err instanceof HardStopError) {
         console.error(`  ${err.message}`);
@@ -337,6 +411,8 @@ async function main() {
   let budget = DEFAULT_BUDGET_PER_BAND;
   let useCache = true;
   let strictBudget = false;
+  let aggregatesDir = AGGREGATES_DIR;
+  let allowLiveFallback = false;
   for (let i = 0; i < args.length; i += 1) {
     if (args[i] === '--band') {
       const b = args[++i];
@@ -348,7 +424,19 @@ async function main() {
       useCache = false;
     } else if (args[i] === '--strict-budget') {
       strictBudget = true;
+    } else if (args[i] === '--aggregates-dir') {
+      aggregatesDir = path.resolve(args[++i]);
+    } else if (args[i] === '--allow-live-fallback') {
+      allowLiveFallback = true;
     }
+  }
+
+  // The incident fix itself (see this file's header, "DATA SOURCE, FIXED
+  // 2026-08-16"): refuse to run at all rather than silently crawling the
+  // live Explorer API's differently-scoped all-time totals.
+  requireAggregates(aggregatesDir, { allowLive: allowLiveFallback });
+  if (allowLiveFallback && !aggregatesAvailable(aggregatesDir)) {
+    console.warn(`WARN: --allow-live-fallback in effect -- no aggregate data at ${aggregatesDir}, crawling the live Opening Explorer API instead. The resulting numbers are Lichess's own all-time cumulative totals, NOT the same scope repertoire.html uses. Do not commit this output to data/rep/.`);
   }
 
   const fetchImpl = withExplorerCache(createRateLimitedFetch(), { enabled: useCache });
@@ -358,7 +446,7 @@ async function main() {
 
   for (const band of bands) {
     console.log(`\n=== ${band} (budget ${budget}) ===`);
-    const { state, hardStopped } = await crawlBand(band, { budget, fetchImpl });
+    const { state, hardStopped } = await crawlBand(band, { budget, fetchImpl, aggregatesDir });
     if (hardStopped) anyHardStopped = true;
     console.log(`  ${band}: crawl ${hardStopped ? 'STOPPED (rate limited)' : 'finished'} -- ${state.entries.length} position(s), ${state.requestCount} request(s) this run, ${coverageDepthReport(state.prunedByReach)}`);
 
@@ -414,6 +502,7 @@ module.exports = {
   SPEEDS,
   createRateLimitedFetch,
   HardStopError,
+  requireAggregates,
   crawlBand,
   writeShardsForBand,
   assertBudgets,

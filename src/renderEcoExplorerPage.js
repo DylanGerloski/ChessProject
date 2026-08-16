@@ -46,7 +46,7 @@ const { familyHubFilename } = require('./ecoFamilies');
 const ECO_EXPLORER_FILE = 'eco-explorer.html';
 const ECO_EXPLORER_LEGAL_LINKS = { privacy: 'privacy.html', about: 'about.html', contact: 'contact.html', methodology: 'methodology.html' };
 
-// Distinct from T2 page 1's own <title> ("Chess Opening Explorer — All 500
+// Distinct from T2 page 1's own <title> ("Chess Opening Explorer - All 500
 // ECO Codes | Repertoire Builder", src/renderEcoPages.js's
 // renderEcoIndexPage) -- assertPageMetadata (src/buildContent.js) rejects a
 // duplicate <title> within the same build step, and while today's checks

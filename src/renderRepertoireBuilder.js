@@ -297,7 +297,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'website', jsonLd,
     <p class="rb-provenance">${manifestSentence}</p>
 
     <noscript>
-      <p class="rb-empty-note">The Repertoire Builder needs JavaScript: it looks up live rating-band data as you play moves on the board, and saves your work to this browser. With JavaScript on, everything below runs entirely in your browser &mdash; nothing you build here is sent to any server.</p>
+      <p class="rb-empty-note">The Repertoire Builder needs JavaScript: it looks up live rating-band data as you play moves on the board, and saves your work to this browser. With JavaScript on, everything below runs entirely in your browser - nothing you build here is sent to any server.</p>
     </noscript>
 
     <section id="rb-library" aria-label="Your repertoires">

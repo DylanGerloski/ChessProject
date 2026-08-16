@@ -732,7 +732,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd: breadcrumbJsonLd(b
  */
 function renderFaqPage({ faqs, nav }) {
   const title = `Chess Opening FAQ: Data-Backed Answers | ${SITE_NAME}`;
-  const description = 'Plain-language answers about chess openings, ECO codes, and how to read Lichess Opening Explorer data — grounded in this site\'s own numbers where possible.';
+  const description = 'Plain-language answers about chess openings, ECO codes, and how to read Lichess Opening Explorer data - grounded in this site\'s own numbers where possible.';
   const canonical = absoluteUrl('chess-opening-faq.html');
   const breadcrumbItems = [{ label: 'Home', href: nav.home }, { label: 'FAQ', href: 'chess-opening-faq.html' }];
   // FAQPage JSON-LD lives ONLY on this page, never bolted onto any other --
