@@ -562,8 +562,29 @@ function renderOpeningsHub(entries, { nav, ecoIndexLink = null, ranked = null })
   const byslug = {};
   for (const e of entries) byslug[e.openingConfig.slug] = e;
 
+  // rankOpeningsByScore() (src/processOpenings.js) deliberately drops any
+  // opening whose band doesn't have enough games to print a confident
+  // percentage (see that function's own doc comment) -- correct for the
+  // ranking itself, but `ranked` is not the full opening list. Building
+  // orderedEntries from `ranked` alone silently drops an under-sampled
+  // opening from the table AND the card grid below, while the "Compare all
+  // N openings" heading (which counts unfiltered `entries.length`) keeps
+  // claiming the true total -- a real bug found in production (2026-08-16):
+  // King's Indian Defense has genuinely too few games at every rating band
+  // in this site's aggregate dataset, so it vanished from both, though
+  // kings-indian-defense.html itself stayed live and linked from nowhere.
+  // Fix: every entry appears -- ranked entries first, in rank order, then
+  // any entry rankOpeningsByScore left out, in declaration order -- so an
+  // under-sampled opening still gets a genuine, honestly-labeled row
+  // ('n/a' score, real game count, real link; see the rankCell/scoreDisplay
+  // fallback below, which already handled `r` being falsy before this fix)
+  // instead of disappearing.
+  const rankedSlugs = new Set((ranked || []).map((r) => r.slug));
   const orderedEntries = ranked
-    ? ranked.map((r) => byslug[r.slug]).filter(Boolean)
+    ? [
+        ...ranked.map((r) => byslug[r.slug]).filter(Boolean),
+        ...entries.filter((e) => !rankedSlugs.has(e.openingConfig.slug)),
+      ]
     : entries;
 
   const rankBySlug = {};
@@ -573,7 +594,18 @@ function renderOpeningsHub(entries, { nav, ecoIndexLink = null, ranked = null })
     .map(({ openingConfig, model }) => {
       const band = model.bands.find((b) => b.band === '1600-1800') || model.bands[0];
       const r = rankBySlug[openingConfig.slug];
-      const rankCell = r ? `<td class="num">${r.rank}</td>` : '';
+      // Whether this ROW gets a rank cell (`r` truthy) is a different
+      // question from whether the TABLE has a rank COLUMN at all (`ranked`
+      // truthy -- see the header's own `ranked ? '<th ... class="num">#</th>'
+      // : ''` a few lines below). Before this fix these were conflated: an
+      // entry appended past the end of `ranked` (this fix's own
+      // insufficient-data fallback, or any future caller) rendered zero
+      // <td> for that column while the header still had one, silently
+      // shifting every later cell in that row one column left. Emitting an
+      // empty <td> here (rather than omitting the cell) keeps every row's
+      // column count matching the header whenever the table has a rank
+      // column at all.
+      const rankCell = ranked ? `<td class="num">${r ? r.rank : ''}</td>` : '';
       const scoreDisplay = r && r.usedBalanced && r.scoreForSideBalanced != null
         ? `${formatPct(r.scoreForSideBalanced)}%${renderCI({ halfWidthPct: r.scoreForSideBalancedCI, srLabel: 'Rating-gap-controlled score', lowPct: r.scoreForSideBalancedCI != null ? Number((r.scoreForSideBalanced - r.scoreForSideBalancedCI).toFixed(1)) : null, highPct: r.scoreForSideBalancedCI != null ? Number((r.scoreForSideBalanced + r.scoreForSideBalancedCI).toFixed(1)) : null, sampleSize: band ? band.balancedGames || 0 : 0 })} <span class="rep-pct">(${formatPct(band ? band.scoreForSide : null)}% all games)</span>`
         : band && band.scoreForSide != null
