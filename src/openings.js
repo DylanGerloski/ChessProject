@@ -5,13 +5,12 @@
  * 10 (spec section 1.2) -- deliberately fixed at the time, see spec section
  * 3.4 ("why templated per-opening pages are not scaled-content abuse
  * here"): no programmatic expansion, no "one page per ECO code". Since
- * then, real demand-mining work (docs/SOAK_BACKLOG.md) has grown this list
- * one hand-vetted, empirically-verified-demand opening at a time -- each
- * addition still goes through the same manual editorial process spec 3.4
- * describes, just no longer capped at exactly 10. `line` is the defining
- * move sequence from the start position; `ecoHint`/API-returned
- * `opening.eco` are cross-checked at build time (src/buildContent.js),
- * never assumed equal.
+ * then this list has grown one hand-vetted, demand-checked opening at a
+ * time -- each addition still goes through the same manual editorial
+ * process spec 3.4 describes, just no longer capped at exactly 10. `line`
+ * is the defining move sequence from the start position; `ecoHint`/
+ * API-returned `opening.eco` are cross-checked at build time
+ * (src/buildContent.js), never assumed equal.
  *
  * Pure data + pure helpers only -- no I/O, unit-testable in isolation.
  */
