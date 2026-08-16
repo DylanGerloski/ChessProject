@@ -2144,6 +2144,41 @@ function renderBandHeaderControl() {
 }
 
 /**
+ * Normalizes an internal href to a root-relative absolute path (leading
+ * '/') at the point it's actually rendered into an <a href>. Every nav/
+ * legal-link filename constant this site builds (STATIC_NAV/LEGAL_LINKS in
+ * buildStatic.js, and their per-page-type siblings CONTENT_LEGAL_LINKS/
+ * ECO_LEGAL_LINKS/ECO_EXPLORER_LEGAL_LINKS) is a bare, page-relative
+ * filename with no leading slash, e.g. 'eco-openings.html' -- correct only
+ * for a page living at the site root. That was every page until the
+ * Repertoire Pack detail pages (src/renderPackPages.js) shipped as the
+ * first pages nested one directory deep (/repertoire-packs/<id>.html),
+ * where every one of those bare filenames resolved to a doubled,
+ * nonexistent path instead. Several of those same constants are ALSO used
+ * as fs.writeFileSync() output paths elsewhere in the build (path.join
+ * tolerates a leading slash fine, but there's no reason to touch working
+ * file-path code) -- so this normalization happens only here, at
+ * href-render time, never to the constants themselves.
+ *
+ * Left unchanged (safe no-op) for: an already root-relative path ('/',
+ * '/repertoire' -- e.g. src/server.js's SERVER_NAV, which already uses real
+ * absolute dev-server routes), a full http(s)/protocol-relative URL, a
+ * fragment-only link (#foo), and an empty/falsy value. This is what keeps
+ * call sites that already manually prepend '/' (e.g. buildStatic.js's
+ * redirect-stub targetPath values) from ever seeing this function and
+ * risking a double slash -- they don't go through renderHeader()/
+ * renderFooter() at all.
+ *
+ * @param {string} href
+ * @returns {string}
+ */
+function siteRelativeHref(href) {
+  if (!href) return href;
+  if (/^(https?:)?\/\//.test(href) || href.startsWith('/') || href.startsWith('#')) return href;
+  return `/${href}`;
+}
+
+/**
  * @param {{builder?: string, player?: string, repertoire?: string, packs?: string,
  *   openings?: string, eco?: string, drill?: string, guides?: string, faq?: string}} nav
  *   link targets for whichever pages currently exist -- either the dynamic
@@ -2156,7 +2191,7 @@ function renderBandHeaderControl() {
  */
 function renderHeader(nav, active = null) {
   const links = NAV_ORDER.filter((key) => nav[key] != null)
-    .map((key) => `<a href="${escapeHtml(nav[key])}"${active === key ? ' aria-current="page"' : ''}>${escapeHtml(NAV_LABELS[key])}</a>`)
+    .map((key) => `<a href="${escapeHtml(siteRelativeHref(nav[key]))}"${active === key ? ' aria-current="page"' : ''}>${escapeHtml(NAV_LABELS[key])}</a>`)
     .join('\n      ');
 
   const showBandControl = BAND_CONTROL_PAGES.has(active);
@@ -2181,7 +2216,7 @@ function renderHeader(nav, active = null) {
   // flex-wrap, see SITE_CSS).
   return `<header class="site-header">
     <div class="brand-row">
-      <a class="brand" href="${escapeHtml(nav.home || nav.repertoire || '/')}"><span class="brand-mark" aria-hidden="true">&#9822;</span>Repertoire Builder</a>${bandControl}
+      <a class="brand" href="${escapeHtml(siteRelativeHref(nav.home || nav.repertoire || '/'))}"><span class="brand-mark" aria-hidden="true">&#9822;</span>Repertoire Builder</a>${bandControl}
       <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to dark theme">
         <span aria-hidden="true">&#9789;</span>
       </button>
@@ -2348,10 +2383,10 @@ function renderFooter(innerHtml, legalLinks) {
   let legalRow = '';
   if (legalLinks) {
     const links = [];
-    if (legalLinks.privacy) links.push(`<a href="${escapeHtml(legalLinks.privacy)}">Privacy policy</a>`);
-    if (legalLinks.about) links.push(`<a href="${escapeHtml(legalLinks.about)}">About</a>`);
-    if (legalLinks.contact) links.push(`<a href="${escapeHtml(legalLinks.contact)}">Contact</a>`);
-    if (legalLinks.methodology) links.push(`<a href="${escapeHtml(legalLinks.methodology)}">Methodology</a>`);
+    if (legalLinks.privacy) links.push(`<a href="${escapeHtml(siteRelativeHref(legalLinks.privacy))}">Privacy policy</a>`);
+    if (legalLinks.about) links.push(`<a href="${escapeHtml(siteRelativeHref(legalLinks.about))}">About</a>`);
+    if (legalLinks.contact) links.push(`<a href="${escapeHtml(siteRelativeHref(legalLinks.contact))}">Contact</a>`);
+    if (legalLinks.methodology) links.push(`<a href="${escapeHtml(siteRelativeHref(legalLinks.methodology))}">Methodology</a>`);
     legalRow = `
   <nav class="legal-links" aria-label="Legal">
     ${links.join('\n    ')}
@@ -2759,6 +2794,7 @@ module.exports = {
   renderDocumentHead,
   renderHeader,
   renderFooter,
+  siteRelativeHref,
   renderDisclosure,
   renderNewsletterSignup,
   renderPageHead,

@@ -186,6 +186,51 @@ test('every disclosed limitation ships on the pack detail page (spec 1.2 item 4 
   assert.ok(html.includes('not a claim that it is objectively the best move'));
 });
 
+// ---------------------------------------------------------------------------
+// Broken-nav-link regression: pack detail pages live one directory deep
+// (/repertoire-packs/<id>.html), the first pages on the site that do --
+// every internal href on this page (nav, breadcrumb, footer, sister-pack
+// cross-link, sample.pgn download) must resolve as a root-relative absolute
+// path, never a bare page-relative filename (which resolves to a doubled,
+// nonexistent /repertoire-packs/repertoire-packs/... path from this depth).
+// ---------------------------------------------------------------------------
+
+test('renderPackDetailPage: the breadcrumb link back to the packs index is root-relative, not page-relative', () => {
+  const pack = makePack({});
+  const html = renderPackDetailPage({ pack, otherPacks: [], nav: NAV });
+  assert.match(html, /<a href="\/repertoire-packs\.html">Repertoire packs<\/a>/, 'breadcrumb must not link "repertoire-packs.html" (resolves to a doubled path from a page already inside /repertoire-packs/)');
+});
+
+test('renderPackDetailPage: the sister-pack cross-link is root-relative', () => {
+  const pack = makePack({});
+  const html = renderPackDetailPage({ pack, otherPacks: [{ id: 'black-vs-e4-1400-1600', title: 'Black vs 1.e4 at 1400-1600' }], nav: NAV });
+  assert.match(html, /href="\/repertoire-packs\/black-vs-e4-1400-1600\.html">Also see:/);
+  assert.doesNotMatch(html, /href="repertoire-packs\/black-vs-e4-1400-1600\.html"/, 'must not be a bare page-relative href -- would double up to /repertoire-packs/repertoire-packs/...');
+});
+
+test('renderPackDetailPage: the free sample.pgn download link is root-relative (this is the actual purchase-adjacent download that 404d in production)', () => {
+  const pack = makePack({});
+  const html = renderPackDetailPage({ pack, otherPacks: [], nav: NAV });
+  assert.match(html, /href="\/repertoire-packs\/white-1400-1600-sample\.pgn" download/);
+});
+
+test('renderPackDetailPage: every nav link in the header is root-relative from this nested page', () => {
+  const pack = makePack({});
+  const html = renderPackDetailPage({ pack, otherPacks: [], nav: NAV });
+  assert.match(html, /href="\/repertoire\.html"/);
+  assert.match(html, /href="\/repertoire-packs\.html"/);
+});
+
+test('renderPackDetailPage: every footer legal link is root-relative from this nested page', () => {
+  const pack = makePack({});
+  const legalLinks = { privacy: 'privacy.html', about: 'about.html', contact: 'contact.html', methodology: 'methodology.html' };
+  const html = renderPackDetailPage({ pack, otherPacks: [], nav: NAV, legalLinks });
+  assert.match(html, /href="\/privacy\.html">Privacy policy/);
+  assert.match(html, /href="\/about\.html">About/);
+  assert.match(html, /href="\/contact\.html">Contact/);
+  assert.match(html, /href="\/methodology\.html">Methodology/);
+});
+
 test('the free guarantee and non-influence statements ship verbatim-in-substance on both page types', () => {
   const pack = makePack({});
   const detail = renderPackDetailPage({ pack, otherPacks: [], nav: NAV });

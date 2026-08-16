@@ -46,6 +46,33 @@ test('resolveInternalTarget strips a fragment and query and resolves against dis
   assert.equal(resolveInternalTarget('/dist', '#top'), null);
 });
 
+// Regression coverage for the broken-nav-link incident: a genuinely relative
+// (no leading '/') target must resolve against the REFERRING PAGE's own
+// directory, the same way a real browser does -- not always against distDir
+// root, which is what let a real production bug (every relative href on the
+// nested Repertoire Pack detail pages) pass this checker undetected. See
+// scripts/checkLinks.js's resolveInternalTarget() header comment.
+test('resolveInternalTarget resolves a relative target against the referring file\'s own directory, not always distDir root', () => {
+  const referring = path.join('/dist', 'repertoire-packs', 'white-1400-1600.html');
+  assert.equal(
+    resolveInternalTarget('/dist', 'eco-openings.html', referring),
+    path.join('/dist', 'repertoire-packs', 'eco-openings.html'),
+    'a bare relative filename found on a nested page must resolve relative to that page\'s own directory'
+  );
+});
+
+test('resolveInternalTarget resolves a site-absolute (leading "/") target against distDir regardless of the referring page\'s own depth', () => {
+  const referring = path.join('/dist', 'repertoire-packs', 'white-1400-1600.html');
+  assert.equal(
+    resolveInternalTarget('/dist', '/eco-openings.html', referring),
+    path.join('/dist', 'eco-openings.html')
+  );
+});
+
+test('resolveInternalTarget falls back to resolving a relative target against distDir when no referringFile is given (backward-compatible default)', () => {
+  assert.equal(resolveInternalTarget('/dist', 'about.html'), path.join('/dist', 'about.html'));
+});
+
 test('checkFile finds a broken internal link', () => {
   const dir = mkTmpDir('checklinks-broken-');
   const file = writeFile(dir, 'a.html', '<a href="/missing.html">gone</a>');
@@ -58,6 +85,23 @@ test('checkFile passes a link whose target exists', () => {
   const dir = mkTmpDir('checklinks-ok-');
   writeFile(dir, 'b.html', '<p>target</p>');
   const file = writeFile(dir, 'a.html', '<a href="/b.html">b</a>');
+  const { offenses } = checkFile(dir, file);
+  assert.deepEqual(offenses, []);
+});
+
+test('checkFile: a nested page (repertoire-packs/<id>.html) with a bare relative nav link is now correctly flagged as broken, even though the target filename exists at dist root (the exact production incident this guards against)', () => {
+  const dir = mkTmpDir('checklinks-nested-relative-');
+  writeFile(dir, 'eco-openings.html', '<p>the real root-level page</p>');
+  const file = writeFile(dir, path.join('repertoire-packs', 'white-1400-1600.html'), '<a href="eco-openings.html">ECO openings</a>');
+  const { offenses } = checkFile(dir, file);
+  assert.equal(offenses.length, 1, 'a bare relative href on a nested page must resolve relative to that page, not silently pass because the filename happens to exist at dist root');
+  assert.match(offenses[0], /broken internal link/);
+});
+
+test('checkFile: the same nested page passes once the link is root-relative (leading slash) -- the actual fix', () => {
+  const dir = mkTmpDir('checklinks-nested-absolute-');
+  writeFile(dir, 'eco-openings.html', '<p>the real root-level page</p>');
+  const file = writeFile(dir, path.join('repertoire-packs', 'white-1400-1600.html'), '<a href="/eco-openings.html">ECO openings</a>');
   const { offenses } = checkFile(dir, file);
   assert.deepEqual(offenses, []);
 });

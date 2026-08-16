@@ -91,9 +91,11 @@ test('renderMethodologyPage: renders the LIVE threshold values, not a hardcoded 
 
 test('renderMethodologyPage: footer links to privacy/about/contact/methodology, none broken by omission', () => {
   const html = renderMethodologyPage({ nav: NAV, manifest: null, thresholds: MISTAKE_THRESHOLDS });
-  assert.match(html, /href="privacy\.html"/);
-  assert.match(html, /href="about\.html"/);
-  assert.match(html, /href="contact\.html"/);
+  // Root-relative (leading slash): src/render.js's siteRelativeHref()
+  // normalizes every legalLinks value at render time.
+  assert.match(html, /href="\/privacy\.html"/);
+  assert.match(html, /href="\/about\.html"/);
+  assert.match(html, /href="\/contact\.html"/);
 });
 
 test('renderMethodologyPage: carries the shared security/referrer meta tags like every other page', () => {
