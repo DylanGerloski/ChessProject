@@ -8,6 +8,7 @@
   "scripts": {
     "build": "node src/build.js",
     "build:static": "node src/buildStatic.js",
+    "fetch-local-aggregates": "node scripts/fetchLocalAggregates.js",
     "postbuild:static": "node scripts/emDashDensity.js",
     "check-em-dash": "node scripts/emDashDensity.js",
     "serve": "node src/server.js",
