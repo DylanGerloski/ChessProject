@@ -2,7 +2,7 @@
 
 /**
  * Real-browser regression coverage for src/browser/homeDemo.client.js (the
- * Board Visibility spec's task B3, homepage hero demo). Uses Playwright
+ * homepage hero demo, part of the board-visibility work). Uses Playwright
  * (already a devDependency, same pattern test/drillHubClient.test.js
  * already established for a real cm-chessboard mount) against the REAL
  * rendered indexPage() HTML and the REAL esbuild bundle served over a

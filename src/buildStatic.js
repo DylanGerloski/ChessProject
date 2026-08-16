@@ -53,7 +53,7 @@ const { RATING_BANDS } = require('./processRepertoire');
 const { renderRedirectStubPage, renderGenericRedirectStub, escapeHtml, formatPct, renderDocumentHead, renderHeader, renderFooter, renderPageHead } = require('./render');
 const { renderRepertoireExplorerPage } = require('./renderRepertoireExplorer');
 const { renderOpeningStatCard, renderMethodologyPage } = require('./renderContent');
-// Board Visibility spec (task B3, homepage hero demo) -- see
+// Board-visibility work (homepage hero demo) -- see
 // src/renderRepertoireExplorer.js's header comment for why a page-assembly
 // module (this file, for indexPage()) may require() boardSvg.js directly
 // (Node `fs` read, sprite embed) while render.js itself never may.
@@ -206,7 +206,7 @@ const DRILL_HUB_ENTRY = path.join(__dirname, 'browser', 'drillHub.client.js');
 // commit, not a stub a follow-on task replaces -- see
 // src/browser/bandHeaderControl.client.js's own header comment.
 const BAND_HEADER_CONTROL_ENTRY = path.join(__dirname, 'browser', 'bandHeaderControl.client.js');
-// Board Visibility spec (task B3) -- the homepage hero live demo. See
+// Board-visibility work -- the homepage hero live demo. See
 // src/browser/homeDemo.client.js's own header comment.
 const HOME_DEMO_ENTRY = path.join(__dirname, 'browser', 'homeDemo.client.js');
 
@@ -428,7 +428,7 @@ function buildBandHeaderControlBundle() {
 }
 
 /**
- * Board Visibility spec (task B3) -- the homepage hero demo's bundle.
+ * Board-visibility work -- the homepage hero demo's bundle.
  * Entry point src/browser/homeDemo.client.js, which require()s only
  * src/boardWidget.js (createBoard/COLOR/FEN, cm-chessboard core + the
  * Accessibility extension) -- NOT src/boardWidgetFree.js/chess.js. Spec
@@ -540,7 +540,7 @@ function dataStripHtml(contentEntries) {
   </div>`;
 }
 
-// Board Visibility spec (task B3) -- the homepage hero demo's rating band
+// Board-visibility work -- the homepage hero demo's rating band
 // and color. Matches REPERTOIRE_DEFAULT_BAND/'black' -- the hero shows the
 // same real 1600-1800 data this build's own repertoire.html would show for
 // that band, playing Black (the side actually making the demo's move).
@@ -614,7 +614,7 @@ function buildHomeDemoData(combos) {
  * tag (spec section 2.3). Both are '' when heroDemo is null -- either this
  * particular indexPage() call didn't pass one (most existing tests, and any
  * build where buildHomeDemoData() above declined for the reasons in its own
- * comment), in which case indexPage() falls back to its pre-B3 single-column
+ * comment), in which case indexPage() falls back to its earlier single-column
  * header with no board, no bundle, and no piece attribution added to the
  * footer.
  *
@@ -675,7 +675,7 @@ function indexPage(contentEntries = [], drillFile = null, heroDemo = null) {
   // subtitle, above "Start with your rating band" -- text in the left
   // column, board in the right column at >=1024px (see SITE_CSS's
   // .home-hero-layout), stacked below that. Falls back to the plain
-  // pre-B3 header (no grid wrapper) when heroDemo is null.
+  // earlier plain header (no grid wrapper) when heroDemo is null.
   const { asideHtml: homeDemoAsideHtml, dataScriptHtml: homeDemoDataScriptHtml } = homeDemoMarkup(heroDemo);
   const heroHtml = homeDemoAsideHtml
     ? `<div class="home-hero-layout">
@@ -1155,11 +1155,11 @@ async function buildStatic({ fetchImpl = politeFetch, useCache = true } = {}) {
     fs.copyFileSync(src, path.join(OUT_DIR, assetFile));
   }
 
-  // Board Visibility spec (task B3) -- reuses the SAME repertoireCombos
+  // Board-visibility work -- reuses the SAME repertoireCombos
   // this build already fetched for repertoire.html (buildRepertoireCombos()
   // above), never a second fetch. buildHomeDemoData() returns null if the
   // data doesn't match the hero's hardcoded board position (its own doc
-  // comment), in which case indexPage() below falls back to its pre-B3
+  // comment), in which case indexPage() below falls back to its earlier
   // header with no board/bundle at all.
   const homeDemoData = buildHomeDemoData(repertoireCombos);
   fs.writeFileSync(path.join(OUT_DIR, 'index.html'), indexPage(contentEntries, drillFile, homeDemoData), 'utf8');

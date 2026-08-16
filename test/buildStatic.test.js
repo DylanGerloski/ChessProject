@@ -512,7 +512,7 @@ test('buildBandHeaderControlBundle (WS-1 spec 3.4, task W4) esbuild-bundles band
   assert.doesNotThrow(() => runBundleInSandbox(bundle));
 });
 
-test('buildHomeDemoBundle (Board Visibility spec, task B3) esbuild-bundles homeDemo.client.js + boardWidget.js into one self-contained IIFE that runs with no global require/module/exports (file:// invariant), and stays under the 120KB budget with no chess.js', () => {
+test('buildHomeDemoBundle (the homepage hero demo) esbuild-bundles homeDemo.client.js + boardWidget.js into one self-contained IIFE that runs with no global require/module/exports (file:// invariant), and stays under the 120KB budget with no chess.js', () => {
   const bundle = buildHomeDemoBundle();
   assert.match(bundle, /function mountAllowlistBoard/);
   assert.match(bundle, /function createBoard/);
@@ -535,7 +535,7 @@ test('buildHomeDemoBundle (Board Visibility spec, task B3) esbuild-bundles homeD
 // looks like for '1600-1800|black' -- root is White's most-played move
 // (mover:'white'), its children are the top-3 Black replies -- verified
 // against a real fetch during this task's own build (see this task's
-// --result for the exact numbers this fixture mirrors).
+// this feature's own build-verification notes for the exact numbers this fixture mirrors).
 const HOME_DEMO_FIXTURE_COMBOS = {
   '1600-1800|black': {
     tree: [{
@@ -577,7 +577,7 @@ test('buildHomeDemoData returns null rather than shipping a mismatched hero when
   assert.equal(buildHomeDemoData(drifted), null);
 });
 
-test('indexPage (task B3) renders the hero demo aside, board mount, baked JSON data, and script tag when a heroDemo is passed, and adds piece attribution to the footer', () => {
+test('indexPage renders the hero demo aside, board mount, baked JSON data, and script tag when a heroDemo is passed, and adds piece attribution to the footer', () => {
   const heroDemo = buildHomeDemoData(HOME_DEMO_FIXTURE_COMBOS);
   const html = indexPage([], null, heroDemo);
   assert.match(html, /<div class="home-hero-layout">/);
@@ -594,7 +594,7 @@ test('indexPage (task B3) renders the hero demo aside, board mount, baked JSON d
   assert.match(html, /Board pieces: the Cburnett chess set/, 'footer must credit the piece artwork once a board is actually rendered on this page');
 });
 
-test('indexPage falls back to its pre-B3 single-column header with no hero demo markup, no bundle script, and no piece attribution when heroDemo is null (most existing tests, and the default third argument)', () => {
+test('indexPage falls back to its earlier single-column header with no hero demo markup, no bundle script, and no piece attribution when heroDemo is null (most existing tests, and the default third argument)', () => {
   const html = indexPage([]);
   // Note: SITE_CSS's .home-hero-layout/.home-demo* rules are always present
   // in the page's <style> block (a static stylesheet, not conditionally
@@ -607,7 +607,7 @@ test('indexPage falls back to its pre-B3 single-column header with no hero demo 
   assert.doesNotMatch(html, /id="home-demo-data"/);
   assert.doesNotMatch(html, /src="home-demo\.js"/);
   assert.doesNotMatch(html, /Board pieces: the Cburnett chess set/);
-  // The plain pre-B3 header is still there, unwrapped.
+  // The plain earlier header is still there, unwrapped.
   assert.match(html, /<h1 class="page-title">The chess opening meta, by rating band<\/h1>/);
 });
 

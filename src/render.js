@@ -1577,7 +1577,7 @@ ${designTokensCss(THEME_ROLES.dark)}
     margin-right: calc(50% - 50vw);
   }
 
-  /* Board Visibility spec (task B3) -- the homepage hero demo
+  /* Board-visibility work -- the homepage hero demo
      (buildStatic.js's homeDemoMarkup()). Text column first / above in
      source order (mobile-first, same convention as
      .repertoire-explorer-layout above: this is what a 360px visitor sees

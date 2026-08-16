@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Homepage hero live demo (Board Visibility spec, task B3). Bundled by
+ * Homepage hero live demo (part of the board-visibility work). Bundled by
  * src/buildStatic.js's buildHomeDemoBundle() into dist/home-demo.js, loaded
  * `defer` from index.html -- the homepage's first first-party JS bundle
  * (spec section 2.3 calls this out explicitly as the real risk of this
