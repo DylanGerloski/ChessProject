@@ -40,6 +40,20 @@ const SKIP_AUDITS = ['third-party-cookies', 'inspector-issues'];
 // Distinct from scripts/visual-qa.js's 9522 so both can run in the same CI
 // job without a CDP port clash.
 const CDP_PORT = 9523;
+// Confirmed real (run 31916963935, 2026-08-16): methodology.html scored
+// best-practices=75 in one CI quality-job run, then 100 on every subsequent
+// attempt -- 3 consecutive clean local runs and a fresh real workflow_dispatch
+// CI run, same commit, same page, no code change in between. SKIP_AUDITS
+// above already documents Google's Auto Ads script (present on every
+// AdSense-bearing page here, this one included) as a source of real,
+// environment-dependent Best Practices variance this project doesn't
+// control; this was one more instance of it, just below the two audits
+// already worked around rather than exactly matching them. A single flaky
+// run failing the whole site's deploy gate is worse than briefly re-auditing
+// a page that's below budget on its first pass -- a REAL regression fails
+// consistently across MAX_ATTEMPTS and still blocks the gate; a flake
+// doesn't survive a second look.
+const MAX_ATTEMPTS = 2;
 
 // Each entry is either a plain filename, or {page, skipCategories} when a
 // category is a KNOWN, documented, temporary exception for that one page --
@@ -54,7 +68,7 @@ const GATED_PAGES = [
   'index.html', // homepage
   'italian-game.html', // representative main opening page
   'italian-game-variations.html', // representative family/variations hub
-  'methodology.html', // methodology page -- not yet built; expected to fail this gate until it ships
+  'methodology.html', // methodology page -- shipped and passing since 2026-08-16 (see MAX_ATTEMPTS comment for one flaky exception)
   // Repertoire Pack sales pages (design-standards.md Distinctiveness Gate
   // item 6: "both new page types"). Both currently carry noindex (STORE in
   // src/render.js still ships sentinel, not-yet-real, merchant urls -- see
@@ -75,28 +89,66 @@ function scoreOf(categories, key) {
   return Math.round(cat.score * 100);
 }
 
+// Names the specific audit(s) dragging a failing category below budget --
+// a bare category score (e.g. "best-practices: 75") gives no signal for
+// root-causing a regression; this is what a human/agent actually needs to
+// read next, per this gate's whole purpose. Pure (no browser/Lighthouse
+// call) so it's directly unit-testable against a fixture lhr shape.
+function culpritAuditsFor(lhr, categoryKey) {
+  const cat = lhr.categories && lhr.categories[categoryKey];
+  if (!cat || !Array.isArray(cat.auditRefs)) return [];
+  return cat.auditRefs
+    .map((ref) => lhr.audits[ref.id])
+    .filter((audit) => audit && audit.score !== null && audit.score < 1)
+    .map((audit) => `${audit.id} (${audit.title}): score ${audit.score}${audit.displayValue ? `, ${audit.displayValue}` : ''}`);
+}
+
+async function auditOnce(pageUrl) {
+  const browser = await launchBrowser(CDP_PORT);
+  try {
+    const lhr = await runLighthouse(pageUrl, { categories: CATEGORIES, cdpPort: CDP_PORT, skipAudits: SKIP_AUDITS });
+    return lhr;
+  } finally {
+    await browser.close();
+  }
+}
+
+function evaluate(lhr, skipCategories) {
+  const scores = {};
+  const failures = [];
+  const failingAudits = {};
+  for (const key of CATEGORIES) {
+    const score = scoreOf(lhr.categories, key);
+    scores[key] = score;
+    if (skipCategories.includes(key)) continue;
+    if (score === null || score < BUDGET_MIN_SCORE) {
+      failures.push(`${key}: ${score === null ? 'n/a' : score}`);
+      const culprits = culpritAuditsFor(lhr, key);
+      if (culprits.length > 0) failingAudits[key] = culprits;
+    }
+  }
+  return { ok: failures.length === 0, scores, failures, failingAudits };
+}
+
 async function auditPage(distDir, page, skipCategories = []) {
   const filePath = path.join(distDir, page);
   if (!fs.existsSync(filePath)) {
     return { page, ok: false, missing: true };
   }
   const { pageUrl, cleanup } = await resolveTarget(filePath);
-  const browser = await launchBrowser(CDP_PORT);
   try {
-    const lhr = await runLighthouse(pageUrl, { categories: CATEGORIES, cdpPort: CDP_PORT, skipAudits: SKIP_AUDITS });
-    const scores = {};
-    const failures = [];
-    for (const key of CATEGORIES) {
-      const score = scoreOf(lhr.categories, key);
-      scores[key] = score;
-      if (skipCategories.includes(key)) continue;
-      if (score === null || score < BUDGET_MIN_SCORE) {
-        failures.push(`${key}: ${score === null ? 'n/a' : score}`);
-      }
+    let result;
+    let attempts = 0;
+    // See MAX_ATTEMPTS's header comment: retry a below-budget result once
+    // before failing the gate, so a real regression (fails every attempt)
+    // still blocks deploy, but a single flaky Auto-Ads-driven dip doesn't.
+    for (attempts = 1; attempts <= MAX_ATTEMPTS; attempts++) {
+      const lhr = await auditOnce(pageUrl);
+      result = evaluate(lhr, skipCategories);
+      if (result.ok) break;
     }
-    return { page, ok: failures.length === 0, scores, failures, skipCategories };
+    return { page, ...result, skipCategories, attempts };
   } finally {
-    await browser.close();
     await cleanup();
   }
 }
@@ -127,12 +179,21 @@ async function main() {
       console.error(`FAIL  ${result.page}: not found in ${distDir} (not yet built)`);
     } else if (!result.ok) {
       anyFail = true;
-      console.error(`FAIL  ${result.page}: ${result.failures.join(', ')} (budget: >= ${BUDGET_MIN_SCORE})`);
+      const attemptNote = result.attempts > 1 ? ` (failed all ${result.attempts} attempts -- see MAX_ATTEMPTS comment)` : '';
+      console.error(`FAIL  ${result.page}: ${result.failures.join(', ')} (budget: >= ${BUDGET_MIN_SCORE})${attemptNote}`);
+      if (result.failingAudits) {
+        for (const [category, culprits] of Object.entries(result.failingAudits)) {
+          for (const culprit of culprits) {
+            console.error(`        ${category} audit failing: ${culprit}`);
+          }
+        }
+      }
     } else {
       const skipNote = result.skipCategories && result.skipCategories.length > 0
         ? ` (${result.skipCategories.join(', ')} exempted -- see GATED_PAGES comment)`
         : '';
-      console.log(`PASS  ${result.page}: ${CATEGORIES.map((k) => `${k}=${result.scores[k]}`).join(' ')}${skipNote}`);
+      const retryNote = result.attempts > 1 ? ` (passed on attempt ${result.attempts}/${MAX_ATTEMPTS} -- first attempt was below budget, see MAX_ATTEMPTS comment)` : '';
+      console.log(`PASS  ${result.page}: ${CATEGORIES.map((k) => `${k}=${result.scores[k]}`).join(' ')}${skipNote}${retryNote}`);
     }
   }
 
@@ -147,4 +208,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { BUDGET_MIN_SCORE, CATEGORIES, GATED_PAGES, CDP_PORT, scoreOf, auditPage, runAll };
+module.exports = { BUDGET_MIN_SCORE, CATEGORIES, GATED_PAGES, CDP_PORT, MAX_ATTEMPTS, scoreOf, culpritAuditsFor, evaluate, auditPage, runAll };
