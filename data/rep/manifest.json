@@ -1,7 +1,7 @@
 {
   "v": 1,
-  "generatedAt": "2026-08-15T18:56:48.510Z",
-  "retrieved": "2026-08-15",
+  "generatedAt": "2026-08-16T03:12:35.578Z",
+  "retrieved": "2026-08-16",
   "pool": "blitz",
   "source": "lichess-opening-explorer",
   "thresholds": {
@@ -13,443 +13,539 @@
   "bands": [
     {
       "band": "1400-1600",
-      "positions": 49,
-      "bytes": 22284,
+      "positions": 89,
+      "bytes": 28485,
       "shards": [
         {
           "file": "1400-1600/root.json",
           "shardKey": "root",
-          "positions": 22,
-          "bytes": 9929
+          "positions": 41,
+          "bytes": 12621
         },
         {
-          "file": "1400-1600/d2d4-g8f6.json",
-          "shardKey": "d2d4-g8f6",
-          "positions": 10,
-          "bytes": 4333
+          "file": "1400-1600/e2e4-e7e5.json",
+          "shardKey": "e2e4-e7e5",
+          "positions": 6,
+          "bytes": 1974
+        },
+        {
+          "file": "1400-1600/e2e4-d7d5.json",
+          "shardKey": "e2e4-d7d5",
+          "positions": 3,
+          "bytes": 974
+        },
+        {
+          "file": "1400-1600/e2e4-c7c5.json",
+          "shardKey": "e2e4-c7c5",
+          "positions": 6,
+          "bytes": 1764
+        },
+        {
+          "file": "1400-1600/d2d4-d7d5.json",
+          "shardKey": "d2d4-d7d5",
+          "positions": 6,
+          "bytes": 1964
+        },
+        {
+          "file": "1400-1600/e2e4-e7e6.json",
+          "shardKey": "e2e4-e7e6",
+          "positions": 4,
+          "bytes": 1329
+        },
+        {
+          "file": "1400-1600/e2e4-c7c6.json",
+          "shardKey": "e2e4-c7c6",
+          "positions": 4,
+          "bytes": 1104
         },
         {
           "file": "1400-1600/d2d4-e7e5.json",
           "shardKey": "d2d4-e7e5",
+          "positions": 1,
+          "bytes": 431
+        },
+        {
+          "file": "1400-1600/d2d4-g8f6.json",
+          "shardKey": "d2d4-g8f6",
           "positions": 4,
-          "bytes": 1822
+          "bytes": 1221
+        },
+        {
+          "file": "1400-1600/e2e4-d7d6.json",
+          "shardKey": "e2e4-d7d6",
+          "positions": 2,
+          "bytes": 730
         },
         {
           "file": "1400-1600/d2d4-e7e6.json",
           "shardKey": "d2d4-e7e6",
-          "positions": 6,
-          "bytes": 2774
+          "positions": 3,
+          "bytes": 1012
+        },
+        {
+          "file": "1400-1600/e2e4-g7g6.json",
+          "shardKey": "e2e4-g7g6",
+          "positions": 2,
+          "bytes": 708
+        },
+        {
+          "file": "1400-1600/e2e4-b7b6.json",
+          "shardKey": "e2e4-b7b6",
+          "positions": 2,
+          "bytes": 565
+        },
+        {
+          "file": "1400-1600/c2c4-e7e5.json",
+          "shardKey": "c2c4-e7e5",
+          "positions": 1,
+          "bytes": 426
         },
         {
           "file": "1400-1600/b2b3-e7e5.json",
           "shardKey": "b2b3-e7e5",
-          "positions": 2,
-          "bytes": 968
+          "positions": 1,
+          "bytes": 420
+        },
+        {
+          "file": "1400-1600/g2g3-d7d5.json",
+          "shardKey": "g2g3-d7d5",
+          "positions": 1,
+          "bytes": 422
+        },
+        {
+          "file": "1400-1600/g2g3-e7e5.json",
+          "shardKey": "g2g3-e7e5",
+          "positions": 1,
+          "bytes": 422
         },
         {
           "file": "1400-1600/d2d4-g7g6.json",
           "shardKey": "d2d4-g7g6",
-          "positions": 3,
-          "bytes": 1347
-        },
-        {
-          "file": "1400-1600/b2b3-d7d5.json",
-          "shardKey": "b2b3-d7d5",
           "positions": 1,
-          "bytes": 552
-        },
-        {
-          "file": "1400-1600/d2d4-d7d6.json",
-          "shardKey": "d2d4-d7d6",
-          "positions": 1,
-          "bytes": 559
+          "bytes": 398
         }
       ]
     },
     {
       "band": "1600-1800",
-      "positions": 194,
-      "bytes": 85996,
+      "positions": 104,
+      "bytes": 33208,
       "shards": [
         {
           "file": "1600-1800/root.json",
           "shardKey": "root",
-          "positions": 34,
-          "bytes": 15486
+          "positions": 47,
+          "bytes": 14225
         },
         {
           "file": "1600-1800/e2e4-e7e5.json",
           "shardKey": "e2e4-e7e5",
-          "positions": 35,
-          "bytes": 15168
+          "positions": 6,
+          "bytes": 1973
         },
         {
           "file": "1600-1800/e2e4-c7c5.json",
           "shardKey": "e2e4-c7c5",
-          "positions": 35,
-          "bytes": 15001
-        },
-        {
-          "file": "1600-1800/d2d4-d7d5.json",
-          "shardKey": "d2d4-d7d5",
-          "positions": 27,
-          "bytes": 11780
+          "positions": 7,
+          "bytes": 2009
         },
         {
           "file": "1600-1800/e2e4-d7d5.json",
           "shardKey": "e2e4-d7d5",
-          "positions": 5,
-          "bytes": 2201
+          "positions": 3,
+          "bytes": 1019
+        },
+        {
+          "file": "1600-1800/d2d4-d7d5.json",
+          "shardKey": "d2d4-d7d5",
+          "positions": 6,
+          "bytes": 1962
         },
         {
           "file": "1600-1800/e2e4-e7e6.json",
           "shardKey": "e2e4-e7e6",
-          "positions": 11,
-          "bytes": 4822
+          "positions": 5,
+          "bytes": 1621
         },
         {
           "file": "1600-1800/e2e4-c7c6.json",
           "shardKey": "e2e4-c7c6",
-          "positions": 17,
-          "bytes": 7053
+          "positions": 5,
+          "bytes": 1401
+        },
+        {
+          "file": "1600-1800/d2d4-g8f6.json",
+          "shardKey": "d2d4-g8f6",
+          "positions": 5,
+          "bytes": 1548
         },
         {
           "file": "1600-1800/e2e4-d7d6.json",
           "shardKey": "e2e4-d7d6",
-          "positions": 3,
-          "bytes": 1434
-        },
-        {
-          "file": "1600-1800/e2e4-g7g6.json",
-          "shardKey": "e2e4-g7g6",
-          "positions": 4,
-          "bytes": 1859
+          "positions": 2,
+          "bytes": 728
         },
         {
           "file": "1600-1800/d2d4-e7e5.json",
           "shardKey": "d2d4-e7e5",
           "positions": 1,
-          "bytes": 560
+          "bytes": 428
         },
         {
-          "file": "1600-1800/d2d4-g7g6.json",
-          "shardKey": "d2d4-g7g6",
-          "positions": 4,
-          "bytes": 1783
+          "file": "1600-1800/e2e4-g7g6.json",
+          "shardKey": "e2e4-g7g6",
+          "positions": 2,
+          "bytes": 688
         },
         {
           "file": "1600-1800/d2d4-e7e6.json",
           "shardKey": "d2d4-e7e6",
-          "positions": 5,
-          "bytes": 2340
+          "positions": 3,
+          "bytes": 1021
         },
         {
           "file": "1600-1800/e2e4-b7b6.json",
           "shardKey": "e2e4-b7b6",
-          "positions": 3,
-          "bytes": 1374
+          "positions": 2,
+          "bytes": 625
+        },
+        {
+          "file": "1600-1800/c2c4-e7e5.json",
+          "shardKey": "c2c4-e7e5",
+          "positions": 1,
+          "bytes": 427
+        },
+        {
+          "file": "1600-1800/g2g3-d7d5.json",
+          "shardKey": "g2g3-d7d5",
+          "positions": 1,
+          "bytes": 424
+        },
+        {
+          "file": "1600-1800/d2d4-g7g6.json",
+          "shardKey": "d2d4-g7g6",
+          "positions": 1,
+          "bytes": 318
         },
         {
           "file": "1600-1800/b2b3-e7e5.json",
           "shardKey": "b2b3-e7e5",
-          "positions": 2,
-          "bytes": 967
-        },
-        {
-          "file": "1600-1800/e2e4-b8c6.json",
-          "shardKey": "e2e4-b8c6",
-          "positions": 2,
-          "bytes": 975
+          "positions": 1,
+          "bytes": 419
         },
         {
           "file": "1600-1800/d2d4-c7c6.json",
           "shardKey": "d2d4-c7c6",
           "positions": 1,
-          "bytes": 542
-        },
-        {
-          "file": "1600-1800/d2d4-d7d6.json",
-          "shardKey": "d2d4-d7d6",
-          "positions": 1,
-          "bytes": 566
+          "bytes": 360
         },
         {
           "file": "1600-1800/d2d4-c7c5.json",
           "shardKey": "d2d4-c7c5",
-          "positions": 2,
-          "bytes": 966
+          "positions": 1,
+          "bytes": 420
+        },
+        {
+          "file": "1600-1800/e2e4-g8f6.json",
+          "shardKey": "e2e4-g8f6",
+          "positions": 1,
+          "bytes": 319
         },
         {
           "file": "1600-1800/b2b3-d7d5.json",
           "shardKey": "b2b3-d7d5",
           "positions": 1,
-          "bytes": 561
+          "bytes": 424
         },
         {
           "file": "1600-1800/f2f4-d7d5.json",
           "shardKey": "f2f4-d7d5",
           "positions": 1,
-          "bytes": 558
+          "bytes": 425
+        },
+        {
+          "file": "1600-1800/d2d4-d7d6.json",
+          "shardKey": "d2d4-d7d6",
+          "positions": 1,
+          "bytes": 424
         }
       ]
     },
     {
       "band": "1800-2000",
-      "positions": 151,
-      "bytes": 65697,
+      "positions": 96,
+      "bytes": 30420,
       "shards": [
         {
           "file": "1800-2000/root.json",
           "shardKey": "root",
-          "positions": 28,
-          "bytes": 12640
+          "positions": 42,
+          "bytes": 12829
         },
         {
           "file": "1800-2000/e2e4-e7e5.json",
           "shardKey": "e2e4-e7e5",
-          "positions": 39,
-          "bytes": 16445
+          "positions": 5,
+          "bytes": 1623
         },
         {
           "file": "1800-2000/e2e4-c7c5.json",
           "shardKey": "e2e4-c7c5",
-          "positions": 32,
-          "bytes": 13567
+          "positions": 6,
+          "bytes": 1703
         },
         {
           "file": "1800-2000/e2e4-d7d5.json",
           "shardKey": "e2e4-d7d5",
-          "positions": 15,
-          "bytes": 6411
+          "positions": 3,
+          "bytes": 893
+        },
+        {
+          "file": "1800-2000/d2d4-d7d5.json",
+          "shardKey": "d2d4-d7d5",
+          "positions": 6,
+          "bytes": 1865
         },
         {
           "file": "1800-2000/e2e4-e7e6.json",
           "shardKey": "e2e4-e7e6",
-          "positions": 21,
-          "bytes": 9049
+          "positions": 4,
+          "bytes": 1322
         },
         {
           "file": "1800-2000/e2e4-c7c6.json",
           "shardKey": "e2e4-c7c6",
-          "positions": 6,
-          "bytes": 2567
+          "positions": 4,
+          "bytes": 1115
+        },
+        {
+          "file": "1800-2000/d2d4-g8f6.json",
+          "shardKey": "d2d4-g8f6",
+          "positions": 5,
+          "bytes": 1488
         },
         {
           "file": "1800-2000/e2e4-d7d6.json",
           "shardKey": "e2e4-d7d6",
-          "positions": 5,
-          "bytes": 2282
+          "positions": 2,
+          "bytes": 727
+        },
+        {
+          "file": "1800-2000/d2d4-e7e6.json",
+          "shardKey": "d2d4-e7e6",
+          "positions": 3,
+          "bytes": 1020
+        },
+        {
+          "file": "1800-2000/e2e4-g7g6.json",
+          "shardKey": "e2e4-g7g6",
+          "positions": 2,
+          "bytes": 667
+        },
+        {
+          "file": "1800-2000/d2d4-e7e5.json",
+          "shardKey": "d2d4-e7e5",
+          "positions": 1,
+          "bytes": 409
+        },
+        {
+          "file": "1800-2000/c2c4-e7e5.json",
+          "shardKey": "c2c4-e7e5",
+          "positions": 1,
+          "bytes": 427
+        },
+        {
+          "file": "1800-2000/e2e4-b7b6.json",
+          "shardKey": "e2e4-b7b6",
+          "positions": 1,
+          "bytes": 398
+        },
+        {
+          "file": "1800-2000/e2e4-g8f6.json",
+          "shardKey": "e2e4-g8f6",
+          "positions": 2,
+          "bytes": 589
+        },
+        {
+          "file": "1800-2000/c2c4-g8f6.json",
+          "shardKey": "c2c4-g8f6",
+          "positions": 1,
+          "bytes": 426
+        },
+        {
+          "file": "1800-2000/d2d4-c7c6.json",
+          "shardKey": "d2d4-c7c6",
+          "positions": 1,
+          "bytes": 301
+        },
+        {
+          "file": "1800-2000/d2d4-c7c5.json",
+          "shardKey": "d2d4-c7c5",
+          "positions": 1,
+          "bytes": 383
+        },
+        {
+          "file": "1800-2000/d2d4-g7g6.json",
+          "shardKey": "d2d4-g7g6",
+          "positions": 1,
+          "bytes": 359
+        },
+        {
+          "file": "1800-2000/g2g3-d7d5.json",
+          "shardKey": "g2g3-d7d5",
+          "positions": 1,
+          "bytes": 422
+        },
+        {
+          "file": "1800-2000/f2f4-d7d5.json",
+          "shardKey": "f2f4-d7d5",
+          "positions": 1,
+          "bytes": 424
+        },
+        {
+          "file": "1800-2000/d2d4-d7d6.json",
+          "shardKey": "d2d4-d7d6",
+          "positions": 1,
+          "bytes": 423
         },
         {
           "file": "1800-2000/e2e4-b8c6.json",
           "shardKey": "e2e4-b8c6",
-          "positions": 1,
-          "bytes": 557
-        },
-        {
-          "file": "1800-2000/c2c4-c7c5.json",
-          "shardKey": "c2c4-c7c5",
-          "positions": 1,
-          "bytes": 547
-        },
-        {
-          "file": "1800-2000/b2b3-d7d5.json",
-          "shardKey": "b2b3-d7d5",
-          "positions": 1,
-          "bytes": 558
-        },
-        {
-          "file": "1800-2000/c2c4-e7e6.json",
-          "shardKey": "c2c4-e7e6",
-          "positions": 1,
-          "bytes": 554
-        },
-        {
-          "file": "1800-2000/c2c4-d7d5.json",
-          "shardKey": "c2c4-d7d5",
-          "positions": 1,
-          "bytes": 520
+          "positions": 2,
+          "bytes": 607
         }
       ]
     },
     {
       "band": "2000+",
-      "positions": 257,
-      "bytes": 110960,
+      "positions": 79,
+      "bytes": 24562,
       "shards": [
         {
           "file": "2000+/root.json",
           "shardKey": "root",
-          "positions": 48,
-          "bytes": 21313
+          "positions": 37,
+          "bytes": 11150
         },
         {
           "file": "2000+/e2e4-c7c5.json",
           "shardKey": "e2e4-c7c5",
-          "positions": 32,
-          "bytes": 13458
+          "positions": 5,
+          "bytes": 1306
         },
         {
           "file": "2000+/e2e4-e7e5.json",
           "shardKey": "e2e4-e7e5",
-          "positions": 35,
-          "bytes": 14415
+          "positions": 5,
+          "bytes": 1470
         },
         {
           "file": "2000+/d2d4-g8f6.json",
           "shardKey": "d2d4-g8f6",
-          "positions": 29,
-          "bytes": 12007
-        },
-        {
-          "file": "2000+/e2e4-c7c6.json",
-          "shardKey": "e2e4-c7c6",
-          "positions": 19,
-          "bytes": 7782
-        },
-        {
-          "file": "2000+/e2e4-d7d5.json",
-          "shardKey": "e2e4-d7d5",
-          "positions": 11,
-          "bytes": 4633
-        },
-        {
-          "file": "2000+/d2d4-d7d5.json",
-          "shardKey": "d2d4-d7d5",
-          "positions": 13,
-          "bytes": 5682
-        },
-        {
-          "file": "2000+/e2e4-d7d6.json",
-          "shardKey": "e2e4-d7d6",
-          "positions": 8,
-          "bytes": 3512
+          "positions": 5,
+          "bytes": 1510
         },
         {
           "file": "2000+/e2e4-e7e6.json",
           "shardKey": "e2e4-e7e6",
-          "positions": 9,
-          "bytes": 3849
+          "positions": 2,
+          "bytes": 722
+        },
+        {
+          "file": "2000+/d2d4-d7d5.json",
+          "shardKey": "d2d4-d7d5",
+          "positions": 4,
+          "bytes": 1334
+        },
+        {
+          "file": "2000+/e2e4-c7c6.json",
+          "shardKey": "e2e4-c7c6",
+          "positions": 3,
+          "bytes": 721
+        },
+        {
+          "file": "2000+/e2e4-d7d5.json",
+          "shardKey": "e2e4-d7d5",
+          "positions": 1,
+          "bytes": 364
+        },
+        {
+          "file": "2000+/e2e4-d7d6.json",
+          "shardKey": "e2e4-d7d6",
+          "positions": 1,
+          "bytes": 425
         },
         {
           "file": "2000+/d2d4-e7e6.json",
           "shardKey": "d2d4-e7e6",
-          "positions": 5,
-          "bytes": 2301
+          "positions": 2,
+          "bytes": 715
+        },
+        {
+          "file": "2000+/e2e4-g7g6.json",
+          "shardKey": "e2e4-g7g6",
+          "positions": 1,
+          "bytes": 398
         },
         {
           "file": "2000+/e2e4-g8f6.json",
           "shardKey": "e2e4-g8f6",
-          "positions": 7,
-          "bytes": 2905
+          "positions": 2,
+          "bytes": 504
         },
         {
           "file": "2000+/c2c4-g8f6.json",
           "shardKey": "c2c4-g8f6",
-          "positions": 4,
-          "bytes": 1776
+          "positions": 1,
+          "bytes": 363
         },
         {
           "file": "2000+/c2c4-e7e5.json",
           "shardKey": "c2c4-e7e5",
-          "positions": 3,
-          "bytes": 1386
-        },
-        {
-          "file": "2000+/d2d4-c7c5.json",
-          "shardKey": "d2d4-c7c5",
-          "positions": 2,
-          "bytes": 945
+          "positions": 1,
+          "bytes": 421
         },
         {
           "file": "2000+/g1f3-d7d5.json",
           "shardKey": "g1f3-d7d5",
-          "positions": 2,
-          "bytes": 979
+          "positions": 1,
+          "bytes": 421
         },
         {
-          "file": "2000+/g1f3-g8f6.json",
-          "shardKey": "g1f3-g8f6",
-          "positions": 5,
-          "bytes": 2123
+          "file": "2000+/d2d4-c7c5.json",
+          "shardKey": "d2d4-c7c5",
+          "positions": 1,
+          "bytes": 418
         },
         {
           "file": "2000+/d2d4-e7e5.json",
           "shardKey": "d2d4-e7e5",
+          "positions": 1,
+          "bytes": 316
+        },
+        {
+          "file": "2000+/g1f3-g8f6.json",
+          "shardKey": "g1f3-g8f6",
           "positions": 2,
-          "bytes": 936
+          "bytes": 606
         },
         {
           "file": "2000+/d2d4-d7d6.json",
           "shardKey": "d2d4-d7d6",
           "positions": 2,
-          "bytes": 991
-        },
-        {
-          "file": "2000+/d2d4-g7g6.json",
-          "shardKey": "d2d4-g7g6",
-          "positions": 4,
-          "bytes": 1760
+          "bytes": 708
         },
         {
           "file": "2000+/d2d4-c7c6.json",
           "shardKey": "d2d4-c7c6",
-          "positions": 3,
-          "bytes": 1376
-        },
-        {
-          "file": "2000+/e2e4-b8c6.json",
-          "shardKey": "e2e4-b8c6",
-          "positions": 3,
-          "bytes": 1338
-        },
-        {
-          "file": "2000+/e2e4-b7b6.json",
-          "shardKey": "e2e4-b7b6",
-          "positions": 2,
-          "bytes": 939
-        },
-        {
-          "file": "2000+/c2c4-c7c5.json",
-          "shardKey": "c2c4-c7c5",
-          "positions": 2,
-          "bytes": 926
-        },
-        {
-          "file": "2000+/c2c4-e7e6.json",
-          "shardKey": "c2c4-e7e6",
-          "positions": 2,
-          "bytes": 943
-        },
-        {
-          "file": "2000+/f2f4-d7d5.json",
-          "shardKey": "f2f4-d7d5",
           "positions": 1,
-          "bytes": 548
+          "bytes": 356
         },
         {
-          "file": "2000+/b2b3-d7d5.json",
-          "shardKey": "b2b3-d7d5",
+          "file": "2000+/d2d4-g7g6.json",
+          "shardKey": "d2d4-g7g6",
           "positions": 1,
-          "bytes": 551
-        },
-        {
-          "file": "2000+/b2b3-g8f6.json",
-          "shardKey": "b2b3-g8f6",
-          "positions": 1,
-          "bytes": 537
-        },
-        {
-          "file": "2000+/d2d4-f7f5.json",
-          "shardKey": "d2d4-f7f5",
-          "positions": 1,
-          "bytes": 515
-        },
-        {
-          "file": "2000+/g1f3-c7c5.json",
-          "shardKey": "g1f3-c7c5",
-          "positions": 1,
-          "bytes": 534
+          "bytes": 334
         }
       ]
     }
