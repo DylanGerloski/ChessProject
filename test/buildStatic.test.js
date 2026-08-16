@@ -13,6 +13,8 @@ const {
   buildDrillBundle,
   buildRepertoireBundle,
   buildBandHeaderControlBundle,
+  buildHomeDemoBundle,
+  buildHomeDemoData,
   bundleBrowserEntry,
   indexPage,
   playerLookupPage,
@@ -508,6 +510,105 @@ test('buildBandHeaderControlBundle (WS-1 spec 3.4, task W4) esbuild-bundles band
   // the controller must bail out cleanly rather than throw, same invariant
   // buildRepertoireBundle's sibling test above checks.
   assert.doesNotThrow(() => runBundleInSandbox(bundle));
+});
+
+test('buildHomeDemoBundle (Board Visibility spec, task B3) esbuild-bundles homeDemo.client.js + boardWidget.js into one self-contained IIFE that runs with no global require/module/exports (file:// invariant), and stays under the 120KB budget with no chess.js', () => {
+  const bundle = buildHomeDemoBundle();
+  assert.match(bundle, /function mountAllowlistBoard/);
+  assert.match(bundle, /function createBoard/);
+  // No chess.js in this bundle -- spec section 2.3's named budget fallback
+  // (see buildHomeDemoBundle's own doc comment: createBoard + chess.js
+  // together measured at ~120.7KB, already over budget before this file's
+  // own code). Chess.js's own exported class name is a real, specific
+  // enough marker that its absence here is meaningful, not a coincidence.
+  assert.doesNotMatch(bundle, /class Chess\b/);
+  const bytes = Buffer.byteLength(bundle, 'utf8');
+  assert.ok(bytes <= 120000, `home-demo.js must stay <=120000 bytes uncompressed (spec section 2.3); measured ${bytes}`);
+  // Real proof: run it against a DOM stub with no #home-demo-board element
+  // present (the sandbox's getElementById always returns null) -- the
+  // controller must bail out cleanly rather than throw, same invariant
+  // buildRepertoireBundle/buildBandHeaderControlBundle's sibling tests above check.
+  assert.doesNotThrow(() => runBundleInSandbox(bundle));
+});
+
+// Real-shaped fixture matching what a live buildRepertoireCombos() combo
+// looks like for '1600-1800|black' -- root is White's most-played move
+// (mover:'white'), its children are the top-3 Black replies -- verified
+// against a real fetch during this task's own build (see this task's
+// --result for the exact numbers this fixture mirrors).
+const HOME_DEMO_FIXTURE_COMBOS = {
+  '1600-1800|black': {
+    tree: [{
+      uci: 'e2e4', san: 'e4', playedPct: 62.5, mover: 'white',
+      children: [
+        { uci: 'e7e5', san: 'e5', playedPct: 42.1, winPct: 44.8, drawPct: 4.1 },
+        { uci: 'c7c5', san: 'c5', playedPct: 19.5, winPct: 48.4, drawPct: 4 },
+        { uci: 'e7e6', san: 'e6', playedPct: 10.3, winPct: 48.1, drawPct: 4.2 },
+      ],
+    }],
+  },
+};
+
+test('buildHomeDemoData extracts band/opening/replies from a real-shaped repertoireCombos fixture, keyed by UCI with the standard win+draw/2 score', () => {
+  const heroDemo = buildHomeDemoData(HOME_DEMO_FIXTURE_COMBOS);
+  assert.deepEqual(heroDemo, {
+    band: '1600-1800',
+    openingSan: 'e4',
+    openingPlayedPct: 62.5,
+    replies: {
+      e7e5: { san: 'e5', playedPct: 42.1, score: 46.8 },
+      c7c5: { san: 'c5', playedPct: 19.5, score: 50.4 },
+      e7e6: { san: 'e6', playedPct: 10.3, score: 50.2 },
+    },
+  });
+});
+
+test('buildHomeDemoData returns null when the combo is missing entirely (e.g. a caller that only fetched a subset of bands)', () => {
+  assert.equal(buildHomeDemoData({}), null);
+  assert.equal(buildHomeDemoData(undefined), null);
+});
+
+test('buildHomeDemoData returns null rather than shipping a mismatched hero when White\'s top move at this band is not 1. e4 (data-drift guard -- see the function\'s own doc comment)', () => {
+  const drifted = {
+    '1600-1800|black': {
+      tree: [{ uci: 'd2d4', san: 'd4', playedPct: 55.0, mover: 'white', children: [{ uci: 'd7d5', san: 'd5', playedPct: 50, winPct: 45, drawPct: 5 }] }],
+    },
+  };
+  assert.equal(buildHomeDemoData(drifted), null);
+});
+
+test('indexPage (task B3) renders the hero demo aside, board mount, baked JSON data, and script tag when a heroDemo is passed, and adds piece attribution to the footer', () => {
+  const heroDemo = buildHomeDemoData(HOME_DEMO_FIXTURE_COMBOS);
+  const html = indexPage([], null, heroDemo);
+  assert.match(html, /<div class="home-hero-layout">/);
+  assert.match(html, /<aside class="home-demo" aria-label="Try a real reply to 1\. e4">/);
+  assert.match(html, /<div id="home-demo-board" class="home-demo-board-mount"><\/div>/);
+  assert.match(html, /<p id="home-demo-caption" class="home-demo-caption" role="status" aria-live="polite">1600-1800 plays 1\. e4 62\.5% of the time\. Your move\.<\/p>/);
+  assert.match(html, /<a href="repertoire\.html#band=1600-1800&amp;color=black">See the full 1600-1800 repertoire &rarr;<\/a>/);
+  assert.match(html, /<button type="button" id="home-demo-reset" class="home-demo-reset">Reset<\/button>/);
+  const dataMatch = html.match(/<script type="application\/json" id="home-demo-data">([\s\S]*?)<\/script>/);
+  assert.ok(dataMatch, 'expected a #home-demo-data JSON block');
+  const payload = JSON.parse(dataMatch[1]);
+  assert.deepEqual(Object.keys(payload.replies).sort(), ['c7c5', 'e7e5', 'e7e6']);
+  assert.match(html, /<script src="home-demo\.js" defer><\/script>/);
+  assert.match(html, /Board pieces: the Cburnett chess set/, 'footer must credit the piece artwork once a board is actually rendered on this page');
+});
+
+test('indexPage falls back to its pre-B3 single-column header with no hero demo markup, no bundle script, and no piece attribution when heroDemo is null (most existing tests, and the default third argument)', () => {
+  const html = indexPage([]);
+  // Note: SITE_CSS's .home-hero-layout/.home-demo* rules are always present
+  // in the page's <style> block (a static stylesheet, not conditionally
+  // emitted per page) -- these assertions check for the actual MARKUP
+  // (opening tags, ids, the script src), not the bare CSS class name, which
+  // would false-fail against the stylesheet itself.
+  assert.doesNotMatch(html, /<div class="home-hero-layout">/);
+  assert.doesNotMatch(html, /<aside class="home-demo"/);
+  assert.doesNotMatch(html, /id="home-demo-board"/);
+  assert.doesNotMatch(html, /id="home-demo-data"/);
+  assert.doesNotMatch(html, /src="home-demo\.js"/);
+  assert.doesNotMatch(html, /Board pieces: the Cburnett chess set/);
+  // The plain pre-B3 header is still there, unwrapped.
+  assert.match(html, /<h1 class="page-title">The chess opening meta, by rating band<\/h1>/);
 });
 
 test('bundleBrowserEntry throws loudly on a syntax error in the entry point, same failure-loudly guarantee the old string-splice bundler had', () => {
