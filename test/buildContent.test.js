@@ -8,7 +8,8 @@ const os = require('os');
 
 const { buildContentPages, fetchLineWithValidation } = require('../src/buildContent');
 const { buildOpeningModel, rankOpeningsByScore } = require('../src/processOpenings');
-const { renderOpeningPage, renderOpeningsHub } = require('../src/renderContent');
+const { renderOpeningPage, renderOpeningsHub, formatGamesAbbrev } = require('../src/renderContent');
+const { escapeHtml, formatPct, wrapTable } = require('../src/render');
 const { OPENINGS } = require('../src/openings');
 const { makeSmartExplorerFetch, fakeResponse } = require('./helpers/fakeExplorer');
 
@@ -420,3 +421,53 @@ test('buildContentPages: only the opening named in drillPages gets a drill CTA; 
     }
   })
 );
+
+// Regression for the same 2026-08-16 production bug already fixed in
+// renderOpeningsHub (openings.html): an opening under-sampled at a given
+// rating band is correctly left out of rankOpeningsByScore()'s `ranked`
+// array, but best-chess-openings-for-beginners.js used to build its table
+// rows exclusively from `ranked`, so the excluded opening silently vanished
+// from the table while the intro paragraph (which counts unfiltered
+// `entries.length`) kept claiming the true total. This calls the content
+// module's render() directly with a hand-built ctx (same pattern as the
+// "degrades gracefully with no data" test above) so it fails if the
+// ranked-vs-entries split ever regresses here too.
+test('best-chess-openings-for-beginners: an opening excluded from `ranked` for insufficient data still gets a real row, never silently dropped', () => {
+  const guide = require('../src/content/best-chess-openings-for-beginners');
+
+  const makeEntry = (slug, name, side, games, enoughGames) => ({
+    openingConfig: { slug, name, side },
+    model: {
+      name,
+      side,
+      bands: [{
+        band: '1400-1600',
+        games,
+        scoreForSide: enoughGames ? 54 : null,
+        scoreForSideCI: enoughGames ? 1.1 : null,
+        scoreForSideBalanced: null,
+        scoreForSideBalancedCI: null,
+        enoughData: enoughGames,
+      }],
+    },
+  });
+
+  const entries = [
+    makeEntry('popular-opening', 'Popular Opening', 'white', 6000, true),
+    makeEntry('under-sampled-opening', 'Under-Sampled Opening', 'black', 518, false), // real King's Indian count, 2026-08 aggregate dataset
+  ];
+
+  const html = guide.render({ entries, rankOpeningsByScore, escapeHtml, formatPct, formatGamesAbbrev, wrapTable });
+
+  assert.match(html, /among the 2 openings this site tracks/, 'intro paragraph counts every entry, not just ranked ones');
+  assert.match(html, /href="under-sampled-opening\.html"/, 'the under-sampled opening must still be a real link in the table');
+  assert.match(html, /href="popular-opening\.html"/);
+
+  const rowMatch = html.match(/<tr><td><\/td><td><a href="under-sampled-opening\.html">[\s\S]*?<\/tr>/);
+  assert.ok(rowMatch, 'expected a full table row for the under-sampled opening, with an empty (not omitted) rank cell so columns still line up with the header');
+  assert.match(rowMatch[0], />518<\/td>/, 'real game count is shown, not hidden');
+  assert.match(rowMatch[0], />n\/a<\/td>/, 'score is honestly "n/a", never a fabricated number');
+
+  const trCount = (html.match(/<tr>/g) || []).length;
+  assert.equal(trCount, 3, 'header row + 2 data rows -- both entries present exactly once');
+});
