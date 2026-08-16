@@ -14,7 +14,7 @@ const SLUG = 'how-to-beat-the-london-system';
 const meta = {
   slug: SLUG,
   title: 'How to Beat the London System',
-  description: "The London System (1.d4 d5 2.Bf4) scores well for White at club level — here's what the data says Black's best replies actually are.",
+  description: "The London System (1.d4 d5 2.Bf4) scores well for White at club level - here's what the data says Black's best replies actually are.",
   targetQuery: 'how to beat the london system',
   related: ['london-system', 'queens-gambit'],
 };
@@ -49,12 +49,12 @@ function render(ctx) {
         .map(
           (m) => `<li class="callout"><strong>${escapeHtml(m.san)}</strong> is played in ${formatPct(m.playedPct)}% of games in this exact position, but scores only ${formatPct(m.score)}% for Black at ${escapeHtml(model.defaultBand)}${
             m.punishingReply
-              ? ` &mdash; White&rsquo;s most common answer, <strong>${escapeHtml(m.punishingReply.san)}</strong>, scores ${formatPct(m.punishingReply.winPct + m.punishingReply.drawPct / 2)}% for White.`
+              ? ` - White&rsquo;s most common answer, <strong>${escapeHtml(m.punishingReply.san)}</strong>, scores ${formatPct(m.punishingReply.winPct + m.punishingReply.drawPct / 2)}% for White.`
               : '.'
           }</li>`
         )
         .join('')}</ul>`
-    : '<p class="empty-note">No move at this band is both common and clearly low-scoring against the London here &mdash; there is no obvious trap to warn about at this position.</p>';
+    : '<p class="empty-note">No move at this band is both common and clearly low-scoring against the London here - there is no obvious trap to warn about at this position.</p>';
 
   return `
     <p>The London System (1.d4 d5 2.Bf4) has a reputation as a low-theory, hard-to-punish opening for White, and the data mostly backs that up: across the games this site tracked, White scores ${mainBand.scoreForSide != null ? `${formatPct(mainBand.scoreForSide)}%` : 'a solid share'} at ${escapeHtml(model.defaultBand)} from ${mainBand.games.toLocaleString()} games. That doesn&rsquo;t mean every reply for Black is equally good.</p>

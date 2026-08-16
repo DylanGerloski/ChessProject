@@ -49,7 +49,7 @@ ${renderDocumentHead({ title, description, canonical })}
       statistics computed from Lichess&rsquo;s public API and Opening Explorer. There are no user
       accounts, no logins, and no forms that collect personal information anywhere on this
       site (the player-lookup page sends only the Lichess username you type directly to
-      Lichess&rsquo;s own public API, from your browser &mdash; this site&rsquo;s own servers never see or
+      Lichess&rsquo;s own public API, from your browser - this site&rsquo;s own servers never see or
       store it).</p>
 
     <h2>Analytics</h2>
@@ -71,20 +71,20 @@ ${renderDocumentHead({ title, description, canonical })}
       <a href="https://policies.google.com/technologies/partner-sites" target="_blank" rel="noopener noreferrer">how Google uses information from sites that use its services</a>
       and <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer">how Google uses data in advertising</a>.
       This site&rsquo;s own code does not read, set, or have access to any AdSense cookie or
-      identifier &mdash; that data goes directly between your browser and Google.</p>
+      identifier - that data goes directly between your browser and Google.</p>
 
     <h2>Third-party links</h2>
     <p>Pages on this site link out to <a href="https://lichess.org" target="_blank" rel="noopener noreferrer">lichess.org</a>
       for game analysis and data, and to a voluntary support link
       (<a href="https://ko-fi.com/flavaa" target="_blank" rel="noopener noreferrer">Ko-fi</a>).
-      That is operated by its own company under its own privacy policy &mdash; review theirs
+      That is operated by its own company under its own privacy policy - review theirs
       before using it. See the disclosure note in this site&rsquo;s footer for more on that
       link.</p>
 
     <h2>Cookies</h2>
     <p>This site&rsquo;s own code does not set any cookies. GoatCounter&rsquo;s default configuration
       (described above) is cookieless. Google AdSense (described above under Advertising)
-      does use cookies or similar identifiers, set directly by Google, not by this site &mdash;
+      does use cookies or similar identifiers, set directly by Google, not by this site -
       see the Advertising section above for how to control that.</p>
     <p>The opening drill saves your progress (which level you have reached) in your own
       browser using local storage. That data never leaves your device, is not a cookie, is
@@ -114,7 +114,7 @@ ${renderDocumentHead({ title, description, canonical })}
  */
 function renderAboutPage({ nav, legalLinks }) {
   const title = `About | ${SITE_NAME}`;
-  const description = `${SITE_NAME} shows chess opening and rating statistics computed directly from Lichess's public data — what this site is and how it works.`;
+  const description = `${SITE_NAME} shows chess opening and rating statistics computed directly from Lichess's public data - what this site is and how it works.`;
   const canonical = absoluteUrl('about.html');
 
   return `<!DOCTYPE html>
@@ -130,7 +130,7 @@ ${renderDocumentHead({ title, description, canonical })}
     <p>${escapeHtml(SITE_NAME)} shows chess opening win rates, common replies, and rating-band
       repertoire trees, all computed directly from real games via Lichess&rsquo;s public API and
       Opening Explorer. Nothing here is opinion or an engine evaluation dressed up as
-      statistics &mdash; every percentage, table, and &ldquo;common mistake&rdquo; callout on this site traces
+      statistics - every percentage, table, and &ldquo;common mistake&rdquo; callout on this site traces
       back to an actual count of games played at that rating.</p>
 
     <h2>Why it exists</h2>
@@ -141,19 +141,19 @@ ${renderDocumentHead({ title, description, canonical })}
 
     <h2>How it&rsquo;s built</h2>
     <p>Every page is generated from Lichess&rsquo;s public, keyless Opening Explorer API and the
-      general Lichess API &mdash; no proprietary or private data source is used. Pages are
+      general Lichess API - no proprietary or private data source is used. Pages are
       pre-rendered as plain static HTML; the player-lookup page is the one exception, calling
       Lichess&rsquo;s API directly from your browser so it can look up any username on demand.</p>
 
     <h2>Who runs this</h2>
     <p>This site is independently run. No individually-attributed author byline is published
-      on these pages at this time &mdash; where authorship needs to be named (for example, in
+      on these pages at this time - where authorship needs to be named (for example, in
       structured data on article pages), it is attributed to ${escapeHtml(SITE_NAME)} as a
       publisher rather than to an invented person.</p>
 
     <h2>Support</h2>
     <p>This site is free to use. If you find it useful, a voluntary support link appears in the
-      footer of every page (Ko-fi) &mdash; see the disclosure note there for what that does and
+      footer of every page (Ko-fi) - see the disclosure note there for what that does and
       doesn&rsquo;t mean.</p>
 
     <h2>Questions</h2>

@@ -461,11 +461,11 @@ const LEAK_REPORT_KEY = 'rb.leakReport.v1';
     renderCandidateTable(pendingCandidates);
 
     if (noAttemptMade) {
-      setFeedback('unknown', `The move is ${answer.san}${answer.playedPct != null ? ` — ${formatPct(answer.playedPct)}% of players at ${currentCard.band} play this here.` : '.'}`);
+      setFeedback('unknown', `The move is ${answer.san}${answer.playedPct != null ? ` - ${formatPct(answer.playedPct)}% of players at ${currentCard.band} play this here.` : '.'}`);
     } else if (verdict === 'correct') {
-      setFeedback('correct', `${answer.san} — correct.${answer.playedPct != null ? ` ${formatPct(answer.playedPct)}% of players at ${currentCard.band} play this here.` : ''}`);
+      setFeedback('correct', `${answer.san} - correct.${answer.playedPct != null ? ` ${formatPct(answer.playedPct)}% of players at ${currentCard.band} play this here.` : ''}`);
     } else if (verdict === 'offmeta') {
-      setFeedback('offmeta', `${played.san} — a real move, but not the band-typical one here. The band-typical move is ${answer.san}.`);
+      setFeedback('offmeta', `${played.san} - a real move, but not the band-typical one here. The band-typical move is ${answer.san}.`);
     } else {
       setFeedback('unknown', `That is not a move players make in this position. The band-typical move is ${answer.san}.`);
     }

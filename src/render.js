@@ -517,7 +517,7 @@ ${designTokensCss(THEME_ROLES.dark)}
   }
 
   /* Opt-in wide container for the three data-dense page types (repertoire
-     band pages, the drill, player lookup) — added at those specific call
+     band pages, the drill, player lookup) - added at those specific call
      sites only, never as the default. See design-standards.md 4.5. */
   .page--wide { max-width: var(--width-wide); }
 
@@ -527,7 +527,7 @@ ${designTokensCss(THEME_ROLES.dark)}
      to var(--measure) for running text inside main. Tables, boards, and
      .table-scroll are exempt by not matching this selector at all. The
      repertoire tree's <li> rows are data rows (move chips, WDL bars), not
-     prose sentences, so they're excluded explicitly below — constraining
+     prose sentences, so they're excluded explicitly below - constraining
      them would fight the wide layout those pages just opted into. */
   main p, main li, main .subtitle, main blockquote {
     max-width: var(--measure);
@@ -1173,7 +1173,7 @@ ${designTokensCss(THEME_ROLES.dark)}
   /* One primary action per view (design-standards.md hierarchy rule): the
      repertoire-band selector is the homepage's single
      accent-filled primary action. Every other homepage CTA (the drill card,
-     the openings cards) is demoted to an outline card — same link targets,
+     the openings cards) is demoted to an outline card - same link targets,
      lower visual weight. Modifier classes only; markup/link targets
      unchanged. */
   .card--primary {
@@ -1890,7 +1890,7 @@ function renderDocumentHead(arg) {
   // since every page already links "RSS feed" visibly in the shared footer
   // below.
   const feedLink = feedUrl
-    ? `\n  <link rel="alternate" type="application/rss+xml" title="Repertoire Builder — new opening guides and articles" href="${escapeHtml(feedUrl)}">`
+    ? `\n  <link rel="alternate" type="application/rss+xml" title="Repertoire Builder - new opening guides and articles" href="${escapeHtml(feedUrl)}">`
     : '';
 
   return `<head>
@@ -2173,7 +2173,7 @@ function renderNewsletterSignup() {
   if (!NEWSLETTER_FORM_ACTION) {
     return `<div class="newsletter-signup newsletter-signup--pending">
     <h2 class="newsletter-heading">Get new openings and guides by email</h2>
-    <p class="newsletter-description">Email sign-up isn&rsquo;t live yet &mdash; check back soon, or follow the <a href="feed.xml">RSS feed</a> in the meantime.</p>
+    <p class="newsletter-description">Email sign-up isn&rsquo;t live yet - check back soon, or follow the <a href="feed.xml">RSS feed</a> in the meantime.</p>
   </div>`;
   }
   return `<div class="newsletter-signup">
@@ -2479,7 +2479,7 @@ function renderRepertoireTree(tree) {
  */
 function renderRepertoirePage({ ratingBand, color, opening, totals, tree, nav = { player: '/', repertoire: '/repertoire' }, legalLinks, canonical, description }) {
   const totalGames = totals ? totals.white + totals.draws + totals.black : null;
-  const openingNote = opening ? ` &mdash; starting from ${escapeHtml(opening.name)} (${escapeHtml(opening.eco)})` : '';
+  const openingNote = opening ? ` - starting from ${escapeHtml(opening.name)} (${escapeHtml(opening.eco)})` : '';
   const totalsNote = totals
     ? `<p class="summary-line">${totalGames.toLocaleString()} games played from the starting position in this rating band
         (${totals.white.toLocaleString()}W / ${totals.draws.toLocaleString()}D / ${totals.black.toLocaleString()}L).</p>`
@@ -2549,7 +2549,7 @@ function renderRepertoireExplorerPage({ combos, defaultBand, defaultColor, bandP
   }
 
   const totalGames = defaultCombo.totals ? defaultCombo.totals.white + defaultCombo.totals.draws + defaultCombo.totals.black : null;
-  const openingNote = defaultCombo.opening ? ` &mdash; starting from ${escapeHtml(defaultCombo.opening.name)} (${escapeHtml(defaultCombo.opening.eco)})` : '';
+  const openingNote = defaultCombo.opening ? ` - starting from ${escapeHtml(defaultCombo.opening.name)} (${escapeHtml(defaultCombo.opening.eco)})` : '';
   const totalsNote = defaultCombo.totals
     ? `<p id="repertoire-totals" class="summary-line">${totalGames.toLocaleString()} games played from the starting position in this rating band
         (${defaultCombo.totals.white.toLocaleString()}W / ${defaultCombo.totals.draws.toLocaleString()}D / ${defaultCombo.totals.black.toLocaleString()}L).</p>`
@@ -2574,7 +2574,7 @@ ${renderDocumentHead({ title, description, canonical })}
     <p class="repertoire-intro">Most-played moves at each ply for players in this rating band, with win/draw/loss rates per move.
        Your color's plies show the top choices actually played at this rating; the opponent's replies show
        only their single most common response, to keep the tree readable. Pick a different rating band or
-       color below &mdash; the whole tree updates without leaving this page.</p>
+       color below - the whole tree updates without leaving this page.</p>
     ${bandPickerHtml}
     <div id="repertoire-tree">${renderRepertoireTree(defaultCombo.tree)}</div>
   </main>

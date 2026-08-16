@@ -39,10 +39,10 @@ const PRICE_USD = 9;
 // for a plain-text file), and /methodology.html -- kept as one array here
 // so a future methodology-page pass can reuse it rather than re-deriving.
 const DISCLOSED_LIMITATIONS = [
-  'Score is a sample mean (wins plus half of draws, divided by games), not a win/loss proportion &mdash; its confidence interval uses a normal approximation, not a binomial Wilson interval. Sound at the sample sizes this pack requires (n&nbsp;&ge;&nbsp;300); treat the interval as approximate.',
+  'Score is a sample mean (wins plus half of draws, divided by games), not a win/loss proportion - its confidence interval uses a normal approximation, not a binomial Wilson interval. Sound at the sample sizes this pack requires (n&nbsp;&ge;&nbsp;300); treat the interval as approximate.',
   'Not transposition-aware: the same position reached by a different move order may be counted separately. Pack size is stated in &ldquo;lines,&rdquo; not &ldquo;positions covered.&rdquo;',
   'Data pool is blitz and rapid games only; classical and bullet are excluded.',
-  'The chosen move at each point is the highest lower-bound scorer among moves with enough games in this band and pool &mdash; not a claim that it is objectively the best move in the position.',
+  'The chosen move at each point is the highest lower-bound scorer among moves with enough games in this band and pool - not a claim that it is objectively the best move in the position.',
 ];
 
 const FREE_GUARANTEE_HTML = `<p>Everything this site computes about your games is free. The leak report, the drill
@@ -322,7 +322,7 @@ function sideAtPly(ply) {
  */
 function contentsTableHtml(rows) {
   if (rows.length === 0) {
-    return '<p class="empty-note">This pack&rsquo;s tree is smaller than expected &mdash; contact us if this looks wrong.</p>';
+    return '<p class="empty-note">This pack&rsquo;s tree is smaller than expected - contact us if this looks wrong.</p>';
   }
 
   const visible = rows.slice(0, ROWS_SHOWN_INITIALLY);
@@ -381,13 +381,13 @@ function contentsTableHtml(rows) {
 function packFileListHtml(pack) {
   const items = [
     { name: 'repertoire.pgn', desc: `${pack.lineCount.toLocaleString()} lines, standard PGN with variations and per-move stats.` },
-    { name: 'pack.json', desc: 'The same data as a structured manifest &mdash; imports directly into this site&rsquo;s drill trainer.' },
+    { name: 'pack.json', desc: 'The same data as a structured manifest - imports directly into this site&rsquo;s drill trainer.' },
     { name: 'study-guide.pdf', desc: 'A printable guide covering the highest-frequency branch points.' },
     { name: 'README.txt', desc: 'What&rsquo;s in the box, how to use it, and the generation rule in full.' },
   ];
   const rows = items
     .map((it) => {
-      const sizeLabel = pack.fileSizes && pack.fileSizes[it.name] ? ` &mdash; ${pack.fileSizes[it.name]}` : '';
+      const sizeLabel = pack.fileSizes && pack.fileSizes[it.name] ? ` - ${pack.fileSizes[it.name]}` : '';
       return `<li><span class="pack-file-name">${escapeHtml(it.name)}${sizeLabel}</span><span class="pack-file-desc">${it.desc}</span></li>`;
     })
     .join('');
@@ -407,9 +407,9 @@ function packFileListHtml(pack) {
  */
 function packCtaHtml(pack) {
   if (isPlaceholderStoreUrl(pack.storeUrl)) {
-    return `<p class="pack-cta pack-cta--pending">Not listed for sale yet &mdash; check back soon.</p>`;
+    return `<p class="pack-cta pack-cta--pending">Not listed for sale yet - check back soon.</p>`;
   }
-  return `<a class="pack-cta" href="${escapeHtml(pack.storeUrl)}" rel="noopener noreferrer" data-goatcounter-click="/out/pack-${escapeHtml(pack.id)}">Get the pack &mdash; $${PRICE_USD}</a>`;
+  return `<a class="pack-cta" href="${escapeHtml(pack.storeUrl)}" rel="noopener noreferrer" data-goatcounter-click="/out/pack-${escapeHtml(pack.id)}">Get the pack - $${PRICE_USD}</a>`;
 }
 
 function packFaqHtml(pack) {
@@ -549,7 +549,7 @@ ${renderDocumentHead({ title: pageTitle(`${pack.title} repertoire pack`), descri
 function renderPacksIndexPage({ packs, nav, legalLinks }) {
   const breadcrumbItems = [{ label: 'Home', href: '/' }, { label: 'Repertoire packs' }];
   const canonical = absoluteUrl(packsIndexFilename());
-  const description = 'Finished, pruned opening repertoires built from real Lichess games in your band — PGN, drill file, and a study guide. The site itself stays free.';
+  const description = 'Finished, pruned opening repertoires built from real Lichess games in your band - PGN, drill file, and a study guide. The site itself stays free.';
   const allNoindex = packs.every((p) => p.noindex);
   const jsonLd = breadcrumbJsonLd(breadcrumbItems);
 
@@ -570,7 +570,7 @@ function renderPacksIndexPage({ packs, nav, legalLinks }) {
 
   const restHtml = rest
     .map((p) => `<div class="pack-quiet-row">
-      <span>${escapeHtml(p.title)} &mdash; ${p.lineCount.toLocaleString()} lines</span>
+      <span>${escapeHtml(p.title)} - ${p.lineCount.toLocaleString()} lines</span>
       <a href="${escapeHtml(packDetailFilename(p.id))}">See what&rsquo;s in it &rarr;</a>
     </div>`)
     .join('');
