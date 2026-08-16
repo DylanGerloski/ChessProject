@@ -7,8 +7,8 @@ const path = require('path');
 const os = require('os');
 
 const { buildContentPages, fetchLineWithValidation } = require('../src/buildContent');
-const { buildOpeningModel } = require('../src/processOpenings');
-const { renderOpeningPage } = require('../src/renderContent');
+const { buildOpeningModel, rankOpeningsByScore } = require('../src/processOpenings');
+const { renderOpeningPage, renderOpeningsHub } = require('../src/renderContent');
 const { OPENINGS } = require('../src/openings');
 const { makeSmartExplorerFetch, fakeResponse } = require('./helpers/fakeExplorer');
 
@@ -144,6 +144,65 @@ test('the openings hub links to all 10 opening pages', () =>
     }
   })
 );
+
+// Regression for the 2026-08-16 production bug: King's Indian Defense had
+// genuinely too few 1600-1800 games in this site's real aggregate dataset
+// (max games at any band was under the 1000-game minGamesForPct threshold),
+// so rankOpeningsByScore() correctly left it out of `ranked` -- but
+// renderOpeningsHub used to build its table rows AND card grid exclusively
+// from `ranked`, so the excluded opening silently vanished from both while
+// the "Compare all N openings" heading (which counts unfiltered `entries`)
+// kept claiming the true total. This reproduces that exact shape directly
+// against renderOpeningsHub (not buildContentPages, which would need a
+// fixture faking a whole live/aggregate fetch) so it fails if the
+// entries-vs-ranked split ever regresses.
+test('renderOpeningsHub: an opening excluded from `ranked` for insufficient data still gets a real row, a real linked card, and an honest "n/a" score -- never silently dropped', () => {
+  const makeEntry = (slug, name, games, enoughGames) => ({
+    openingConfig: { slug, name, ecoHint: 'X00', side: 'white', line: [{ uci: 'e2e4', san: 'e4' }] },
+    model: {
+      name,
+      eco: 'X00',
+      side: 'white',
+      bands: [{
+        band: '1600-1800',
+        games,
+        scoreForSide: enoughGames ? 52 : null,
+        scoreForSideCI: enoughGames ? 1.2 : null,
+        scoreForSideBalanced: null,
+        scoreForSideBalancedCI: null,
+        whitePct: enoughGames ? 52 : null,
+        drawPct: enoughGames ? 4 : null,
+        blackPct: enoughGames ? 44 : null,
+        enoughData: enoughGames,
+      }],
+    },
+  });
+
+  const entries = [
+    makeEntry('popular-opening', 'Popular Opening', 5000, true),
+    makeEntry('under-sampled-opening', 'Under-Sampled Opening', 518, false), // real King's Indian count, 2026-08 aggregate dataset
+  ];
+  const ranked = rankOpeningsByScore(entries, '1600-1800');
+  assert.equal(ranked.length, 1, 'sanity check: rankOpeningsByScore really does exclude the under-sampled entry');
+
+  const hub = renderOpeningsHub(entries, { nav: { home: '/' }, ranked });
+
+  assert.match(hub, /Compare all 2 openings/, 'heading counts every entry, not just ranked ones');
+  assert.match(hub, /href="under-sampled-opening\.html"/, 'the under-sampled opening must still be a real link in the table');
+  assert.match(hub, /href="popular-opening\.html"/);
+
+  const rowMatch = hub.match(/<tr>\s*<td class="num"><\/td>\s*<td><a href="under-sampled-opening\.html">[\s\S]*?<\/tr>/);
+  assert.ok(rowMatch, 'expected a full table row for the under-sampled opening, with an empty (not omitted) rank cell so columns still line up with the header');
+  assert.match(rowMatch[0], />518<\/td>/, 'real game count is shown, not hidden');
+  assert.match(rowMatch[0], />n\/a<\/td>/, 'score is honestly "n/a", never a fabricated number');
+
+  // Card grid: renderOpeningStatCard's own pre-existing fallback (card--nav,
+  // no WDL bar) for missing data -- still a real, linked card, not dropped.
+  assert.match(hub, /<div class="card card--nav"><h3><a href="under-sampled-opening\.html">Under-Sampled Opening<\/a><\/h3>/);
+
+  const trCount = (hub.match(/<tr>/g) || []).length;
+  assert.equal(trCount, 3, 'header row + 2 data rows -- both entries present exactly once');
+});
 
 test('buildOpeningModel + renderOpeningPage handle a realistic full-shape fixture (per-move opening names, recentGames, master names) without crashing', () => {
   const openingConfig = OPENINGS.find((o) => o.slug === 'italian-game');
