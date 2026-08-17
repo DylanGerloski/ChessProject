@@ -627,8 +627,22 @@ function homeDemoMarkup(heroDemo) {
   if (!heroDemo) return { asideHtml: '', dataScriptHtml: '' };
   const introCaption = `${escapeHtml(heroDemo.band)} plays 1. ${escapeHtml(heroDemo.openingSan)} ${formatPct(heroDemo.openingPlayedPct)}% of the time. Your move.`;
   const repertoireHref = repertoireFragmentUrl(heroDemo.band, 'black');
+  // sr-only h2 (accessibility pass): this aside was the page's
+  // only section between <h1> and the first visible <h2> ("Start with your
+  // rating band"), and cm-chessboard's Accessibility extension
+  // (node_modules/cm-chessboard/src/extensions/accessibility/Accessibility.js,
+  // hardcoded, not configurable) injects its own <h3 id="hl_form_...">Move
+  // piece</h3> client-side inside #home-demo-board once the widget mounts --
+  // with no h2 ancestor yet, that made Lighthouse's heading-order audit fail
+  // (h1 -> h3, skipping a level) on every page carrying this hero demo.
+  // Reusing the aside's own aria-label text as a visually-hidden real
+  // heading fixes the sequence for real (h1 -> h2 -> h3) without changing
+  // anything visible -- the aria-label itself is left in place too, since
+  // removing it would drop the landmark's accessible name for AT that
+  // doesn't expose heading-derived names for <aside> the same way.
   const asideHtml = `<aside class="home-demo" aria-label="Try a real reply to 1. ${escapeHtml(heroDemo.openingSan)}">
         ${spriteDefsHtml()}
+        <h2 class="sr-only">Try a real reply to 1. ${escapeHtml(heroDemo.openingSan)}</h2>
         <p id="home-demo-caption" class="home-demo-caption" role="status" aria-live="polite">${introCaption}</p>
         <div id="home-demo-board" class="home-demo-board-mount"></div>
         <p class="home-demo-actions">

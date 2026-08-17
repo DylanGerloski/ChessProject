@@ -1969,6 +1969,38 @@ ${designTokensCss(THEME_ROLES.dark)}
     padding: var(--space-4) 0;
   }
   .pack-quiet-row a { font-weight: var(--weight-bold); }
+
+  /* Global honor of the OS-level reduced-motion preference (WCAG 2.2 SC
+     2.3.3), site-wide -- this was the one real gap this file's
+     component-level transitions left open (theme toggle, nav links, form
+     inputs/buttons, band-header-select, pack rows, etc. each declare their
+     own hover/focus transition above, but none of them checked the media
+     feature). The cm-chessboard piece-movement case is NOT covered here on
+     purpose: it's not a CSS transition at all, and is already gated at the
+     JS level in src/boardWidget.js's prefersReducedMotion() (sets
+     animationDuration to 0, calls board.setPosition() with animate=false)
+     -- duplicating that control here would do nothing. renderDrill.js's
+     .drill-feedback already had its own scoped override; this block
+     subsumes it going forward but that file's own rule is left alone
+     (redundant, not wrong). !important is deliberate: every rule above
+     this point declares transition/animation directly on its own selector
+     (higher specificity than the universal selector below), and per-page
+     extraCss blocks (e.g. renderOpeningReport.js's .fetch-cancel) load
+     after SITE_CSS in the cascade -- without !important those would win
+     over a plain override here. Near-zero duration rather than the literal
+     'none' value so any future transitionend-driven behavior degrades
+     gracefully instead of silently never firing (no code currently
+     listens for it). */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition-duration: 0.01ms !important;
+      transition-delay: 0ms !important;
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+    }
+  }
 `;
 
 /**
