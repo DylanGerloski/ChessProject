@@ -594,6 +594,25 @@ test('indexPage renders the hero demo aside, board mount, baked JSON data, and s
   assert.match(html, /Board pieces: the Cburnett chess set/, 'footer must credit the piece artwork once a board is actually rendered on this page');
 });
 
+// Accessibility-pass regression: this aside sits between <h1> and the
+// page's first visible <h2>, and cm-chessboard's Accessibility extension
+// injects its own <h3>Move piece</h3> into #home-demo-board at RUNTIME (not
+// present in this server-rendered markup at all) -- without a real <h2>
+// ancestor already in the static HTML, that client-side h3 broke Lighthouse's
+// heading-order audit (h1 -> h3, skipping a level) on every page carrying
+// this hero demo. Confirmed live: index.html scored accessibility=98 before
+// this h2 was added, 100 after, with heading-order the only failing audit.
+test('indexPage: the hero demo aside carries its own sr-only h2, ahead of where cm-chessboard injects an h3 at runtime', () => {
+  const heroDemo = buildHomeDemoData(HOME_DEMO_FIXTURE_COMBOS);
+  const html = indexPage([], null, heroDemo);
+  const asideIndex = html.indexOf('<aside class="home-demo"');
+  const h2Index = html.indexOf('<h2 class="sr-only">Try a real reply to 1. e4</h2>');
+  const boardMountIndex = html.indexOf('<div id="home-demo-board"');
+  assert.ok(asideIndex !== -1, 'expected the home-demo aside to be present');
+  assert.ok(h2Index !== -1, 'expected an sr-only <h2> inside the home-demo aside');
+  assert.ok(h2Index > asideIndex && h2Index < boardMountIndex, 'the h2 must sit inside the aside, before the board mount cm-chessboard writes its own h3 into');
+});
+
 test('indexPage falls back to its earlier single-column header with no hero demo markup, no bundle script, and no piece attribution when heroDemo is null (most existing tests, and the default third argument)', () => {
   const html = indexPage([]);
   // Note: SITE_CSS's .home-hero-layout/.home-demo* rules are always present
