@@ -143,6 +143,18 @@ const OPENINGS = [
       { uci: 'f8b4', san: 'Bb4' },
     ],
   },
+  {
+    slug: 'slav-defense',
+    name: 'Slav Defense',
+    ecoHint: 'D10',
+    side: 'black',
+    line: [
+      { uci: 'd2d4', san: 'd4' },
+      { uci: 'd7d5', san: 'd5' },
+      { uci: 'c2c4', san: 'c4' },
+      { uci: 'c7c6', san: 'c6' },
+    ],
+  },
 ];
 
 // Static filenames this build already writes outside of openings.js's own
