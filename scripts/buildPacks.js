@@ -45,6 +45,7 @@ const {
   pruneToTopLines,
 } = require('../src/buildPack');
 const { withExplorerCache } = require('../src/explorerCache');
+const { actualPoolSpeeds, poolDisclosure } = require('../src/explorerSource');
 const { DESIGN_TOKENS, THEME_ROLES, designTokensCss } = require('../src/render');
 const { renderBoardDiagram, spriteDefsHtml } = require('../src/boardSvg');
 const { SITE_ORIGIN, SITE_NAME } = require('../src/site');
@@ -69,7 +70,6 @@ const CATALOGUE = [
   },
 ];
 
-const SPEEDS = ['blitz', 'rapid'];
 const SAMPLE_LINE_COUNT = 47; // spec 1.6.3
 const PDF_BRANCH_POINTS = 16; // spec 1.2 item 3: "the ~14-20 nodes with the highest reach"
 
@@ -230,7 +230,7 @@ function coverPageHtml(packJson) {
     <ul class="limits">
       <li>Score is a sample mean (wins + 0.5 &times; draws / games), not a win/loss proportion; its confidence interval uses a normal approximation, not a binomial Wilson interval.</li>
       <li>Not transposition-aware: the same position reached by a different move order may be counted separately. Pack size is stated in "lines," not "positions covered."</li>
-      <li>Data pool is blitz and rapid games only -- classical and bullet are excluded.</li>
+      <li>Data pool is ${poolDisclosure(packJson.speeds)}.</li>
       <li>The chosen move is the highest lower-bound scorer among moves with enough games in this band -- not a claim it is objectively best.</li>
     </ul>
     <p class="meta">Data source: Lichess (database.lichess.org), released under CC0. This pack is a derived work; it is not affiliated with or endorsed by Lichess. Not affiliated with ${SITE_NAME}'s upstream data provider beyond that license.</p>
@@ -287,15 +287,19 @@ async function generatePdf(browser, html, outFile) {
 
 async function buildOnePack(def, { browser, fetchImpl, retrieved }) {
   console.log(`Building pack "${def.id}"...`);
+  // Which pool THIS run actually draws from -- see src/explorerSource.js's
+  // actualPoolSpeeds() doc. No aggregatesDir override here, matching
+  // buildPackTree()'s own default below.
+  const speeds = actualPoolSpeeds();
   const result = await buildPackTree({
     ratingBand: def.band,
     color: def.color,
     firstMoveUci: def.firstMoveUci,
-    speeds: SPEEDS,
+    speeds,
     fetchImpl,
   });
 
-  const packJson = packJsonFromResult(result, { id: def.id, title: def.title, speeds: SPEEDS, retrieved });
+  const packJson = packJsonFromResult(result, { id: def.id, title: def.title, speeds, retrieved });
   const pgn = pgnFromTree(result.tree, {
     Event: `${SITE_NAME} Repertoire Pack`,
     Site: SITE_ORIGIN,

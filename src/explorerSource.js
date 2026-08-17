@@ -156,9 +156,52 @@ async function fetchMoves({
   return fetchExplorerMoves({ play, ratings, speeds, moves, recentGames, topGames, fetchImpl });
 }
 
+/**
+ * Single source of truth for "which speeds pool did THIS build actually
+ * use", for every caller that discloses it to a reader (pack.json's
+ * `speeds` field, README.txt, and repertoire-packs/<id>.html's on-page
+ * copy previously each hardcoded their own `['blitz', 'rapid']` literal
+ * regardless of which path fetchMoves() actually took -- the same
+ * site-wide "blitz & rapid" mislabeling this module's DEFAULT_POOL comment
+ * above already documents for the opening pages). Mirrors
+ * renderMethodologyPage's own manifest-presence branch (src/renderContent.js).
+ *
+ * @param {string} [dir]
+ * @returns {string[]} `[DEFAULT_POOL]` (blitz only) when this build is
+ *   sourced from real aggregate data at `dir` (fetchMoves() ignores the
+ *   `speeds` argument entirely on that path -- see its own doc above), or
+ *   `['blitz', 'rapid']` -- the same literal src/processRepertoire.js's
+ *   DEFAULT_SPEEDS holds, forwarded to the live-API fallback -- when it isn't.
+ */
+function actualPoolSpeeds(dir = AGGREGATES_DIR) {
+  return aggregatesAvailable(dir) ? [DEFAULT_POOL] : ['blitz', 'rapid'];
+}
+
+const POOL_UNIVERSE = ['bullet', 'blitz', 'rapid', 'classical'];
+
+/**
+ * One sentence disclosing both halves of the pool -- which speeds are
+ * included AND which are excluded -- derived from the same `speeds` array,
+ * so the two halves can never contradict each other. Replaces three former
+ * call sites (renderPackPages.js, buildPack.js, scripts/buildPacks.js) that
+ * each independently hardcoded only the excluded half and silently dropped
+ * whichever speed wasn't in their own literal (the same bug class
+ * actualPoolSpeeds() above already fixed for the included half).
+ *
+ * @param {string[]} speeds e.g. actualPoolSpeeds()'s return value.
+ * @returns {string} e.g. "blitz games only; bullet, rapid and classical are excluded"
+ */
+function poolDisclosure(speeds) {
+  const listPhrase = (xs) => (xs.length > 1 ? [xs.slice(0, -1).join(', '), xs[xs.length - 1]].join(' and ') : xs[0]);
+  const excluded = POOL_UNIVERSE.filter((s) => !speeds.includes(s));
+  return listPhrase(speeds) + ' games only; ' + listPhrase(excluded) + ' are excluded';
+}
+
 module.exports = {
   fetchMoves,
   aggregatesAvailable,
+  actualPoolSpeeds,
+  poolDisclosure,
   AGGREGATES_DIR,
   DEFAULT_POOL,
 };

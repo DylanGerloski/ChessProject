@@ -186,6 +186,18 @@ test('every disclosed limitation ships on the pack detail page (spec 1.2 item 4 
   assert.ok(html.includes('not a claim that it is objectively the best move'));
 });
 
+test('disclosed limitations\' pool line is speeds-aware, not a hardcoded "blitz and rapid" literal -- a pack actually built from aggregate data (single-pool speeds) discloses that honestly, both in the limitations list and the generation-rule sentence', () => {
+  const pack = makePack({ speeds: ['blitz'] });
+  const html = renderPackDetailPage({ pack, otherPacks: [], nav: NAV });
+  assert.ok(html.includes('Data pool is blitz games only'), 'expected the single-pool phrasing, not "blitz and rapid"');
+  assert.ok(!html.includes('blitz and rapid games only'), 'must not claim rapid data this pack never drew from');
+  assert.ok(html.includes('speeds blitz,'), 'generationRuleHtml\'s speeds sentence should also read the real single-pool value');
+  assert.ok(
+    html.includes('bullet, rapid and classical are excluded'),
+    'the excluded-pools clause must name rapid too on a blitz-only build, not silently imply rapid is included (the redundant per-callsite ternary this replaced always said "classical and bullet")'
+  );
+});
+
 // ---------------------------------------------------------------------------
 // Broken-nav-link regression: pack detail pages live one directory deep
 // (/repertoire-packs/<id>.html), the first pages on the site that do --

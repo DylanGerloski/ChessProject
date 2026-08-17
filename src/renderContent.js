@@ -398,21 +398,35 @@ function renderGamesTable(games, caption) {
  *   CTA section is emitted right after "The position"; when absent (every
  *   opening page except the pilot's), this function's output is byte-for-byte
  *   identical to before the drill pilot existed.
+ * @param {object|null} [opts.manifest] same manifest object renderMethodologyPage
+ *   takes (src/buildStatic.js: `aggregatesAvailable(dir) ? loadAggregates({dir}).manifest
+ *   : null`) -- truthy iff THIS build actually ran on dump-sourced aggregates
+ *   (src/explorerSource.js's DEFAULT_POOL = 'blitz', blitz only), falsy iff
+ *   it's on the live-Explorer-API fallback (src/processRepertoire.js's
+ *   DEFAULT_SPEEDS = ['blitz', 'rapid'], blended). Drives the data-source
+ *   pool label below so it never claims a pool this build didn't actually
+ *   use -- see the "blitz & rapid" label bug this param exists to fix
+ *   (site-wide false claim on every opening page when aggregates data.json
+ *   is present, since the deployed build always is).
  */
-function renderOpeningPage({ model, openingConfig, nav, related = [], repertoireLinks = {}, drillFile = null }) {
+function renderOpeningPage({ model, openingConfig, nav, related = [], repertoireLinks = {}, drillFile = null, manifest = null }) {
   const line = openingConfig.line;
   const board = applyUciMoves(START_BOARD, line.map((p) => p.uci));
   const flip = openingConfig.side === 'black';
   const sanLine = formatSanLine(line);
   const mainBand = model.bands.find((b) => b.band === model.defaultBand) || model.bands[0];
-  // Literal &amp; (not a raw &) -- this string is interpolated directly into
-  // the page subtitle below with no further escaping pass (unlike sanLine/
-  // model.side right next to it, which go through escapeHtml() at the call
-  // site), matching how every other static entity in this codebase's
-  // templates (&mdash;, &rarr;, etc.) is written pre-escaped inline.
+  // Source-aware pool label, same branch renderMethodologyPage already uses
+  // (this function's `manifest` param doc comment above). Literal &amp;
+  // (not a raw &) in the blended-fallback case -- this string is
+  // interpolated directly into the page subtitle below with no further
+  // escaping pass (unlike sanLine/model.side right next to it, which go
+  // through escapeHtml() at the call site), matching how every other static
+  // entity in this codebase's templates (&mdash;, &rarr;, etc.) is written
+  // pre-escaped inline.
+  const poolLabel = manifest ? 'Lichess blitz games' : 'Lichess blitz &amp; rapid games';
   const totalGamesNote = mainBand && mainBand.games
-    ? `data from ${mainBand.games.toLocaleString()} Lichess blitz &amp; rapid games at ${escapeHtml(model.defaultBand)}`
-    : 'data from Lichess blitz &amp; rapid games';
+    ? `data from ${mainBand.games.toLocaleString()} ${poolLabel} at ${escapeHtml(model.defaultBand)}`
+    : `data from ${poolLabel}`;
 
   const title = pageTitle(`${model.name} (${model.eco}): Win Rates by Rating`);
   let description = mainBand && mainBand.scoreForSide != null
@@ -505,7 +519,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd:
       ${repFile ? `<a href="${escapeHtml(repFile)}">${escapeHtml(model.defaultBand)} repertoire explorer (${escapeHtml(openingConfig.side)}) &rarr;</a>` : 'no repertoire explorer is published for this opening.'}
     </p>${relatedHtml}
   </main>
-  ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a> (lichess database, blitz + rapid), retrieved ${BUILD_DATE}. Master games from the Lichess masters database. ${pieceAttributionHtml()}`, CONTENT_LEGAL_LINKS)}
+  ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a> (lichess database, ${manifest ? 'blitz' : 'blitz + rapid'}), retrieved ${BUILD_DATE}. Master games from the Lichess masters database. ${pieceAttributionHtml()}`, CONTENT_LEGAL_LINKS)}
 </div>
 </body>
 </html>

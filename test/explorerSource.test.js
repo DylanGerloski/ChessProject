@@ -140,3 +140,14 @@ test('fetchMoves: on the live-API fallback path, moves carry no resultingBalance
   const response = await fetchMoves({ play: [], band: '1600-1800', ratings: [1600], speeds: ['blitz'], fetchImpl: fakeFetchImpl, dir });
   assert.equal(response.moves[0].resultingBalanced, undefined);
 });
+
+test('actualPoolSpeeds: reports the real live-API-fallback speeds when no aggregate data is present, and single-pool blitz once it is -- the single source of truth every "which pool did this build use" disclosure (pack.json/README/repertoire-packs pages, and renderContent.js\'s renderOpeningPage manifest branch) now reads instead of a hardcoded literal', () => {
+  const { actualPoolSpeeds, DEFAULT_POOL } = require('../src/explorerSource');
+  const emptyDir = tmpAggregatesDir();
+  assert.deepEqual(actualPoolSpeeds(emptyDir), ['blitz', 'rapid']);
+
+  const realDir = tmpAggregatesDir();
+  writeFixtureAggregates(realDir);
+  assert.deepEqual(actualPoolSpeeds(realDir), [DEFAULT_POOL]);
+  assert.deepEqual(actualPoolSpeeds(realDir), ['blitz']);
+});
