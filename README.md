@@ -201,3 +201,5 @@ Every origin loaded or called by the live site, and why:
 Nothing else is fetched from a third-party origin at runtime -- there are no
 CDN-hosted vendor libraries; this project has no dependencies (see "Running
 it," above).
+
+<!-- CI concurrency-fix verification: throwaway PR, not for merge. -->
