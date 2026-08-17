@@ -178,3 +178,15 @@ test('designTokens: the type-role tokens pair size/line-height/weight with a tra
     assert.ok(DESIGN_TOKENS[`--type-${role}-tracking`], `expected --type-${role}-tracking to be defined`);
   }
 });
+
+// Regression coverage for the accessibility pass (WCAG 2.2 SC 2.3.3):
+// SITE_CSS declares plenty of component-level transitions (theme toggle,
+// nav links, form inputs/buttons, band-header-select, pack rows) but none
+// of them checked the OS-level reduced-motion preference until this test
+// was added -- see the global @media block near the end of SITE_CSS.
+test('designTokens: SITE_CSS honors prefers-reduced-motion with an !important universal override', () => {
+  const match = SITE_CSS.match(/@media \(prefers-reduced-motion: reduce\)\s*\{\s*\*,\s*\*::before,\s*\*::after\s*\{([^}]*)\}/);
+  assert.ok(match, 'expected a universal-selector @media (prefers-reduced-motion: reduce) block in SITE_CSS');
+  assert.match(match[1], /transition-duration:\s*0\.01ms\s*!important/);
+  assert.match(match[1], /animation-duration:\s*0\.01ms\s*!important/);
+});
