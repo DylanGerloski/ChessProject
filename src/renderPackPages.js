@@ -31,6 +31,7 @@ const { renderBreadcrumb } = require('./renderContent');
 const { breadcrumbJsonLd, productJsonLd } = require('./structuredData');
 const { renderBoardDiagram, spriteDefsHtml, pieceAttributionHtml } = require('./boardSvg');
 const { absoluteUrl, pageTitle, SITE_NAME } = require('./site');
+const { poolDisclosure } = require('./explorerSource');
 
 const PRICE_USD = 9;
 
@@ -44,13 +45,17 @@ const PRICE_USD = 9;
 // from depends on whether this build ran on aggregate data or the live-API
 // fallback -- see src/explorerSource.js's actualPoolSpeeds() doc, and the
 // same "blitz & rapid" mislabeling bug this fixes on the opening pages
-// (src/renderContent.js's renderOpeningPage `manifest` param).
+// (src/renderContent.js's renderOpeningPage `manifest` param). Both the
+// included and excluded halves of the sentence come from explorerSource.js's
+// poolDisclosure(), which derives both from the same `speeds` array so they
+// can never contradict each other (a bug this array's excluded-half literal
+// used to have: it always said "classical and bullet", silently omitting
+// rapid from the excluded list on the blitz-only build).
 function disclosedLimitations(speeds) {
-  const poolPhrase = speeds.length > 1 ? `${speeds.join(' and ')} games only` : `${speeds[0]} games only`;
   return [
     'Score is a sample mean (wins plus half of draws, divided by games), not a win/loss proportion - its confidence interval uses a normal approximation, not a binomial Wilson interval. Sound at the sample sizes this pack requires (n&nbsp;&ge;&nbsp;300); treat the interval as approximate.',
     'Not transposition-aware: the same position reached by a different move order may be counted separately. Pack size is stated in &ldquo;lines,&rdquo; not &ldquo;positions covered.&rdquo;',
-    `Data pool is ${poolPhrase}; classical and bullet are excluded.`,
+    `Data pool is ${poolDisclosure(speeds)}.`,
     'The chosen move at each point is the highest lower-bound scorer among moves with enough games in this band and pool - not a claim that it is objectively the best move in the position.',
   ];
 }

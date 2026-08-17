@@ -192,6 +192,10 @@ test('disclosed limitations\' pool line is speeds-aware, not a hardcoded "blitz 
   assert.ok(html.includes('Data pool is blitz games only'), 'expected the single-pool phrasing, not "blitz and rapid"');
   assert.ok(!html.includes('blitz and rapid games only'), 'must not claim rapid data this pack never drew from');
   assert.ok(html.includes('speeds blitz,'), 'generationRuleHtml\'s speeds sentence should also read the real single-pool value');
+  assert.ok(
+    html.includes('bullet, rapid and classical are excluded'),
+    'the excluded-pools clause must name rapid too on a blitz-only build, not silently imply rapid is included (the redundant per-callsite ternary this replaced always said "classical and bullet")'
+  );
 });
 
 // ---------------------------------------------------------------------------

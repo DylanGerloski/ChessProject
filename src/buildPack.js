@@ -60,6 +60,13 @@ const { Chess } = require('chess.js');
 // exports is unaffected -- same names, same behavior, now implemented in
 // buildPackCore.js and simply re-exported here.
 const { applyExplorerUci, pgnFromTree } = require('./buildPackCore');
+// Safe as a top-level require here (unlike ./explorerSource's own
+// fs/path-bearing fetchMoves(), which stays a local require inside
+// buildTree() below): no browser esbuild entry point requires buildPack.js
+// itself -- src/browser/*.client.js only pulls in applyExplorerUci/
+// pgnFromTree via buildPackCore.js, the zero-dependency split that exists
+// for exactly this reason (see that comment above).
+const { poolDisclosure } = require('./explorerSource');
 
 const RULE_VERSION = '1';
 const MIN_N = 300;
@@ -528,8 +535,12 @@ function readmeText(packJson, { siteUrl, refreshPromiseVerified = false } = {}) 
     // Source-aware: packJson.speeds is what this specific run actually
     // drew from (src/explorerSource.js's actualPoolSpeeds()), not a
     // hardcoded literal -- see that function's doc for why "blitz and
-    // rapid" was previously false on any aggregate-sourced run.
-    `  - Data pool is ${packJson.speeds.length > 1 ? `${packJson.speeds.join(' and ')} games only` : `${packJson.speeds[0]} games only`} (as stated above) -- classical and bullet games are excluded.`,
+    // rapid" was previously false on any aggregate-sourced run. Both halves
+    // of the sentence (included and excluded) come from poolDisclosure(),
+    // which derives both from packJson.speeds so they can never contradict
+    // -- this line previously always said "classical and bullet", silently
+    // omitting rapid from the excluded list on a blitz-only run.
+    `  - Data pool is ${poolDisclosure(packJson.speeds)}, matching the speeds line above.`,
     '  - The chosen move at each point is the highest lower-bound scorer among moves with enough games in this band and pool --',
     '    not a claim that it is objectively the best move in the position.',
     '',

@@ -317,6 +317,27 @@ test('buildContentPages: once real aggregate data is present on disk (manifest.j
   })
 );
 
+test('buildContentPages: the FAQ page\'s "are these stats from blitz or classical games" answer is manifest-aware too, not hardcoded -- fixture aggregates dir present means blitz-only wording, and it must not silently omit rapid/bullet from the excluded clause', () =>
+  withTempDist(async (outDir) => {
+    const { fetchImpl } = makeSmartExplorerFetch();
+    const aggregatesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lichess-content-faq-aggregates-'));
+    fs.writeFileSync(path.join(aggregatesDir, 'root.json'), JSON.stringify({ positions: {}, pathIndex: {} }), 'utf8');
+    fs.writeFileSync(path.join(aggregatesDir, 'manifest.json'), JSON.stringify({ pipelineVersion: 1, retrievedAt: new Date().toISOString(), dumpMonths: ['2026-07'], gamesUsed: 500000 }), 'utf8');
+
+    const { written } = await buildContentPages({ fetchImpl, outDir, aggregatesDir });
+    const faqPage = written.find((p) => p.file === 'chess-opening-faq.html');
+    assert.ok(faqPage, 'chess-opening-faq.html should be written');
+    assert.match(faqPage.html, /Blitz games from the Lichess database/, 'manifest present should give the blitz-only FAQ answer');
+    assert.match(faqPage.html, /Bullet, rapid and classical games are not included/, 'the excluded clause must name all three excluded pools, not silently omit one');
+    assert.doesNotMatch(faqPage.html, /Blitz and rapid games from the Lichess database/, 'must not claim rapid data this build never drew from');
+
+    const { written: fallbackWritten } = await buildContentPages({ fetchImpl, outDir: fs.mkdtempSync(path.join(os.tmpdir(), 'lichess-content-faq-fallback-')) });
+    const fallbackFaqPage = fallbackWritten.find((p) => p.file === 'chess-opening-faq.html');
+    assert.match(fallbackFaqPage.html, /Blitz and rapid games from the Lichess database/, 'no aggregates on disk should give the honest blitz+rapid fallback answer');
+    assert.match(fallbackFaqPage.html, /Classical and bullet games are not included/, 'the fallback excluded clause must name bullet too, not just classical');
+  })
+);
+
 test('phase 2: the guides hub links to all 8 guide articles, and every guide has exactly one H1 and real data pulled from entries', () =>
   withTempDist(async (outDir) => {
     const { fetchImpl } = makeSmartExplorerFetch();

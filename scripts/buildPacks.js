@@ -45,7 +45,7 @@ const {
   pruneToTopLines,
 } = require('../src/buildPack');
 const { withExplorerCache } = require('../src/explorerCache');
-const { actualPoolSpeeds } = require('../src/explorerSource');
+const { actualPoolSpeeds, poolDisclosure } = require('../src/explorerSource');
 const { DESIGN_TOKENS, THEME_ROLES, designTokensCss } = require('../src/render');
 const { renderBoardDiagram, spriteDefsHtml } = require('../src/boardSvg');
 const { SITE_ORIGIN, SITE_NAME } = require('../src/site');
@@ -230,7 +230,7 @@ function coverPageHtml(packJson) {
     <ul class="limits">
       <li>Score is a sample mean (wins + 0.5 &times; draws / games), not a win/loss proportion; its confidence interval uses a normal approximation, not a binomial Wilson interval.</li>
       <li>Not transposition-aware: the same position reached by a different move order may be counted separately. Pack size is stated in "lines," not "positions covered."</li>
-      <li>Data pool is ${packJson.speeds.length > 1 ? `${packJson.speeds.join(' and ')} games only` : `${packJson.speeds[0]} games only`} -- classical and bullet are excluded.</li>
+      <li>Data pool is ${poolDisclosure(packJson.speeds)}.</li>
       <li>The chosen move is the highest lower-bound scorer among moves with enough games in this band -- not a claim it is objectively best.</li>
     </ul>
     <p class="meta">Data source: Lichess (database.lichess.org), released under CC0. This pack is a derived work; it is not affiliated with or endorsed by Lichess. Not affiliated with ${SITE_NAME}'s upstream data provider beyond that license.</p>

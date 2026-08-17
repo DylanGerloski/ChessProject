@@ -177,10 +177,31 @@ function actualPoolSpeeds(dir = AGGREGATES_DIR) {
   return aggregatesAvailable(dir) ? [DEFAULT_POOL] : ['blitz', 'rapid'];
 }
 
+const POOL_UNIVERSE = ['bullet', 'blitz', 'rapid', 'classical'];
+
+/**
+ * One sentence disclosing both halves of the pool -- which speeds are
+ * included AND which are excluded -- derived from the same `speeds` array,
+ * so the two halves can never contradict each other. Replaces three former
+ * call sites (renderPackPages.js, buildPack.js, scripts/buildPacks.js) that
+ * each independently hardcoded only the excluded half and silently dropped
+ * whichever speed wasn't in their own literal (the same bug class
+ * actualPoolSpeeds() above already fixed for the included half).
+ *
+ * @param {string[]} speeds e.g. actualPoolSpeeds()'s return value.
+ * @returns {string} e.g. "blitz games only; bullet, rapid and classical are excluded"
+ */
+function poolDisclosure(speeds) {
+  const listPhrase = (xs) => (xs.length > 1 ? [xs.slice(0, -1).join(', '), xs[xs.length - 1]].join(' and ') : xs[0]);
+  const excluded = POOL_UNIVERSE.filter((s) => !speeds.includes(s));
+  return listPhrase(speeds) + ' games only; ' + listPhrase(excluded) + ' are excluded';
+}
+
 module.exports = {
   fetchMoves,
   aggregatesAvailable,
   actualPoolSpeeds,
+  poolDisclosure,
   AGGREGATES_DIR,
   DEFAULT_POOL,
 };
