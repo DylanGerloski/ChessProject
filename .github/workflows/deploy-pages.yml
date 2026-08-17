@@ -14,9 +14,14 @@ permissions:
 
 # Only one deploy at a time; a new push cancels an in-flight deploy rather
 # than queueing behind it, since only the latest commit's build should ever
-# ship.
+# ship. That "pages" group must stay scoped to non-PR events only (push /
+# workflow_dispatch) -- pull_request runs get their own per-PR group below
+# so that two unrelated PRs' builds never cancel each other just because
+# they happen to overlap in time (this repo often has multiple PRs open at
+# once). A new push to the SAME PR still correctly cancels that PR's own
+# stale run, since the group is keyed on the PR number, not the commit.
 concurrency:
-  group: pages
+  group: ${{ github.event_name == 'pull_request' && format('pages-pr-{0}', github.event.pull_request.number) || 'pages' }}
   cancel-in-progress: true
 
 # build -> quality -> deploy, so a failing quality gate blocks the deploy.
