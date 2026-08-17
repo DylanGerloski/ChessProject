@@ -188,7 +188,7 @@ const LEAK_REPORT_KEY = 'rb.leakReport.v1';
         stuckListEl.innerHTML = '<li class="empty-note">None yet.</li>';
       } else {
         stuckListEl.innerHTML = stuck
-          .map((c) => `<li class="drill-stuck-row"><span class="drill-stuck-badge">${escapeHtml(c.openingName)}</span><a href="repertoire-builder.html">Fix it in the builder &rarr;</a></li>`)
+          .map((c) => `<li class="drill-stuck-row"><span class="drill-stuck-badge">${escapeHtml(c.openingName)}</span><a href="repertoire-builder.html">Fix it in the Repertoire Builder &rarr;</a></li>`)
           .join('');
       }
     }
