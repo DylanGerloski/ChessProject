@@ -239,15 +239,15 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd 
       title: `${escapeHtml(family)}: all variations and ECO codes`,
       subtitle: `${lineCount} named lines across ${ecoCodes.length} ECO code${ecoCodes.length === 1 ? '' : 's'}
         (${escapeHtml(ecoRangeLabel(ecoCodes))})${volumes.length > 1 ? `, spanning ECO volumes ${volumes.join(', ')}` : ''}.
-        Source: the CC0-licensed <a href="https://github.com/lichess-org/chess-openings">lichess.org opening database</a>.`,
+        Source: the CC0-licensed <a href="https://github.com/lichess-org/chess-openings" rel="noopener noreferrer">lichess.org opening database</a>.`,
     })}
 
     <h2>The main line</h2>
     <figure class="board-figure">
       ${renderBoard(board, { flip, label: `Position after ${sanLine}` })}
       <figcaption>Position after ${escapeHtml(sanLine)} (${escapeHtml(mainLine.eco)}).
-        <a href="${lichessAnalysisUrl(mainLine.plies)}">Open this line on Lichess &rarr;</a> &middot;
-        <a href="${lichessOpeningUrl(mainLine.name)}">${escapeHtml(mainLine.name)} on Lichess</a>
+        <a href="${lichessAnalysisUrl(mainLine.plies)}" rel="noopener noreferrer">Open this line on Lichess &rarr;</a> &middot;
+        <a href="${lichessOpeningUrl(mainLine.name)}" rel="noopener noreferrer">${escapeHtml(mainLine.name)} on Lichess</a>
       </figcaption>
     </figure>
 
@@ -267,7 +267,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'article', jsonLd 
        <a href="${ECO_INDEX_FILE}">All ECO families &rarr;</a> &middot;
        <a href="${ECO_EXPLORER_FILE}">Search and play every line in the interactive explorer &rarr;</a></p>${relatedHtml}
   </main>
-  ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a> (main line only, retrieved ${BUILD_DATE}) and the CC0-licensed <a href="https://github.com/lichess-org/chess-openings">lichess.org opening database</a> (all variations). ${pieceAttributionHtml()}`, ECO_LEGAL_LINKS)}
+  ${renderFooter(`Aggregate data from the <a href="https://lichess.org/api#tag/Opening-Explorer" rel="noopener noreferrer">Lichess Opening Explorer</a> (main line only, retrieved ${BUILD_DATE}) and the CC0-licensed <a href="https://github.com/lichess-org/chess-openings" rel="noopener noreferrer">lichess.org opening database</a> (all variations). ${pieceAttributionHtml()}`, ECO_LEGAL_LINKS)}
 </div>
 </body>
 </html>
@@ -345,7 +345,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd })}
     <p>${Object.keys(VOLUME_LABELS).filter((v) => v !== volume).map((v) => `<a href="${ecoVolumeFilename(v)}">Volume ${v}</a>`).join(' &middot; ')}
        &middot; <a href="${ECO_INDEX_FILE}">All ECO families &rarr;</a></p>
   </main>
-  ${renderFooter(`ECO classification data from the CC0-licensed <a href="https://github.com/lichess-org/chess-openings">lichess.org opening database</a>.`, ECO_LEGAL_LINKS)}
+  ${renderFooter(`ECO classification data from the CC0-licensed <a href="https://github.com/lichess-org/chess-openings" rel="noopener noreferrer">lichess.org opening database</a>.`, ECO_LEGAL_LINKS)}
 </div>
 </body>
 </html>
@@ -447,7 +447,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd })}
       </table>`, `Chess opening families, page ${pageNum}`)}
     ${pagination}
   </main>
-  ${renderFooter(`ECO classification data from the CC0-licensed <a href="https://github.com/lichess-org/chess-openings">lichess.org opening database</a>.`, ECO_LEGAL_LINKS)}
+  ${renderFooter(`ECO classification data from the CC0-licensed <a href="https://github.com/lichess-org/chess-openings" rel="noopener noreferrer">lichess.org opening database</a>.`, ECO_LEGAL_LINKS)}
 </div>
 </body>
 </html>

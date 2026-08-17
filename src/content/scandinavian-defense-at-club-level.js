@@ -34,7 +34,7 @@ function render(ctx) {
 
   const topTries = (model.topReplies || []).slice(0, 5);
   const tryRows = topTries
-    .map((m) => `<tr><td><a href="https://lichess.org/analysis/pgn/${encodeURIComponent(m.san)}">${escapeHtml(m.san)}</a></td><td>${m.games.toLocaleString()}</td><td>${formatPct(m.playedPct)}%</td></tr>`)
+    .map((m) => `<tr><td><a href="https://lichess.org/analysis/pgn/${encodeURIComponent(m.san)}" target="_blank" rel="noopener noreferrer">${escapeHtml(m.san)}</a></td><td>${m.games.toLocaleString()}</td><td>${formatPct(m.playedPct)}%</td></tr>`)
     .join('');
 
   return `

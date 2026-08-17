@@ -429,7 +429,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'website', jsonLd,
       </div>
     </section>
   </main>
-  ${renderFooter('Band data source: <a href="https://lichess.org/api">lichess.org/api</a>.', legalLinks)}
+  ${renderFooter('Band data source: <a href="https://lichess.org/api" rel="noopener noreferrer">lichess.org/api</a>.', legalLinks)}
 </div>
 <script src="repertoire-builder.js" defer></script>
 </body>

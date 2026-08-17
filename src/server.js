@@ -44,7 +44,7 @@ ${renderDocumentHead(SITE_NAME)}
     </form>
     <p><a href="/repertoire">Or try the rating-band opening-repertoire explorer &rarr;</a></p>
   </main>
-  ${renderFooter('Local dev server - data source: <a href="https://lichess.org/api">lichess.org/api</a>.')}
+  ${renderFooter('Local dev server - data source: <a href="https://lichess.org/api" rel="noopener noreferrer">lichess.org/api</a>.')}
 </div>
 </body>
 </html>`;
@@ -77,7 +77,7 @@ ${renderDocumentHead(`Opening repertoire explorer - ${SITE_NAME}`)}
       <button type="submit">Explore</button>
     </form>
   </main>
-  ${renderFooter('Local dev server - data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a>.')}
+  ${renderFooter('Local dev server - data source: <a href="https://lichess.org/api#tag/Opening-Explorer" rel="noopener noreferrer">Lichess Opening Explorer API</a>.')}
 </div>
 </body>
 </html>`;
