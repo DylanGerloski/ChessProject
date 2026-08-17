@@ -113,6 +113,31 @@ test('readBandState: a shape-invalid localStorage value (wrong band) is discarde
   assert.deepEqual(readBandState(), DEFAULT_STATE);
 });
 
+test('readBandState: localStorage.getItem throwing (private browsing / storage disabled, not just a missing key) is caught, not thrown, and falls through to the default', () => {
+  const storage = {
+    getItem: () => { throw new Error('SecurityError: storage disabled'); },
+    setItem: () => {},
+  };
+  const { readBandState, DEFAULT_STATE } = freshBandState({ storage });
+  assert.deepEqual(readBandState(), DEFAULT_STATE);
+});
+
+test('writeBandState: localStorage.setItem throwing (quota exceeded) is caught, not thrown -- the fragment still updates and subscribers still fire for the current page even though the choice cannot be remembered for next time', () => {
+  const storage = {
+    getItem: () => null,
+    setItem: () => { throw new Error('QuotaExceededError'); },
+  };
+  const { writeBandState, onBandStateChange, replaceStateCalls } = freshBandState({ storage });
+  const seen = [];
+  onBandStateChange((state) => seen.push(state));
+
+  assert.doesNotThrow(() => writeBandState({ band: '2000+', pool: 'blitz', color: 'black' }));
+
+  assert.equal(replaceStateCalls.length, 1);
+  assert.equal(replaceStateCalls[0], '/repertoire.html#band=2000%2B&pool=blitz&color=black');
+  assert.deepEqual(seen, [{ band: '2000+', pool: 'blitz', color: 'black' }]);
+});
+
 test('writeBandState: persists to localStorage, updates the fragment via history.replaceState, and notifies subscribers', () => {
   const { writeBandState, onBandStateChange, storage, replaceStateCalls } = freshBandState();
   const seen = [];

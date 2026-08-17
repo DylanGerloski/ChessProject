@@ -282,6 +282,38 @@ test('isValidNode rejects a malformed uci, non-array children, or too many child
   assert.equal(isValidNode({ uci: null, children: new Array(41).fill({ uci: 'e2e4', children: [] }) }), false);
 });
 
+test('isValidNode: a chain exactly MAX_TREE_DEPTH deep is valid, one ply deeper is rejected -- boundary check for the recursion-depth cap that guards a corrupt/adversarial stored document', () => {
+  function chain(depth) {
+    const leaf = { uci: null, children: [] };
+    let cursor = leaf;
+    for (let i = 0; i < depth; i += 1) {
+      const child = { uci: 'e2e4', children: [] };
+      cursor.children.push(child);
+      cursor = child;
+    }
+    return leaf;
+  }
+  assert.equal(isValidNode(chain(60)), true); // MAX_TREE_DEPTH itself: still valid
+  assert.equal(isValidNode(chain(61)), false); // one ply past the cap: rejected
+});
+
+test('parseRepertoireList accepts an empty array -- zero repertoires stored is a valid, distinct state from "one empty repertoire"', () => {
+  const result = parseRepertoireList(JSON.stringify([]));
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.list, []);
+});
+
+test('importPackJson: pack positions arriving out of ply order (a ply-1 entry with no ply-0 predecessor yet) are skipped defensively rather than mis-attached or crashing -- degrades to a valid, empty-of-that-branch tree instead of throwing on malformed ordering', () => {
+  const pack = {
+    ...VALID_PACK,
+    positions: [{ fen: 'x', ply: 1, side: 'b', san: 'e5', uci: 'e7e5', n: 10, w: 5, d: 2, l: 3, score: 0.5, wilson: [0.4, 0.6], reach: 1, isOurMove: false }],
+  };
+  const result = importPackJson(JSON.stringify(pack));
+  assert.equal(result.ok, true);
+  assert.equal(result.moveCount, 0);
+  assert.deepEqual(result.root.children, []);
+});
+
 test('isValidRepertoire rejects an unrecognized format version, band, or pool', () => {
   const rep = createRepertoire({ name: 'x', side: 'white', band: '1600-1800' });
   assert.equal(isValidRepertoire(rep), true);
