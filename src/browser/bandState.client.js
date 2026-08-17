@@ -17,6 +17,29 @@
  * of truth for the band/pool/color -- read and write state only through
  * this module's readBandState()/writeBandState().
  *
+ * CROSS-BUNDLE NOTIFICATION: src/buildStatic.js gives band-header.js
+ * (bandHeaderControl.client.js) and each page's own client bundle (e.g.
+ * repertoire.client.js) SEPARATE esbuild entry points, so each loaded page
+ * runs its own independent copy of this module -- its own module-scoped
+ * `listeners` array, and its own registered window listeners. A
+ * writeBandState() call in one bundle's copy can therefore never reach
+ * another bundle's onBandStateChange() subscribers through the in-module
+ * `listeners` array alone (bug: the header band <select> saved state but
+ * never repainted repertoire.html). Fixed by
+ * ALSO dispatching a window-level CustomEvent (BAND_STATE_EVENT below) on
+ * every write; every bundle's copy of this module listens for that event
+ * on window and re-notifies ITS OWN local listeners, closing the loop
+ * across bundle boundaries via the one channel that is actually shared: a
+ * real browser event on the shared `window` object rather than JS module
+ * state, which esbuild does not (and by design should not) dedupe across
+ * separate entry points. The dispatching bundle's own listeners are still
+ * notified synchronously and directly (see writeBandState() below) rather
+ * than via its own event round-trip, so `INSTANCE_ID` tags each dispatch
+ * and the receiving handler skips a detail tagged with its own instance
+ * id -- otherwise the dispatching bundle would double-notify its own
+ * subscribers (once directly, once via its own window listener catching
+ * its own event).
+ *
  * SECURITY: localStorage is untrusted on read (a value from a previous,
  * possibly-outdated or tampered-with page load) -- the stored JSON is
  * parsed inside try/catch, then shape-validated against the known
@@ -44,6 +67,16 @@ var POOLS = ['bullet', 'blitz', 'rapid_classical'];
 var COLORS = ['white', 'black'];
 
 var DEFAULT_STATE = { band: '1600-1800', pool: 'blitz', color: 'white' };
+
+// Window-level event name used to bridge writeBandState() across separate
+// esbuild bundles -- see the CROSS-BUNDLE NOTIFICATION header comment
+// above. INSTANCE_ID is unique per loaded copy of this module (i.e. per
+// bundle, since each bundle's own require() gives it a fresh top-level
+// module evaluation) so a bundle can tell its own dispatch apart from
+// another bundle's when the event bounces back to it on the shared
+// window.
+var BAND_STATE_EVENT = 'rb:bandstatechange';
+var INSTANCE_ID = 'bs-' + Math.random().toString(36).slice(2) + '-' + Date.now().toString(36);
 
 function isValidState(candidate) {
   return Boolean(candidate)
@@ -151,6 +184,15 @@ function writeBandState(state) {
     window.history.replaceState(null, '', base + '#' + fragment);
   }
   notifyListeners(clean);
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof window.CustomEvent === 'function') {
+    // Cross-bundle bridge -- see CROSS-BUNDLE NOTIFICATION comment above.
+    // This bundle's own listeners were already notified synchronously by
+    // notifyListeners(clean) just above; INSTANCE_ID lets the event
+    // handler below recognize and skip this bundle's own dispatch when it
+    // bounces back on window, so only OTHER bundles' listeners fire from
+    // it.
+    window.dispatchEvent(new window.CustomEvent(BAND_STATE_EVENT, { detail: { state: clean, source: INSTANCE_ID } }));
+  }
 }
 
 var listeners = [];
@@ -163,9 +205,12 @@ function notifyListeners(state) {
 
 /**
  * @param {function({band:string,pool:string,color:string}):void} fn called
- *   on every writeBandState() call AND on a browser back/forward navigation
- *   that changes the fragment (a `hashchange` event) -- so a subscriber
- *   reacts to both the picker it drew and history navigation it didn't.
+ *   on every writeBandState() call (this bundle's own AND, via the
+ *   BAND_STATE_EVENT bridge, any other bundle's on the same page) AND on a
+ *   browser back/forward navigation that changes the fragment (a
+ *   `hashchange` event) -- so a subscriber reacts to a picker it drew, a
+ *   picker a DIFFERENT bundle on the same page drew, and history
+ *   navigation it didn't.
  * @returns {function():void} unsubscribe
  */
 function onBandStateChange(fn) {
@@ -179,6 +224,13 @@ function onBandStateChange(fn) {
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('hashchange', function () {
     notifyListeners(readBandState());
+  });
+  window.addEventListener(BAND_STATE_EVENT, function (evt) {
+    var detail = evt && evt.detail;
+    if (!detail || detail.source === INSTANCE_ID) return; // our own dispatch -- already notified directly in writeBandState()
+    if (isValidState(detail.state)) {
+      notifyListeners({ band: detail.state.band, pool: detail.state.pool, color: detail.state.color });
+    }
   });
 }
 
