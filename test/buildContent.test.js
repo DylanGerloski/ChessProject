@@ -262,6 +262,61 @@ test('renderOpeningPage: omitting drillFile is byte-identical to no drill CTA; p
   assert.match(withDrill, /Open the Italian Game drill &rarr;/);
 });
 
+test('renderOpeningPage: data-source pool label is manifest-aware, not hardcoded -- "blitz & rapid" on the live-API fallback (manifest omitted), "blitz" only once real aggregate data lands (manifest present), matching renderMethodologyPage\'s own branch', () => {
+  const openingConfig = OPENINGS.find((o) => o.slug === 'italian-game');
+  const model = buildOpeningModel({
+    openingConfig,
+    bandResponses: { '1600-1800': italianFixture },
+    mastersResponse: mastersItalianFixture,
+    defaultBand: '1600-1800',
+    minGamesForPct: 1000,
+  });
+  const baseOpts = {
+    model,
+    openingConfig,
+    nav: { repertoire: 'index.html', openings: 'openings.html', player: 'player.html' },
+    related: [],
+    repertoireLinks: { white: 'repertoire-1600-1800-white.html', black: 'repertoire-1600-1800-black.html' },
+  };
+
+  const fallbackHtml = renderOpeningPage(baseOpts); // manifest omitted -> defaults to null (live-API-fallback shape)
+  assert.match(fallbackHtml, /Lichess blitz &amp; rapid games/);
+  assert.match(fallbackHtml, /\(lichess database, blitz \+ rapid\)/);
+  assert.doesNotMatch(fallbackHtml, /Lichess blitz games/);
+
+  const aggregateHtml = renderOpeningPage({ ...baseOpts, manifest: { dumpMonths: ['2026-07'], gamesUsed: 500000 } });
+  assert.match(aggregateHtml, /Lichess blitz games/);
+  assert.match(aggregateHtml, /\(lichess database, blitz\)/);
+  assert.doesNotMatch(aggregateHtml, /blitz &amp; rapid/);
+  assert.doesNotMatch(aggregateHtml, /blitz \+ rapid/);
+});
+
+test('buildContentPages: once real aggregate data is present on disk (manifest.json + root.json), every opening page threads the manifest-aware blitz-only label through end to end -- sampled across several openings, not just one', () =>
+  withTempDist(async (outDir) => {
+    const { fetchImpl } = makeSmartExplorerFetch();
+    const aggregatesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lichess-content-aggregates-'));
+    // Deliberately EMPTY positions -- aggregatesAvailable() only checks file
+    // presence, not content, and aggregateSource.js's explorerShapedResponse()
+    // degrades any missing position to a real, honest zero-games response, so
+    // this exercises the real "aggregates present" code path this test cares
+    // about (the manifest-aware LABEL) without needing a full real dataset.
+    fs.writeFileSync(path.join(aggregatesDir, 'root.json'), JSON.stringify({ positions: {}, pathIndex: {} }), 'utf8');
+    fs.writeFileSync(path.join(aggregatesDir, 'manifest.json'), JSON.stringify({ pipelineVersion: 1, retrievedAt: new Date().toISOString(), dumpMonths: ['2026-07'], gamesUsed: 500000 }), 'utf8');
+
+    const { written } = await buildContentPages({ fetchImpl, outDir, aggregatesDir });
+    const openingSlugs = new Set(OPENINGS.map((o) => o.slug));
+    const openingPages = written.filter((p) => openingSlugs.has(p.slug));
+    assert.ok(openingPages.length >= 3, 'expected several real opening pages to sample');
+    const sample = [openingPages[0], openingPages[Math.floor(openingPages.length / 2)], openingPages[openingPages.length - 1]];
+    for (const page of sample) {
+      assert.match(page.html, /Lichess blitz games/, `${page.file} should use the blitz-only label once aggregate data is present`);
+      assert.match(page.html, /\(lichess database, blitz\)/, `${page.file}'s footer should say "blitz" only, not "blitz + rapid"`);
+      assert.doesNotMatch(page.html, /blitz &amp; rapid/, `${page.file} must not falsely claim rapid data when aggregates supplied blitz only`);
+      assert.doesNotMatch(page.html, /blitz \+ rapid/, `${page.file}'s footer must not falsely claim rapid data`);
+    }
+  })
+);
+
 test('phase 2: the guides hub links to all 8 guide articles, and every guide has exactly one H1 and real data pulled from entries', () =>
   withTempDist(async (outDir) => {
     const { fetchImpl } = makeSmartExplorerFetch();

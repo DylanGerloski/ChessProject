@@ -39,12 +39,21 @@ const PRICE_USD = 9;
 // page, README.txt (src/buildPack.js's readmeText(), independently worded
 // for a plain-text file), and /methodology.html -- kept as one array here
 // so a future methodology-page pass can reuse it rather than re-deriving.
-const DISCLOSED_LIMITATIONS = [
-  'Score is a sample mean (wins plus half of draws, divided by games), not a win/loss proportion - its confidence interval uses a normal approximation, not a binomial Wilson interval. Sound at the sample sizes this pack requires (n&nbsp;&ge;&nbsp;300); treat the interval as approximate.',
-  'Not transposition-aware: the same position reached by a different move order may be counted separately. Pack size is stated in &ldquo;lines,&rdquo; not &ldquo;positions covered.&rdquo;',
-  'Data pool is blitz and rapid games only; classical and bullet are excluded.',
-  'The chosen move at each point is the highest lower-bound scorer among moves with enough games in this band and pool - not a claim that it is objectively the best move in the position.',
-];
+// The pool-disclosure item is a FUNCTION of `pack.speeds` (rather than a
+// hardcoded string in this array), since which pool a pack actually drew
+// from depends on whether this build ran on aggregate data or the live-API
+// fallback -- see src/explorerSource.js's actualPoolSpeeds() doc, and the
+// same "blitz & rapid" mislabeling bug this fixes on the opening pages
+// (src/renderContent.js's renderOpeningPage `manifest` param).
+function disclosedLimitations(speeds) {
+  const poolPhrase = speeds.length > 1 ? `${speeds.join(' and ')} games only` : `${speeds[0]} games only`;
+  return [
+    'Score is a sample mean (wins plus half of draws, divided by games), not a win/loss proportion - its confidence interval uses a normal approximation, not a binomial Wilson interval. Sound at the sample sizes this pack requires (n&nbsp;&ge;&nbsp;300); treat the interval as approximate.',
+    'Not transposition-aware: the same position reached by a different move order may be counted separately. Pack size is stated in &ldquo;lines,&rdquo; not &ldquo;positions covered.&rdquo;',
+    `Data pool is ${poolPhrase}; classical and bullet are excluded.`,
+    'The chosen move at each point is the highest lower-bound scorer among moves with enough games in this band and pool - not a claim that it is objectively the best move in the position.',
+  ];
+}
 
 const FREE_GUARANTEE_HTML = `<p>Everything this site computes about your games is free. The leak report, the drill
     engine, the repertoire builder and PGN export have no paid tier. What&rsquo;s for sale is our
@@ -427,8 +436,8 @@ function packFaqHtml(pack) {
   return `<h2>FAQ</h2>${items}`;
 }
 
-function disclosedLimitationsHtml() {
-  const items = DISCLOSED_LIMITATIONS.map((l) => `<li>${l}</li>`).join('');
+function disclosedLimitationsHtml(pack) {
+  const items = disclosedLimitations(pack.speeds).map((l) => `<li>${l}</li>`).join('');
   return `<h2>Disclosed limitations</h2><ul>${items}</ul>`;
 }
 
@@ -529,7 +538,7 @@ ${renderDocumentHead({ title: pageTitle(`${pack.title} repertoire pack`), descri
     </section>
 
     ${generationRuleHtml(pack)}
-    ${disclosedLimitationsHtml()}
+    ${disclosedLimitationsHtml(pack)}
     ${packFaqHtml(pack)}
     ${relatedLink}
 
@@ -630,7 +639,7 @@ function renderLeakReportUpsell(pack) {
 
 module.exports = {
   PRICE_USD,
-  DISCLOSED_LIMITATIONS,
+  disclosedLimitations,
   packsIndexFilename,
   packDetailFilename,
   packSampleFilename,

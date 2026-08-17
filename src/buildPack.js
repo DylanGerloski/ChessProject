@@ -525,7 +525,11 @@ function readmeText(packJson, { siteUrl, refreshPromiseVerified = false } = {}) 
     '    sound at the sample sizes this pack requires (n >= 300) but is not an exact coverage guarantee.',
     '  - This pack is NOT transposition-aware: the same position reached by a different move order is counted separately if the',
     '    Opening Explorer indexes it under a different node. Pack size is stated here as "lines," not "positions covered."',
-    `  - Data pool is blitz and rapid games only (as stated above) -- classical and bullet games are excluded.`,
+    // Source-aware: packJson.speeds is what this specific run actually
+    // drew from (src/explorerSource.js's actualPoolSpeeds()), not a
+    // hardcoded literal -- see that function's doc for why "blitz and
+    // rapid" was previously false on any aggregate-sourced run.
+    `  - Data pool is ${packJson.speeds.length > 1 ? `${packJson.speeds.join(' and ')} games only` : `${packJson.speeds[0]} games only`} (as stated above) -- classical and bullet games are excluded.`,
     '  - The chosen move at each point is the highest lower-bound scorer among moves with enough games in this band and pool --',
     '    not a claim that it is objectively the best move in the position.',
     '',

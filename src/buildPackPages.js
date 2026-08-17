@@ -58,7 +58,7 @@ const {
   renderPackDetailPage,
 } = require('./renderPackPages');
 const { SITE_NAME, SITE_ORIGIN } = require('./site');
-const { AGGREGATES_DIR } = require('./explorerSource');
+const { AGGREGATES_DIR, actualPoolSpeeds } = require('./explorerSource');
 const { assertPageMetadata, extractTitle, extractDescription } = require('./buildContent');
 
 const OUT_DIR = path.join(__dirname, '..', 'dist');
@@ -73,7 +73,6 @@ const PACK_CATALOGUE = [
   { id: 'black-vs-e4-1400-1600', title: 'Black vs 1.e4 at 1400-1600', color: 'black', band: '1400-1600', firstMoveUci: 'e2e4' },
 ];
 
-const SPEEDS = ['blitz', 'rapid'];
 const SAMPLE_LINE_COUNT = 47; // spec 1.6.3, matches scripts/buildPacks.js's own SAMPLE_LINE_COUNT
 
 const SELLABLE_FILES = ['repertoire.pgn', 'pack.json', 'study-guide.pdf', 'README.txt'];
@@ -113,15 +112,22 @@ function readFileSizesIfPresent(id) {
  * pack.json at build time"), and a freshly-regenerated free sample.pgn.
  */
 async function buildOnePackBundle(def, { fetchImpl, retrieved, aggregatesDir }) {
+  // Which pool this SPECIFIC build actually drew from -- see
+  // src/explorerSource.js's actualPoolSpeeds() doc. Passed to
+  // buildPackTree() below for the live-API-fallback case only (the
+  // aggregate path ignores it, always blitz); the returned value is what
+  // actually matters, since it is what pack.json/README/the sales page
+  // disclose as `speeds`.
+  const speeds = actualPoolSpeeds(aggregatesDir);
   const result = await buildPackTree({
     ratingBand: def.band,
     color: def.color,
     firstMoveUci: def.firstMoveUci,
-    speeds: SPEEDS,
+    speeds,
     fetchImpl,
     aggregatesDir,
   });
-  const packJson = packJsonFromResult(result, { id: def.id, title: def.title, speeds: SPEEDS, retrieved });
+  const packJson = packJsonFromResult(result, { id: def.id, title: def.title, speeds, retrieved });
 
   // The position AFTER the pack's own stated first move -- more legible as
   // marketing artwork than the bare starting position every root.fen
@@ -157,7 +163,7 @@ async function buildOnePackBundle(def, { fetchImpl, retrieved, aggregatesDir }) 
     positionCount: packJson.position_count,
     thresholdUsed: packJson.threshold_used,
     ruleVersion: packJson.rule_version,
-    speeds: SPEEDS,
+    speeds,
     retrieved,
     sampleLineCount: SAMPLE_LINE_COUNT,
     storeUrl,

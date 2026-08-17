@@ -156,9 +156,31 @@ async function fetchMoves({
   return fetchExplorerMoves({ play, ratings, speeds, moves, recentGames, topGames, fetchImpl });
 }
 
+/**
+ * Single source of truth for "which speeds pool did THIS build actually
+ * use", for every caller that discloses it to a reader (pack.json's
+ * `speeds` field, README.txt, and repertoire-packs/<id>.html's on-page
+ * copy previously each hardcoded their own `['blitz', 'rapid']` literal
+ * regardless of which path fetchMoves() actually took -- the same
+ * site-wide "blitz & rapid" mislabeling this module's DEFAULT_POOL comment
+ * above already documents for the opening pages). Mirrors
+ * renderMethodologyPage's own manifest-presence branch (src/renderContent.js).
+ *
+ * @param {string} [dir]
+ * @returns {string[]} `[DEFAULT_POOL]` (blitz only) when this build is
+ *   sourced from real aggregate data at `dir` (fetchMoves() ignores the
+ *   `speeds` argument entirely on that path -- see its own doc above), or
+ *   `['blitz', 'rapid']` -- the same literal src/processRepertoire.js's
+ *   DEFAULT_SPEEDS holds, forwarded to the live-API fallback -- when it isn't.
+ */
+function actualPoolSpeeds(dir = AGGREGATES_DIR) {
+  return aggregatesAvailable(dir) ? [DEFAULT_POOL] : ['blitz', 'rapid'];
+}
+
 module.exports = {
   fetchMoves,
   aggregatesAvailable,
+  actualPoolSpeeds,
   AGGREGATES_DIR,
   DEFAULT_POOL,
 };

@@ -17,7 +17,8 @@ const path = require('path');
 const { OPENINGS, assertOpeningsWellFormed } = require('./openings');
 const { RATING_BANDS, DEFAULT_SPEEDS } = require('./processRepertoire');
 const { fetchExplorerMoves } = require('./fetchOpeningExplorer');
-const { fetchMoves, AGGREGATES_DIR } = require('./explorerSource');
+const { fetchMoves, AGGREGATES_DIR, aggregatesAvailable } = require('./explorerSource');
+const { loadAggregates } = require('./aggregateSource');
 const { slugifyFamilyName } = require('./ecoFamilies');
 const {
   buildOpeningModel,
@@ -343,6 +344,15 @@ async function buildContentPages({
   assertOpeningsWellFormed();
   fs.mkdirSync(outDir, { recursive: true });
 
+  // Same branch buildStatic.js's methodologyManifest already uses for
+  // renderMethodologyPage, applied here so renderOpeningPage's data-source
+  // pool label (subtitle + footer) can never claim a pool this build didn't
+  // actually use -- see renderOpeningPage's `manifest` param doc comment.
+  // Reads `aggregatesDir` (this function's own param, so a test fixture
+  // directory is honored the same way fetchOpeningData already honors it
+  // below), not the hardcoded top-level AGGREGATES_DIR.
+  const manifest = aggregatesAvailable(aggregatesDir) ? loadAggregates({ dir: aggregatesDir }).manifest : null;
+
   const entries = [];
   for (const openingConfig of OPENINGS) {
     const { bandResponses, mastersResponse, mistakeFollowUpResponse } = await fetchOpeningData(openingConfig, { fetchImpl, aggregatesDir });
@@ -366,7 +376,7 @@ async function buildContentPages({
       href: `${r.openingConfig.slug}.html`,
     }));
     const drillFile = drillPages[entry.openingConfig.slug] || null;
-    const html = renderOpeningPage({ model: entry.model, openingConfig: entry.openingConfig, nav, related, repertoireLinks, drillFile });
+    const html = renderOpeningPage({ model: entry.model, openingConfig: entry.openingConfig, nav, related, repertoireLinks, drillFile, manifest });
     const file = `${entry.openingConfig.slug}.html`;
     fs.writeFileSync(path.join(outDir, file), html, 'utf8');
     written.push({ file, html, slug: entry.openingConfig.slug, title: extractTitle(html), description: extractDescription(html) });
