@@ -521,7 +521,7 @@ function buildFaqEntries(entries, { manifest = null } = {}) {
     {
       question: 'Are these stats from blitz or classical games?',
       answerHtml: manifest
-        ? `<p>Blitz games from the Lichess database - the one pool every number on this site is computed from. Bullet, rapid and classical games are not included: keeping to a single pool is what makes the percentages comparable from one opening page to the next. See the <a href="methodology.html">methodology page &rarr;</a> for how that pool is built.</p>`
+        ? `<p>Blitz games from the Lichess database - the one pool every rating-band number on this site is computed from. Bullet, rapid and classical games are not included: keeping to a single pool is what makes the percentages comparable from one opening page to the next. See the <a href="methodology.html">methodology page &rarr;</a> for how that pool is built.</p>`
         : `<p>Blitz and rapid games from the Lichess database (the two fastest time controls with enough volume to give reliable numbers at every rating band this site tracks). Classical and bullet games are not included - there generally isn&rsquo;t enough volume at most rating bands to compute a trustworthy percentage from them.</p>`,
     },
     {
