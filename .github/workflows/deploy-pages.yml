@@ -119,11 +119,22 @@ jobs:
       # must not fail the job -- it falls back to the pre-existing safe
       # behavior instead (no shards on disk -> every builder call falls back
       # live, exactly like every deploy before this step existed).
+      #
+      # BUMPED 2026-08-18: data-2026-07 -> data-2026-07-2. Alapin coverage
+      # (Caro-Kann sub-line) needed a larger game budget to clear its
+      # 1,000-game display threshold; games=1,400,000 was re-ingested for
+      # 2026-07 under ingest-dump.yml's new versioned-tag collision handling
+      # (data-2026-07-2, published alongside the original data-2026-07
+      # rather than replacing it -- see that workflow's own ROOT-CAUSE NOTE).
+      # data-2026-07 stays published as the rollback until this bump is
+      # verified live, then gets deleted via a separate, human-approved
+      # decision, per the standing rule that the site never has zero
+      # working releases on purpose.
       - name: Download aggregate data release
         id: aggregate_data
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AGGREGATE_DATA_TAG: data-2026-07
+          AGGREGATE_DATA_TAG: data-2026-07-2
         run: |
           if gh release view "$AGGREGATE_DATA_TAG" >/dev/null 2>&1; then
             gh release download "$AGGREGATE_DATA_TAG" \

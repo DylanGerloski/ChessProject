@@ -17,7 +17,8 @@ const path = require('path');
 const { OPENINGS, assertOpeningsWellFormed } = require('./openings');
 const { RATING_BANDS, DEFAULT_SPEEDS } = require('./processRepertoire');
 const { fetchExplorerMoves } = require('./fetchOpeningExplorer');
-const { fetchMoves, AGGREGATES_DIR } = require('./explorerSource');
+const { fetchMoves, AGGREGATES_DIR, aggregatesAvailable } = require('./explorerSource');
+const { loadAggregates } = require('./aggregateSource');
 const { slugifyFamilyName } = require('./ecoFamilies');
 const {
   buildOpeningModel,
@@ -343,6 +344,15 @@ async function buildContentPages({
   assertOpeningsWellFormed();
   fs.mkdirSync(outDir, { recursive: true });
 
+  // Same branch buildStatic.js's methodologyManifest already uses for
+  // renderMethodologyPage, applied here so renderOpeningPage's data-source
+  // pool label (subtitle + footer) can never claim a pool this build didn't
+  // actually use -- see renderOpeningPage's `manifest` param doc comment.
+  // Reads `aggregatesDir` (this function's own param, so a test fixture
+  // directory is honored the same way fetchOpeningData already honors it
+  // below), not the hardcoded top-level AGGREGATES_DIR.
+  const manifest = aggregatesAvailable(aggregatesDir) ? loadAggregates({ dir: aggregatesDir }).manifest : null;
+
   const entries = [];
   for (const openingConfig of OPENINGS) {
     const { bandResponses, mastersResponse, mistakeFollowUpResponse } = await fetchOpeningData(openingConfig, { fetchImpl, aggregatesDir });
@@ -366,7 +376,7 @@ async function buildContentPages({
       href: `${r.openingConfig.slug}.html`,
     }));
     const drillFile = drillPages[entry.openingConfig.slug] || null;
-    const html = renderOpeningPage({ model: entry.model, openingConfig: entry.openingConfig, nav, related, repertoireLinks, drillFile });
+    const html = renderOpeningPage({ model: entry.model, openingConfig: entry.openingConfig, nav, related, repertoireLinks, drillFile, manifest });
     const file = `${entry.openingConfig.slug}.html`;
     fs.writeFileSync(path.join(outDir, file), html, 'utf8');
     written.push({ file, html, slug: entry.openingConfig.slug, title: extractTitle(html), description: extractDescription(html) });
@@ -392,7 +402,7 @@ async function buildContentPages({
   const guidesHubEntry = buildGuidesHubPage(guideSummaries, { nav, outDir });
   written.push(guidesHubEntry);
 
-  const faqEntry = buildFaqPageFile(entries, { nav, outDir });
+  const faqEntry = buildFaqPageFile(entries, { nav, outDir, manifest });
   written.push(faqEntry);
 
   assertPageMetadata(written);
@@ -454,8 +464,18 @@ function buildGuidesHubPage(summaries, { nav, outDir }) {
  * otherwise as plain, honest prose -- e.g. "how is this site funded" states
  * the real current answer (voluntary support links, no ads yet) rather than
  * a generic placeholder.
+ *
+ * @param {object} [opts]
+ * @param {object|null} [opts.manifest] same branch buildContentPages already
+ *   computes for renderOpeningPage's pool label (see that call site's own
+ *   comment) -- passed through here so the "which games is this data from"
+ *   FAQ answer can never claim a pool this build didn't actually use. Was
+ *   previously hardcoded to "blitz and rapid" regardless of which path this
+ *   build took, and also silently dropped bullet from its excluded-pools
+ *   list -- the same bug class as the opening-page subtitle/footer this
+ *   file's own callers already fixed.
  */
-function buildFaqEntries(entries) {
+function buildFaqEntries(entries, { manifest = null } = {}) {
   const rankedBeginnerBand = rankOpeningsByScore(entries, '1400-1600');
   const topBeginner = rankedBeginnerBand[0] || null;
 
@@ -500,7 +520,9 @@ function buildFaqEntries(entries) {
     },
     {
       question: 'Are these stats from blitz or classical games?',
-      answerHtml: `<p>Blitz and rapid games from the Lichess database (the two fastest time controls with enough volume to give reliable numbers at every rating band this site tracks). Classical games are not included - there generally isn&rsquo;t enough volume at most rating bands to compute a trustworthy percentage from them.</p>`,
+      answerHtml: manifest
+        ? `<p>Blitz games from the Lichess database - the one pool every rating-band number on this site is computed from. Bullet, rapid and classical games are not included: keeping to a single pool is what makes the percentages comparable from one opening page to the next. See the <a href="methodology.html">methodology page &rarr;</a> for how that pool is built.</p>`
+        : `<p>Blitz and rapid games from the Lichess database (the two fastest time controls with enough volume to give reliable numbers at every rating band this site tracks). Classical and bullet games are not included - there generally isn&rsquo;t enough volume at most rating bands to compute a trustworthy percentage from them.</p>`,
     },
     {
       question: 'How often is the data updated?',
@@ -513,8 +535,8 @@ function buildFaqEntries(entries) {
   ];
 }
 
-function buildFaqPageFile(entries, { nav, outDir }) {
-  const faqs = buildFaqEntries(entries);
+function buildFaqPageFile(entries, { nav, outDir, manifest = null }) {
+  const faqs = buildFaqEntries(entries, { manifest });
   const html = renderFaqPage({ faqs, nav });
   fs.writeFileSync(path.join(outDir, 'chess-opening-faq.html'), html, 'utf8');
   return { file: 'chess-opening-faq.html', html, slug: 'faq', title: extractTitle(html), description: extractDescription(html) };

@@ -161,26 +161,52 @@ jobs:
       # `smoke_test` input says a smoke run "does NOT commit manifest.json
       # back to master, so the live site keeps its current data source",
       # meaning nothing else depends on a smoke tag's stability, so
-      # replacing it on rerun is safe and matches operator intent. A
-      # non-smoke (full-scale, becomes-the-live-data) tag collision is a
-      # materially different, higher-stakes situation -- likely means this
-      # month was already ingested for real -- so that case fails loudly
-      # with a clear explanation instead of silently overwriting live data.
+      # replacing it on rerun is safe and matches operator intent.
+      #
+      # ROOT-CAUSE NOTE (2026-08-18, human ruling rejecting decision
+      # msz0yp4b-762053 "delete the old release first"): a non-smoke tag
+      # collision used to hard-fail here and tell the operator to delete
+      # the existing release manually before re-running -- deliberately
+      # safe against silently overwriting live data, but backwards: the
+      # existing release is the site's live rollback, and deleting it
+      # BEFORE a verified-good replacement exists means the site can have
+      # zero working releases if anything goes wrong in between. Instead of
+      # failing, a non-smoke collision now walks forward to the next free
+      # versioned suffix for the same month (data-<month>, then
+      # data-<month>-2, data-<month>-3, ...) and publishes there,
+      # ALONGSIDE the existing release -- nothing is ever deleted by this
+      # step. deploy-pages.yml's AGGREGATE_DATA_TAG stays hand-pinned to
+      # the old tag until a human-merged PR bumps it to the new one (see
+      # that workflow's own comment on why "latest" is never used), so the
+      # live site is unaffected by a new tag simply existing. Once the new
+      # tag is verified good and the live site is confirmed serving it,
+      # deleting the now-genuinely-stale old release stays a human-executed
+      # action via a fresh decision brief -- no agent delete rights here.
       - name: Create release and upload aggregate asset
+        id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          TAG="${{ steps.package.outputs.tag }}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            if [ "${{ inputs.smoke_test }}" = "true" ]; then
+          BASE_TAG="${{ steps.package.outputs.tag }}"
+          TAG="$BASE_TAG"
+          if [ "${{ inputs.smoke_test }}" = "true" ]; then
+            if gh release view "$TAG" >/dev/null 2>&1; then
               echo "smoke-test release $TAG already exists (from a prior smoke run of this month) -- deleting it first; smoke releases are disposable by design (see this step's header comment)." | tee -a "$GITHUB_STEP_SUMMARY"
               gh release delete "$TAG" --yes --cleanup-tag
-            else
-              echo "::error::a non-smoke release $TAG already exists -- this almost always means this month was already ingested at full scale. Re-running would silently attempt to overwrite a release the live site or other code may already reference. Delete it manually first only if you really mean to redo this month, then re-run."
-              exit 1
+            fi
+          else
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              echo "non-smoke release $BASE_TAG already exists -- this month was already ingested at full scale. Publishing this run alongside it under the next free versioned tag rather than deleting anything (see this step's ROOT-CAUSE NOTE)." | tee -a "$GITHUB_STEP_SUMMARY"
+              SUFFIX=2
+              while gh release view "${BASE_TAG}-${SUFFIX}" >/dev/null 2>&1; do
+                SUFFIX=$(( SUFFIX + 1 ))
+              done
+              TAG="${BASE_TAG}-${SUFFIX}"
+              echo "selected next free tag: $TAG" | tee -a "$GITHUB_STEP_SUMMARY"
             fi
           fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           gh release create "$TAG" \
             "${{ steps.package.outputs.asset }}" \
             --title "Aggregate data ${{ inputs.month }}${{ inputs.smoke_test == true && ' (smoke test)' || '' }}" \
@@ -215,6 +241,23 @@ jobs:
           # ours/theirs, see `git rebase --help`), then retry the push.
           # Bounded retries with backoff so a genuinely stuck remote fails
           # the job loudly instead of hanging.
+          #
+          # ROOT-CAUSE NOTE (2026-08-18): a bare `git push` targets
+          # whatever branch is currently checked out, not literally
+          # master. Harmless on a normal production dispatch
+          # (checkout IS master there), but this workflow is also
+          # legitimately dispatched via `workflow_dispatch --ref
+          # <feature-branch>` to test a workflow change before merging it
+          # (a documented, sanctioned practice) -- and on that path a bare
+          # `git push` silently commits manifest.json onto the feature
+          # branch instead of master, permanently diverging it after even
+          # one rebase (every further push to that branch then fails to
+          # fast-forward, not because master moved, but because the
+          # feature branch can never fast-forward back). Pin the push
+          # target explicitly to this repo's actual default branch
+          # (`origin/HEAD -> origin/master`, confirmed via `git remote show
+          # origin`) so the commit always lands on master regardless of
+          # which ref this run was dispatched against.
           for attempt in 1 2 3 4 5; do
             echo "commit-back attempt ${attempt}/5: fetching origin/master and rebasing"
             git fetch origin master
@@ -224,8 +267,8 @@ jobs:
               sleep $(( attempt * 5 ))
               continue
             fi
-            if git push; then
-              echo "pushed manifest.json on attempt ${attempt}"
+            if git push origin HEAD:refs/heads/master; then
+              echo "pushed manifest.json to master on attempt ${attempt}"
               exit 0
             fi
             echo "push still rejected (attempt ${attempt}/5) -- master moved again, retrying"
