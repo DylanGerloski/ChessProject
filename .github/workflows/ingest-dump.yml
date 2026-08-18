@@ -242,9 +242,9 @@ jobs:
           # Bounded retries with backoff so a genuinely stuck remote fails
           # the job loudly instead of hanging.
           #
-          # ROOT-CAUSE NOTE (2026-08-18, task-mszamtwk-6e3faa): a bare
-          # `git push` targets whatever branch is currently checked out,
-          # not literally master. Harmless on a normal production dispatch
+          # ROOT-CAUSE NOTE (2026-08-18): a bare `git push` targets
+          # whatever branch is currently checked out, not literally
+          # master. Harmless on a normal production dispatch
           # (checkout IS master there), but this workflow is also
           # legitimately dispatched via `workflow_dispatch --ref
           # <feature-branch>` to test a workflow change before merging it
