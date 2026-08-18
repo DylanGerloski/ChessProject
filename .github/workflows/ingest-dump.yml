@@ -241,6 +241,23 @@ jobs:
           # ours/theirs, see `git rebase --help`), then retry the push.
           # Bounded retries with backoff so a genuinely stuck remote fails
           # the job loudly instead of hanging.
+          #
+          # ROOT-CAUSE NOTE (2026-08-18, task-mszamtwk-6e3faa): a bare
+          # `git push` targets whatever branch is currently checked out,
+          # not literally master. Harmless on a normal production dispatch
+          # (checkout IS master there), but this workflow is also
+          # legitimately dispatched via `workflow_dispatch --ref
+          # <feature-branch>` to test a workflow change before merging it
+          # (a documented, sanctioned practice) -- and on that path a bare
+          # `git push` silently commits manifest.json onto the feature
+          # branch instead of master, permanently diverging it after even
+          # one rebase (every further push to that branch then fails to
+          # fast-forward, not because master moved, but because the
+          # feature branch can never fast-forward back). Pin the push
+          # target explicitly to this repo's actual default branch
+          # (`origin/HEAD -> origin/master`, confirmed via `git remote show
+          # origin`) so the commit always lands on master regardless of
+          # which ref this run was dispatched against.
           for attempt in 1 2 3 4 5; do
             echo "commit-back attempt ${attempt}/5: fetching origin/master and rebasing"
             git fetch origin master
@@ -250,8 +267,8 @@ jobs:
               sleep $(( attempt * 5 ))
               continue
             fi
-            if git push; then
-              echo "pushed manifest.json on attempt ${attempt}"
+            if git push origin HEAD:refs/heads/master; then
+              echo "pushed manifest.json to master on attempt ${attempt}"
               exit 0
             fi
             echo "push still rejected (attempt ${attempt}/5) -- master moved again, retrying"
