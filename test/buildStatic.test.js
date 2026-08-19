@@ -721,6 +721,16 @@ test('indexPage (G1, R7): the rating-band picker is a single role=group pill con
   assert.match(html, /href="italian-game\.html"/);
 });
 
+test('indexPage links to repertoire-packs.html from its own body content (not just the shared top nav), as a demoted outline card that does not add a second accent-filled action', () => {
+  const html = indexPage([]);
+  // A real content-level CTA to the packs page, not just the header nav link.
+  assert.match(html, /<h2>Want it finished and printable\?<\/h2>/);
+  assert.match(html, /<div class="card card--outline card--nav"><h3><a href="repertoire-packs\.html">Repertoire packs, \$9 each<\/a><\/h3>/);
+  // Still only one accent-filled action on the page: the band picker.
+  assert.doesNotMatch(html, /class="[^"]*\bcard--primary\b[^"]*"/);
+  assert.doesNotMatch(html, /class="pack-cta"/);
+});
+
 test('indexPage (G2): an opening card with real band data shows the WDL bar + score for 1600-1800 inline, never an approximated number', () => {
   const contentEntries = [{
     openingConfig: { slug: 'italian-game' },
