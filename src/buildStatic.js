@@ -67,7 +67,7 @@ const { getApiToken } = require('./fetchOpeningExplorer');
 const { buildContentPages } = require('./buildContent');
 const { buildEcoPages } = require('./buildEcoPages');
 const { buildPackPages } = require('./buildPackPages');
-const { packsIndexFilename, packOgImageFilename } = require('./renderPackPages');
+const { packsIndexFilename, packOgImageFilename, PRICE_USD } = require('./renderPackPages');
 const { buildEcoDataset } = require('./ecoData');
 const { buildFamilyIndex, t1Families } = require('./ecoFamilies');
 const { ECO_INDEX_FILE } = require('./renderEcoPages');
@@ -476,6 +476,27 @@ function drillCtaSection(drillFile) {
     </div>`;
 }
 
+// Repertoire pack CTA card for the home page (2026-08-19 revenue-path fix:
+// the site-wide top nav already carries a "Repertoire packs" link
+// (render.js's NAV_ORDER), but that is one plain text link among nine,
+// indistinguishable from "ECO index" or "Guides" -- nothing in the
+// homepage's own body content told a visitor a $9 finished pack exists at
+// all. Reuses the exact card--outline/card--nav treatment drillCtaSection
+// above already established (own outline card, own hairline border, no
+// fill), so this stays demoted below the band picker's single
+// accent-filled action rather than competing with it -- see
+// design-standards.md's "one accent-filled action per view" and this
+// file's own comment above bandPickerHtml() naming the picker as that one
+// action. Placed directly after the band picker (indexPage()) since a
+// finished pack is the natural next step once a visitor has seen their
+// band's own repertoire.
+function packsCtaSection() {
+  return `<h2>Want it finished and printable?</h2>
+    <div class="card-grid card-grid--single">
+      <div class="card card--outline card--nav"><h3><a href="${escapeHtml(packsIndexFilename())}">Repertoire packs, $${PRICE_USD} each</a></h3><p>A pruned, finished repertoire for your band: a full PGN, a drill-ready file, and a printable study guide. The rule that picks every move is printed on the page - the free tools above stay free either way.</p></div>
+    </div>`;
+}
+
 // The four rating-band pickers as one role=group control with 44px pill
 // links (render.js's .band-picker/.band-pill). Link targets/labels
 // unchanged in spirit from the pre-WS-3.2 four floating .card elements
@@ -731,6 +752,8 @@ ${renderDocumentHead({
     <p class="repertoire-intro">Openings behave differently at every rating. Pick your band - everything below is
        filtered to real games at that level.</p>
     ${bandPickerHtml()}
+
+    ${packsCtaSection()}
 
     ${drillCtaSection(drillFile)}
 
