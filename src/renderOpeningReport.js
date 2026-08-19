@@ -242,7 +242,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd, extraCss: OPENING_
         That's shown honestly, not hidden.</p>
     </section>
   </main>
-  ${renderFooter(`Data source: <a href="https://lichess.org/api">lichess.org/api</a>, called directly from your browser. ${escapeHtml(SITE_NAME)} never sees your games. ${pieceAttributionHtml()}`, legalLinks)}
+  ${renderFooter(`Data source: <a href="https://lichess.org/api" rel="noopener noreferrer">lichess.org/api</a>, called directly from your browser. ${escapeHtml(SITE_NAME)} never sees your games. ${pieceAttributionHtml()}`, legalLinks)}
 </div>
 <script src="opening-report.js" defer></script>
 </body>

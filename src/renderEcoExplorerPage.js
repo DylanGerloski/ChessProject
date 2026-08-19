@@ -122,7 +122,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd })}
       title: 'ECO opening explorer',
       subtitle: `Search all ${stats.totalLines.toLocaleString()} named lines across ${stats.totalFamilies} families and every ECO code, A&ndash;E. Play any
         line on the board, or paste a FEN or PGN below to identify a position. Source: the
-        CC0-licensed <a href="https://github.com/lichess-org/chess-openings">lichess.org opening database</a>.`,
+        CC0-licensed <a href="https://github.com/lichess-org/chess-openings" rel="noopener noreferrer">lichess.org opening database</a>.`,
     })}
 
     <noscript>
@@ -181,7 +181,7 @@ ${renderDocumentHead({ title, description, canonical, jsonLd })}
     ${jsonDataScript('explorer-t0-map', t0CrossLinkMap)}
     ${jsonDataScript('explorer-config', { reverseLookupUrl })}
   </main>
-  ${renderFooter(`Aggregate position data from <a href="https://github.com/hayatbiralem/eco.json">hayatbiralem/eco.json</a> (MIT) and the CC0-licensed <a href="https://github.com/lichess-org/chess-openings">lichess.org opening database</a>. ${pieceAttributionHtml()}`, ECO_EXPLORER_LEGAL_LINKS)}
+  ${renderFooter(`Aggregate position data from <a href="https://github.com/hayatbiralem/eco.json" rel="noopener noreferrer">hayatbiralem/eco.json</a> (MIT) and the CC0-licensed <a href="https://github.com/lichess-org/chess-openings" rel="noopener noreferrer">lichess.org opening database</a>. ${pieceAttributionHtml()}`, ECO_EXPLORER_LEGAL_LINKS)}
   <script src="eco-explorer.js" defer></script>
 </div>
 </body>

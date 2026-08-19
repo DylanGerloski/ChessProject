@@ -94,7 +94,7 @@ ${renderDocumentHead({ title, description, canonical })}
       </div>
     </div>
   </main>
-  ${renderFooter(`Data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a> (explorer.lichess.ovh, keyless, no account required). ${pieceAttributionHtml()}`, legalLinks)}
+  ${renderFooter(`Data source: <a href="https://lichess.org/api#tag/Opening-Explorer" rel="noopener noreferrer">Lichess Opening Explorer API</a> (explorer.lichess.ovh, keyless, no account required). ${pieceAttributionHtml()}`, legalLinks)}
   <script type="application/json" id="repertoire-data">${JSON.stringify(payload)}</script>
   <script src="repertoire.js" defer></script>
 </div>

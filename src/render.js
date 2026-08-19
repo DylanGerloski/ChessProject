@@ -2685,7 +2685,7 @@ ${renderDocumentHead(`${username} | Repertoire Builder`)}
     <h2>Recent games</h2>
     ${renderGamesTable(gameSummary)}
   </main>
-  ${renderFooter('Data source: <a href="https://lichess.org/api">lichess.org/api</a>.')}
+  ${renderFooter('Data source: <a href="https://lichess.org/api" rel="noopener noreferrer">lichess.org/api</a>.')}
 </div>
 </body>
 </html>
@@ -2807,7 +2807,7 @@ ${renderDocumentHead({ title, description, canonical })}
        only their single most common response, to keep the tree readable.</p>
     ${renderRepertoireTree(tree)}
   </main>
-  ${renderFooter('Data source: <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer API</a> (explorer.lichess.ovh, keyless, no account required).', legalLinks)}
+  ${renderFooter('Data source: <a href="https://lichess.org/api#tag/Opening-Explorer" rel="noopener noreferrer">Lichess Opening Explorer API</a> (explorer.lichess.ovh, keyless, no account required).', legalLinks)}
 </div>
 </body>
 </html>

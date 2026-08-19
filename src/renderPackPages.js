@@ -547,9 +547,9 @@ ${renderDocumentHead({ title: pageTitle(`${pack.title} repertoire pack`), descri
     ${packFaqHtml(pack)}
     ${relatedLink}
 
-    <p class="source-list">Data: <a href="https://database.lichess.org">Lichess</a>, released under CC0. This pack is a derived work; it is not affiliated with or endorsed by Lichess. ${pieceAttributionHtml()}</p>
+    <p class="source-list">Data: <a href="https://database.lichess.org" rel="noopener noreferrer">Lichess</a>, released under CC0. This pack is a derived work; it is not affiliated with or endorsed by Lichess. ${pieceAttributionHtml()}</p>
   </main>
-  ${renderFooter(`Repertoire pack data source: <a href="https://database.lichess.org">Lichess</a> (CC0), via the Opening Explorer aggregate cache.`, legalLinks)}
+  ${renderFooter(`Repertoire pack data source: <a href="https://database.lichess.org" rel="noopener noreferrer">Lichess</a> (CC0), via the Opening Explorer aggregate cache.`, legalLinks)}
 </body>
 </html>
 `;
@@ -616,7 +616,7 @@ ${renderDocumentHead({ title: pageTitle('Repertoire packs'), description, canoni
       ${NON_INFLUENCE_HTML}
     </section>
   </main>
-  ${renderFooter('Repertoire pack data source: <a href="https://database.lichess.org">Lichess</a> (CC0), via the Opening Explorer aggregate cache.', legalLinks)}
+  ${renderFooter('Repertoire pack data source: <a href="https://database.lichess.org" rel="noopener noreferrer">Lichess</a> (CC0), via the Opening Explorer aggregate cache.', legalLinks)}
 </body>
 </html>
 `;

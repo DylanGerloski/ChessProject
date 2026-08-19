@@ -707,8 +707,8 @@ function indexPage(contentEntries = [], drillFile = null, heroDemo = null) {
   // convention every other board-bearing page on this site already
   // follows (see e.g. src/renderRepertoireExplorer.js's own footer line).
   const footerCredit = homeDemoAsideHtml
-    ? `Data source: <a href="https://lichess.org/api">lichess.org/api</a>. ${pieceAttributionHtml()}`
-    : 'Data source: <a href="https://lichess.org/api">lichess.org/api</a>.';
+    ? `Data source: <a href="https://lichess.org/api" rel="noopener noreferrer">lichess.org/api</a>. ${pieceAttributionHtml()}`
+    : 'Data source: <a href="https://lichess.org/api" rel="noopener noreferrer">lichess.org/api</a>.';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -769,7 +769,7 @@ ${renderDocumentHead({ title, description, canonical })}
     </form>
     <div id="result"></div>
   </main>
-  ${renderFooter('Data source: <a href="https://lichess.org/api">lichess.org/api</a>, called directly from this page in your browser.', LEGAL_LINKS)}
+  ${renderFooter('Data source: <a href="https://lichess.org/api" rel="noopener noreferrer">lichess.org/api</a>, called directly from this page in your browser.', LEGAL_LINKS)}
   <script src="player-lookup.js"></script>
 </div>
 </body>

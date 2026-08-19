@@ -146,7 +146,7 @@ function renderBoardDiagram(board, { flip = false, label = '' } = {}) {
  * a standalone page.
  */
 function pieceAttributionHtml() {
-  return 'Board pieces: the Cburnett chess set from <a href="https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces/Standard">Wikimedia Commons</a>, licensed <a href="https://creativecommons.org/licenses/by-sa/3.0/">CC BY-SA 3.0</a>.';
+  return 'Board pieces: the Cburnett chess set from <a href="https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces/Standard" rel="noopener noreferrer">Wikimedia Commons</a>, licensed <a href="https://creativecommons.org/licenses/by-sa/3.0/" rel="noopener noreferrer">CC BY-SA 3.0</a>.';
 }
 
 module.exports = {

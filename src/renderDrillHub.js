@@ -170,7 +170,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'website', jsonLd,
 
     <script src="drill-hub.js" defer></script>
   </main>
-  ${renderFooter('Band data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>. Your deck and progress are saved only in your own browser (local storage) - see the privacy policy.', legalLinks)}
+  ${renderFooter('Band data from the <a href="https://lichess.org/api#tag/Opening-Explorer" rel="noopener noreferrer">Lichess Opening Explorer</a>. Your deck and progress are saved only in your own browser (local storage) - see the privacy policy.', legalLinks)}
 </div>
 </body>
 </html>
@@ -244,7 +244,7 @@ ${renderDocumentHead({ title, description, canonical, ogType: 'website', jsonLd 
       <p><a href="drill.html">Back to the opening drill &rarr;</a></p>
     </section>
   </main>
-  ${renderFooter('Band data from the <a href="https://lichess.org/api#tag/Opening-Explorer">Lichess Opening Explorer</a>. Your level and progress in the drill are saved only in your own browser (local storage) - see the privacy policy.', legalLinks)}
+  ${renderFooter('Band data from the <a href="https://lichess.org/api#tag/Opening-Explorer" rel="noopener noreferrer">Lichess Opening Explorer</a>. Your level and progress in the drill are saved only in your own browser (local storage) - see the privacy policy.', legalLinks)}
 </div>
 </body>
 </html>

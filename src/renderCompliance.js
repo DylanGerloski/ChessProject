@@ -159,7 +159,7 @@ ${renderDocumentHead({ title, description, canonical })}
     <h2>Questions</h2>
     <p>See the <a href="${escapeHtml(legalLinks.contact)}">Contact page</a>.</p>
   </main>
-  ${renderFooter('Data source for every page on this site: <a href="https://lichess.org/api">lichess.org/api</a>.', legalLinks)}
+  ${renderFooter('Data source for every page on this site: <a href="https://lichess.org/api" rel="noopener noreferrer">lichess.org/api</a>.', legalLinks)}
 </div>
 </body>
 </html>
