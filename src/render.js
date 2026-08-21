@@ -2151,7 +2151,7 @@ function renderDocumentHead(arg) {
   <link rel="preload" href="/fonts/fraunces-variable.woff2" as="font" type="font/woff2" crossorigin>
   ${THEME_PREPAINT_SCRIPT}
   <style>${SITE_CSS}</style>${extraStyleBlock}${jsonLdBlock}
-  <script data-goatcounter="https://dylangerrrr.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+  <script data-goatcounter="https://dylangerrrr.goatcounter.com/count" data-goatcounter-settings='{"allow_query":["utm_source","utm_medium","utm_campaign","utm_content","utm_term","ref"]}' async src="https://gc.zgo.at/count.js"></script>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9767914878112531" crossorigin="anonymous"></script>
 </head>`;
 }
